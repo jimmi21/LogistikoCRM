@@ -128,3 +128,38 @@ dmypy.json
 .vscode/
 pytest.ini
 .push.settings.jsonc
+.vs/
+
+
+# Backup files
+*.backup
+*toumpano*
+*toympano*
+
+# Database backups
+crm_db
+crm_db.backup
+backups/
+
+# Local files
+*.bat
+redis.msi
+NewFile
+.py
+
+# Test files
+test_*.py
+
+# Documentation exports
+admin_*.txt
+models_*.txt
+views_*.txt
+tasks_*.txt
+*_services.txt
+*_client.txt
+settings_full.txt
+db_schema.txt
+project_structure.txt
+export_import_accounting.txt
+urls_main.txt
+tasmota_accounting.txt

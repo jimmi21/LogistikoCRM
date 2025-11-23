@@ -1,0 +1,187 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+    {{ block.super }}
+    {{ media }}
+{% endblock %}
+
+{% block extrastyle %}
+    {{ block.super }}
+<style>
+    .bulk-assign-container {
+        max-width: 900px;
+        margin: 30px auto;
+    }
+    
+    .instructions-box {
+        background: #417690;
+        color: white;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .instructions-box h3 {
+        color: white;
+        margin-top: 0;
+    }
+    
+    .instructions-box ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    
+    .instructions-box li {
+        margin-bottom: 8px;
+    }
+    
+    .form-container {
+        background: #f8f9fa;
+        padding: 30px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+    }
+    
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .form-section:last-of-type {
+        border-bottom: none;
+    }
+    
+    .form-section h3 {
+        color: #333;
+        margin-bottom: 15px;
+    }
+    
+    .selector-available, .selector-chosen {
+        width: 100% !important;
+    }
+    
+    .checkbox-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #417690;
+        padding: 15px;
+        background: #e9ecef;
+        border-radius: 4px;
+    }
+    
+    .checkbox-list label {
+        display: block;
+        padding: 8px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        color: #333;
+    }
+    
+    .checkbox-list label:hover {
+        background: #d3d6d9;
+        border-radius: 3px;
+    }
+    
+    .checkbox-list input[type="checkbox"] {
+        margin-right: 10px;
+    }
+    
+    .button-group {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 2px solid #dee2e6;
+    }
+    
+    .btn-primary {
+        background: #417690;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+    
+    .btn-primary:hover {
+        background: #356178;
+    }
+    
+    .btn-secondary {
+        margin-left: 10px;
+        padding: 12px 30px;
+        text-decoration: none;
+        color: #6c757d;
+        background: white;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        display: inline-block;
+        font-size: 16px;
+        transition: all 0.2s;
+    }
+    
+    .btn-secondary:hover {
+        background: #e9ecef;
+        text-decoration: none;
+        color: #495057;
+    }
+    
+    h1 {
+        color: #333;
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bulk-assign-container">
+    <h1>{{ title }}</h1>
+    
+    <div class="instructions-box">
+        <h3>ℹ️ Οδηγίες:</h3>
+        <ul>
+            <li>Επιλέξτε τους πελάτες που θέλετε να αναθέσετε υποχρεώσεις</li>
+            <li>Επιλέξτε Profiles (π.χ. Μισθοδοσία) ή/και μεμονωμένες υποχρεώσεις</li>
+            <li>Οι υποχρεώσεις θα προστεθούν σε όλους τους επιλεγμένους πελάτες</li>
+            <li>Αν ένας πελάτης έχει ήδη υποχρεώσεις, θα προστεθούν οι νέες</li>
+        </ul>
+    </div>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-container">
+            <div class="form-section">
+                <h3>1. Επιλογή Πελατών</h3>
+                {{ form.clients }}
+            </div>
+            
+            <div class="form-section">
+                <h3>2. Profiles Υποχρεώσεων</h3>
+                <div class="checkbox-list">
+                    {{ form.obligation_profiles }}
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>3. Μεμονωμένες Υποχρεώσεις</h3>
+                <div class="checkbox-list">
+                    {{ form.obligation_types }}
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="btn-primary">
+                    ✨ Ανάθεση Υποχρεώσεων
+                </button>
+                <a href=".." class="btn-secondary">
+                    Ακύρωση
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

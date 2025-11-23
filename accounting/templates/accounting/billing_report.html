@@ -1,0 +1,195 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<style>
+    .billing-container {
+        max-width: 1400px;
+        margin: 20px auto;
+        padding: 0 20px;
+    }
+    
+    .filters {
+
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .filters form {
+        display: flex;
+        gap: 15px;
+        align-items: end;
+    }
+    
+    .filters label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #666;
+    }
+    
+    .filters input, .filters select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        min-width: 120px;
+    }
+    
+    .filters button {
+        background: #417690;
+        color: white;
+        padding: 8px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .stats-table {
+        width: 100%;
+        background: white;
+        border-collapse: collapse;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .stats-table thead {
+        background: #417690;
+        color: white;
+    }
+    
+    .stats-table th,
+    .stats-table td {
+        padding: 15px;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .stats-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .total-row {
+        background: #f8f9fa;
+        font-weight: bold;
+        border-top: 3px solid #417690;
+    }
+    
+    .cost-cell {
+        font-size: 18px;
+        font-weight: bold;
+        color: #28a745;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="billing-container">
+    <h1>💰 Κοστολόγηση Πελατών</h1>
+    
+    <!-- Filters -->
+    <div class="filters">
+        <form method="get">
+            <div>
+                <label>Έτος:</label>
+                <input type="number" name="year" value="{{ year }}" min="2020" max="2030">
+            </div>
+            <div>
+                <label>Μήνας:</label>
+                <select name="month">
+                    {% for m in "123456789" %}
+                    <option value="{{ forloop.counter }}" {% if forloop.counter == month|add:0 %}selected{% endif %}>
+                        {{ forloop.counter }}
+                    </option>
+                    {% endfor %}
+                    <option value="10" {% if month|add:0 == 10 %}selected{% endif %}>10</option>
+                    <option value="11" {% if month|add:0 == 11 %}selected{% endif %}>11</option>
+                    <option value="12" {% if month|add:0 == 12 %}selected{% endif %}>12</option>
+                </select>
+            </div>
+            <div>
+                <label>Πελάτης:</label>
+                <select name="client">
+                    <option value="">Όλοι</option>
+                    {% for client in all_clients %}
+                    <option value="{{ client.id }}" {% if client.id|stringformat:"s" == selected_client %}selected{% endif %}>
+                        {{ client.eponimia }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit">🔍 Αναζήτηση</button>
+            
+            {% if selected_client %}
+            <a href="/accounting/export/?type=client&year={{ year }}&month={{ month }}&client={{ selected_client }}" style="
+                display: inline-block;
+                background: #28a745;
+                color: white;
+                padding: 8px 20px;
+                text-decoration: none;
+                border-radius: 4px;
+                border: none;
+                cursor: pointer;
+            ">📥 Export Excel</a>
+            {% else %}
+            <a href="/accounting/export/?type=billing&year={{ year }}&month={{ month }}" style="
+                display: inline-block;
+                background: #28a745;
+                color: white;
+                padding: 8px 20px;
+                text-decoration: none;
+                border-radius: 4px;
+                border: none;
+                cursor: pointer;
+            ">📥 Export Όλων</a>
+            {% endif %}
+        </form>
+    </div>
+    
+    <!-- Stats Table -->
+    <table class="stats-table">
+        <thead>
+            <tr>
+                <th>Πελάτης</th>
+                <th>ΑΦΜ</th>
+                <th>Εργασίες</th>
+                <th>Ώρες</th>
+                <th>Μέσος Χρόνος</th>
+                <th>Συνολικό Κόστος</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in client_stats %}
+            <tr>
+                <td><strong>{{ stat.client__eponimia }}</strong></td>
+                <td>{{ stat.client__afm }}</td>
+                <td>{{ stat.total_tasks }}</td>
+                <td>{{ stat.total_hours|default:"-" }}h</td>
+                <td>{{ stat.avg_time|floatformat:1|default:"-" }}h</td>
+                <td class="cost-cell">€{{ stat.total_cost|floatformat:2|default:"0.00" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
+                    Δεν βρέθηκαν δεδομένα για τον επιλεγμένο μήνα
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div style="margin-top: 30px;">
+        <a href="/accounting/dashboard/" style="
+            display: inline-block;
+            background: #417690;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+        ">← Επιστροφή στο Dashboard</a>
+    </div>
+</div>
+{% endblock %}

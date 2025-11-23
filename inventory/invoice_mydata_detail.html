@@ -1,0 +1,262 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .mydata-container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+    .mydata-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .mydata-header {
+        border-bottom: 2px solid #417690;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .mydata-header h2 {
+        margin: 0;
+        color: #417690;
+    }
+    .mydata-section {
+        margin-bottom: 20px;
+    }
+    .mydata-section h3 {
+        color: #666;
+        font-size: 16px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 5px;
+    }
+    .mydata-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+    .mydata-field {
+        padding: 10px;
+        background: #f9f9f9;
+        border-radius: 4px;
+    }
+    .mydata-field label {
+        display: block;
+        font-weight: bold;
+        color: #666;
+        font-size: 12px;
+        margin-bottom: 5px;
+    }
+    .mydata-field value {
+        display: block;
+        color: #333;
+        font-size: 14px;
+    }
+    .mydata-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    .mydata-table th {
+        background: #417690;
+        color: white;
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+    .mydata-table td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        font-size: 13px;
+    }
+    .mydata-table tr:hover {
+        background: #f5f5f5;
+    }
+    .classification-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        background: #e8f4f8;
+        border-radius: 3px;
+        font-size: 11px;
+        margin: 2px;
+        color: #417690;
+    }
+    .summary-box {
+        background: #f0f7fa;
+        border-left: 4px solid #417690;
+        padding: 15px;
+        margin-top: 20px;
+    }
+    .summary-box table {
+        width: 100%;
+        max-width: 400px;
+        margin-left: auto;
+    }
+    .summary-box td {
+        padding: 5px 10px;
+    }
+    .summary-box .total {
+        font-weight: bold;
+        font-size: 16px;
+        border-top: 2px solid #417690;
+        padding-top: 10px !important;
+    }
+    .xml-viewer {
+        background: #2d2d2d;
+        color: #f8f8f2;
+        padding: 15px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        max-height: 500px;
+    }
+    .btn-group {
+        margin: 20px 0;
+    }
+    .btn-back {
+        background: #417690;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 4px;
+        display: inline-block;
+    }
+    .btn-back:hover {
+        background: #356578;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mydata-container">
+    <div class="btn-group">
+        <a href="{% url 'admin:inventory_invoice_changelist' %}" class="btn-back">← Επιστροφή στα Τιμολόγια</a>
+    </div>
+
+    <div class="mydata-card">
+        <div class="mydata-header">
+            <h2>📄 {{ invoice.series }}/{{ invoice.number }}</h2>
+            <p style="color: #666; margin: 5px 0 0 0;">myDATA Details - MARK: {{ invoice.mydata_mark }}</p>
+        </div>
+
+        {% if invoice_data %}
+        <div class="mydata-section">
+            <h3>📋 Στοιχεία Παραστατικού</h3>
+            <div class="mydata-grid">
+                <div class="mydata-field">
+                    <label>Σειρά / Αριθμός</label>
+                    <value>{{ invoice_data.series }} / {{ invoice_data.aa }}</value>
+                </div>
+                <div class="mydata-field">
+                    <label>Ημερομηνία Έκδοσης</label>
+                    <value>{{ invoice_data.issue_date }}</value>
+                </div>
+                <div class="mydata-field">
+                    <label>Τύπος Παραστατικού</label>
+                    <value>{{ invoice_data.invoice_type }}</value>
+                </div>
+            </div>
+        </div>
+
+        <div class="mydata-section">
+            <h3>👥 Εκδότης & Αντισυμβαλλόμενος</h3>
+            <div class="mydata-grid">
+                <div class="mydata-field">
+                    <label>ΑΦΜ Εκδότη (Προμηθευτής)</label>
+                    <value>{{ invoice_data.issuer_vat }}</value>
+                </div>
+                <div class="mydata-field">
+                    <label>ΑΦΜ Αντισυμβαλλόμενου (Εσύ)</label>
+                    <value>{{ invoice_data.counterpart_vat }}</value>
+                </div>
+            </div>
+        </div>
+
+        {% if invoice_data.details %}
+        <div class="mydata-section">
+            <h3>📦 Γραμμές Παραστατικού</h3>
+            <table class="mydata-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Καθαρή Αξία</th>
+                        <th>Κατ. ΦΠΑ</th>
+                        <th>ΦΠΑ</th>
+                        <th>Χαρακτηρισμοί</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for detail in invoice_data.details %}
+                    <tr>
+                        <td>{{ detail.line_number }}</td>
+                        <td>{{ detail.net_value }}€</td>
+                        <td>{{ detail.vat_category }}</td>
+                        <td>{{ detail.vat_amount }}€</td>
+                        <td>
+                            {% for cls in detail.classifications %}
+                            <span class="classification-badge">
+                                {{ cls.type }}: {{ cls.amount }}€
+                            </span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if invoice_data.summary %}
+        <div class="summary-box">
+            <h3 style="margin-top: 0;">💰 Συνοπτικά Στοιχεία</h3>
+            <table>
+                <tr>
+                    <td>Καθαρή Αξία:</td>
+                    <td style="text-align: right;"><strong>{{ invoice_data.summary.total_net }}€</strong></td>
+                </tr>
+                <tr>
+                    <td>ΦΠΑ:</td>
+                    <td style="text-align: right;"><strong>{{ invoice_data.summary.total_vat }}€</strong></td>
+                </tr>
+                <tr class="total">
+                    <td>Σύνολο:</td>
+                    <td style="text-align: right;">{{ invoice_data.summary.total_gross }}€</td>
+                </tr>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if xml_content %}
+        <div class="mydata-section">
+            <h3>🔍 Raw XML (για developers)</h3>
+            <details>
+                <summary style="cursor: pointer; color: #417690;">Κλικ για προβολή XML</summary>
+                <div class="xml-viewer">{{ xml_content }}</div>
+            </details>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="mydata-section">
+            <p style="color: #999; text-align: center; padding: 40px;">
+                ⚠️ Δεν βρέθηκαν δεδομένα από το myDATA για αυτό το παραστατικό.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="btn-group">
+        <a href="{% url 'admin:inventory_invoice_change' invoice.pk %}" class="btn-back">✏️ Επεξεργασία Τιμολογίου</a>
+    </div>
+</div>
+{% endblock %}

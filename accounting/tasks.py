@@ -1,0 +1,495 @@
+﻿# accounting/tasks.py
+"""
+VoIP & Ticket Management Tasks
+Background tasks for auto-ticket creation, email reminders, and summaries
+"""
+
+from celery import shared_task
+from django.utils import timezone
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.contrib.auth.models import User
+from django.conf import settings
+from datetime import timedelta
+from .models import VoIPCall, Ticket, VoIPCallLog, MonthlyObligation, EmailTemplate, ScheduledEmail
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================
+# TASK 1: SMART TICKET FOR MISSED CALL
+# ============================================
+
+@shared_task(bind=True, max_retries=3)
+def create_or_update_ticket_for_missed_call(self, call_id):
+    """
+    SMART TICKET CREATION:
+    - Αν υπάρχει ανοιχτό ticket από ίδιο αριθμό → UPDATE
+    - Αν δεν υπάρχει → CREATE NEW
+    - ΔΕΝ στέλνει email σε κάθε κλήση
+    """
+    try:
+        call = VoIPCall.objects.get(id=call_id)
+        
+        if call.status != 'missed':
+            logger.info(f"Call #{call_id} is not missed - skipping")
+            return None
+        
+        # ========== CHECK FOR EXISTING OPEN TICKET ==========
+        time_threshold = timezone.now() - timedelta(hours=24)
+        
+        existing_ticket = Ticket.objects.filter(
+            call__phone_number=call.phone_number,
+            status__in=['open', 'assigned', 'in_progress'],
+            created_at__gte=time_threshold
+        ).order_by('-created_at').first()
+        
+        if existing_ticket:
+            # ========== UPDATE EXISTING TICKET ==========
+            logger.info(f"Found existing ticket #{existing_ticket.id} for {call.phone_number}")
+            
+            missed_count = VoIPCall.objects.filter(
+                phone_number=call.phone_number,
+                status='missed',
+                started_at__gte=time_threshold
+            ).count()
+            
+            existing_ticket.title = f"🔴 MISSED CALLS ({missed_count}x) - {call.phone_number}"
+            
+            timestamp = call.started_at.strftime('%d/%m %H:%M')
+            new_note = f"[{timestamp}] Νέα αναπάντητη κλήση (Σύνολο: {missed_count})"
+            
+            if existing_ticket.notes:
+                existing_ticket.notes += f"\n{new_note}"
+            else:
+                existing_ticket.notes = new_note
+            
+            if missed_count >= 3 and existing_ticket.priority != 'urgent':
+                existing_ticket.priority = 'urgent'
+                existing_ticket.notes += "\n⚠️ Αυξήθηκε η προτεραιότητα λόγω πολλαπλών κλήσεων"
+            
+            existing_ticket.save()
+            
+            VoIPCallLog.objects.create(
+                call=call,
+                action='ticket_updated',
+                description=f"Updated ticket #{existing_ticket.id} (call #{missed_count})"
+            )
+            
+            call.ticket_created = True
+            call.ticket_id = existing_ticket.id
+            call.save()
+            
+            return existing_ticket.id
+            
+        else:
+            # ========== CREATE NEW TICKET ==========
+            logger.info(f"Creating new ticket for {call.phone_number}")
+            
+            ticket = Ticket.objects.create(
+                call=call,
+                client=call.client,
+                title=f"🔴 MISSED CALL - {call.phone_number}",
+                description=f"Αναπάντητη κλήση από {call.phone_number}\nΏρα: {call.started_at.strftime('%d/%m/%Y %H:%M')}",
+                priority='high',
+                status='open',
+                assigned_to=None,
+            )
+            
+            call.ticket_created = True
+            call.ticket_id = ticket.id
+            call.save()
+            
+            VoIPCallLog.objects.create(
+                call=call,
+                action='ticket_created',
+                description=f"New ticket #{ticket.id} for missed call"
+            )
+            
+            logger.info(f"✅ Ticket #{ticket.id} created for {call.phone_number}")
+            return ticket.id
+            
+    except VoIPCall.DoesNotExist:
+        logger.error(f"❌ Call #{call_id} not found")
+        return None
+    except Exception as exc:
+        logger.error(f"❌ Error in ticket creation: {exc}")
+        self.retry(exc=exc, countdown=60)
+
+
+# ============================================
+# TASK 2: AUTO-CREATE TICKET FOR ANSWERED CALL
+# ============================================
+
+@shared_task(bind=True, max_retries=3)
+def create_ticket_for_answered_call(self, call_id, user_id=None):
+    """
+    Auto-create ticket για ANSWERED/COMPLETED call
+    Priority: MEDIUM (needs follow-up)
+    Status: OPEN (waiting for notes/resolution)
+    Assigned: The user who answered (if provided)
+    """
+    try:
+        call = VoIPCall.objects.get(id=call_id)
+        
+        # Only for completed/active calls
+        if call.status not in ['completed', 'active']:
+            logger.info(f"Call #{call_id} status is {call.status} - skipping")
+            return None
+        
+        # Skip if already has ticket
+        if Ticket.objects.filter(call=call).exists():
+            logger.info(f"Ticket already exists for call #{call_id}")
+            return Ticket.objects.get(call=call).id
+        
+        # Get assigned user if provided
+        assigned_user = None
+        if user_id:
+            try:
+                assigned_user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                logger.warning(f"User #{user_id} not found - ticket will be unassigned")
+        
+        # Create ticket with MEDIUM priority
+        ticket = Ticket.objects.create(
+            call=call,
+            client=call.client,
+            title=f"📞 FOLLOW-UP - {call.phone_number}",
+            description=f"Completed call with {call.phone_number}\nDuration: {call.duration_formatted}\nTime: {call.started_at.strftime('%d/%m/%Y %H:%M:%S')}\n\nAwaiting follow-up or resolution update.",
+            priority='medium',
+            status='open',
+            assigned_to=assigned_user,
+        )
+        
+        # Update call
+        call.ticket_created = True
+        call.ticket_id = ticket.id
+        call.save()
+        
+        # Log action
+        assigned_info = f"assigned to {assigned_user.username}" if assigned_user else "unassigned"
+        VoIPCallLog.objects.create(
+            call=call,
+            action='ticket_created',
+            description=f"Auto-ticket #{ticket.id} created for answered call ({assigned_info})"
+        )
+        
+        logger.info(f"✅ Ticket #{ticket.id} created for answered call #{call_id} - {assigned_info}")
+        return ticket.id
+        
+    except VoIPCall.DoesNotExist:
+        logger.error(f"❌ Call #{call_id} not found")
+        return None
+    except Exception as exc:
+        logger.error(f"❌ Error creating ticket for answered call: {exc}")
+        self.retry(exc=exc, countdown=60)
+
+
+# ============================================
+# TASK 3: SEND OBLIGATION REMINDERS
+# ============================================
+
+@shared_task
+def send_obligation_reminders():
+    """
+    Αυτόματα emails αναμνήσεων για υποχρεώσεις
+    Στέλνεται: Κάθε weekday 9:00 AM
+    Λήπτες: Πελάτες με υποχρεώσεις που λήγουν τις επόμενες 7 ημέρες
+    """
+    try:
+        today = timezone.now().date()
+        week_end = today + timedelta(days=7)
+        
+        # Find obligations due this week
+        pending_obligations = MonthlyObligation.objects.filter(
+            deadline__gte=today,
+            deadline__lte=week_end,
+            status='pending'
+        ).select_related('client', 'obligation_type')
+        
+        if not pending_obligations.exists():
+            logger.info("No obligations due this week - skipping reminder")
+            return f"No reminders sent (0 obligations due)"
+        
+        sent_count = 0
+        
+        for obligation in pending_obligations:
+            try:
+                client = obligation.client
+                
+                # Skip if no email
+                if not client.email:
+                    logger.warning(f"Client {client.afm} has no email - skipping")
+                    continue
+                
+                # Get template (look for 'obligation reminder' template)
+                template = EmailTemplate.objects.filter(
+                    name__icontains='reminder',
+                    is_active=True
+                ).first()
+                
+                if not template:
+                    logger.warning("No reminder template found - using default message")
+                    # Use default message
+                    subject = f"⏰ Υπενθύμιση: Υποχρέωση {obligation.obligation_type.name}"
+                    body = f"Καλημέρα {client.eponimia},\n\nΥπενθύμιση: Η υποχρέωση '{obligation.obligation_type.name}' λήγει στις {obligation.deadline.strftime('%d/%m/%Y')}.\n\nΜε εκτίμηση"
+                else:
+                    # Render template
+                    context = {
+                        'client_name': client.eponimia,
+                        'obligation_name': obligation.obligation_type.name,
+                        'deadline': obligation.deadline.strftime('%d/%m/%Y'),
+                        'days_left': (obligation.deadline - today).days,
+                    }
+                    subject, body = template.render(context)
+                
+                # Send email
+                send_mail(
+                    subject=subject,
+                    message=strip_tags(body),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[client.email],
+                    html_message=body if template else None,
+                    fail_silently=False,
+                )
+                
+                # Log email
+                ScheduledEmail.objects.create(
+                    recipient_email=client.email,
+                    recipient_name=client.eponimia,
+                    client=client,
+                    template=template,
+                    subject=subject,
+                    body_html=body,
+                    send_at=timezone.now(),
+                    status='sent',
+                    sent_at=timezone.now(),
+                )
+                
+                sent_count += 1
+                logger.info(f"✅ Reminder sent to {client.email} for obligation {obligation.obligation_type.name}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error sending reminder for obligation #{obligation.id}: {e}")
+                continue
+        
+        logger.info(f"✅ Obligation reminders sent: {sent_count}/{pending_obligations.count()}")
+        return f"Sent {sent_count} obligation reminders"
+        
+    except Exception as exc:
+        logger.error(f"❌ Error in send_obligation_reminders: {exc}")
+        return f"Error: {str(exc)}"
+
+
+# ============================================
+# TASK 4: SEND DAILY SUMMARY
+# ============================================
+
+@shared_task
+def send_daily_summary():
+    """
+    Ημερήσια σύνοψη στην ομάδα
+    Στέλνεται: Κάθε weekday 17:00 (5 PM)
+    Λήπτες: Όλοι οι staff members
+    Περιέχει: Pending tickets, overdue obligations, missed calls
+    """
+    try:
+        today = timezone.now().date()
+        
+        # Get statistics
+        pending_tickets = Ticket.objects.filter(
+            status__in=['open', 'assigned', 'in_progress']
+        ).count()
+        
+        assigned_to_me = Ticket.objects.filter(
+            status__in=['open', 'assigned', 'in_progress'],
+        ).values('assigned_to__username').distinct().count()
+        
+        overdue_obligations = MonthlyObligation.objects.filter(
+            status='pending',
+            deadline__lt=today
+        ).count()
+        
+        due_this_week = MonthlyObligation.objects.filter(
+            status='pending',
+            deadline__gte=today,
+            deadline__lte=today + timedelta(days=7)
+        ).count()
+        
+        missed_calls_today = VoIPCall.objects.filter(
+            status='missed',
+            started_at__date=today
+        ).count()
+        
+        answered_calls_today = VoIPCall.objects.filter(
+            status='completed',
+            started_at__date=today
+        ).count()
+        
+        # Get team emails
+        team_users = User.objects.filter(is_staff=True, email__isnull=False).exclude(email='')
+        
+        if not team_users.exists():
+            logger.warning("No staff users with emails found")
+            return "No team members to send summary to"
+        
+        # Build email body
+        html_body = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+                .stat {{ background: #f9fafb; border-left: 4px solid #667eea; padding: 15px; margin: 10px 0; border-radius: 4px; }}
+                .stat-number {{ font-size: 24px; font-weight: bold; color: #667eea; }}
+                .stat-label {{ color: #666; font-size: 14px; }}
+                .warning {{ background: #fef2f2; border-left-color: #ef4444; }}
+                .warning .stat-number {{ color: #ef4444; }}
+                .link {{ display: inline-block; margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>📊 Daily Summary - {today.strftime('%d/%m/%Y')}</h1>
+                    <p>Good evening! Here's your daily briefing.</p>
+                </div>
+                
+                <div class="stat">
+                    <div class="stat-number">{pending_tickets}</div>
+                    <div class="stat-label">🎫 Pending Tickets (Open/Assigned/In Progress)</div>
+                </div>
+                
+                <div class="stat warning" {"" if overdue_obligations == 0 else ""}>
+                    <div class="stat-number">{overdue_obligations}</div>
+                    <div class="stat-label">⚠️ OVERDUE Obligations</div>
+                </div>
+                
+                <div class="stat">
+                    <div class="stat-number">{due_this_week}</div>
+                    <div class="stat-label">📅 Obligations Due This Week</div>
+                </div>
+                
+                <div class="stat warning" {"" if missed_calls_today == 0 else ""}>
+                    <div class="stat-number">{missed_calls_today}</div>
+                    <div class="stat-label">📞 Missed Calls Today</div>
+                </div>
+                
+                <div class="stat">
+                    <div class="stat-number">{answered_calls_today}</div>
+                    <div class="stat-label">✅ Answered Calls Today</div>
+                </div>
+                
+                <a href="{settings.SITE_URL}/el/456-admin/accounting/ticket/" class="link">
+                    View All Tickets →
+                </a>
+                
+                <p style="margin-top: 30px; color: #999; font-size: 12px;">
+                    Auto-generated by LogistikoCRM - {timezone.now().strftime('%H:%M:%S')}
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_body = f"""
+        📊 DAILY SUMMARY - {today.strftime('%d/%m/%Y')}
+        
+        🎫 Pending Tickets: {pending_tickets}
+        ⚠️ OVERDUE Obligations: {overdue_obligations}
+        📅 Obligations Due This Week: {due_this_week}
+        📞 Missed Calls Today: {missed_calls_today}
+        ✅ Answered Calls Today: {answered_calls_today}
+        
+        View all: {settings.SITE_URL}/el/456-admin/accounting/ticket/
+        """
+        
+        # Send to all team members
+        sent_count = 0
+        for user in team_users:
+            try:
+                send_mail(
+                    subject=f"📊 Daily Summary - {today.strftime('%d/%m/%Y')}",
+                    message=text_body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    html_message=html_body,
+                    fail_silently=False,
+                )
+                sent_count += 1
+                logger.info(f"✅ Daily summary sent to {user.email}")
+            except Exception as e:
+                logger.error(f"❌ Error sending summary to {user.email}: {e}")
+                continue
+        
+        logger.info(f"✅ Daily summary sent to {sent_count}/{team_users.count()} team members")
+        return f"Sent daily summary to {sent_count} team members"
+        
+    except Exception as exc:
+        logger.error(f"❌ Error in send_daily_summary: {exc}")
+        return f"Error: {str(exc)}"
+
+
+# ============================================
+# TASK 5: AUTO-ESCALATE & PROCESS TICKETS
+# ============================================
+
+@shared_task
+def process_pending_tickets():
+    """
+    Runs every hour to:
+    1. Auto-assign tickets based on rules
+    2. Escalate old tickets
+    3. Send notifications
+    """
+    now = timezone.now()
+    
+    # 1. Auto-escalate tickets older than 4 hours
+    old_tickets = Ticket.objects.filter(
+        status='open',
+        created_at__lte=now - timedelta(hours=4),
+        priority__in=['low', 'medium']
+    )
+    
+    escalated_count = 0
+    for ticket in old_tickets:
+        old_priority = ticket.priority
+        if ticket.priority == 'low':
+            ticket.priority = 'medium'
+        elif ticket.priority == 'medium':
+            ticket.priority = 'high'
+        
+        ticket.notes = (ticket.notes or '') + f"\n[{now.strftime('%d/%m %H:%M')}] Auto-escalated: {old_priority} → {ticket.priority}"
+        ticket.save()
+        escalated_count += 1
+        
+        logger.info(f"Escalated ticket #{ticket.id}")
+    
+    # 2. Find unassigned urgent tickets
+    urgent_unassigned = Ticket.objects.filter(
+        status='open',
+        priority='urgent',
+        assigned_to__isnull=True
+    ).count()
+    
+    if urgent_unassigned > 0:
+        logger.warning(f"⚠️ {urgent_unassigned} URGENT tickets unassigned!")
+    
+    return f"Processed: {escalated_count} escalated, {urgent_unassigned} urgent pending"
+
+
+# ============================================
+# HELPER: Trigger answered call ticket
+# ============================================
+
+def trigger_answered_call_ticket(call, user=None):
+    """
+    Helper function to manually trigger ticket creation for answered calls
+    Call this from voip_call_update() view when status changes to 'completed'
+    """
+    user_id = user.id if user else None
+    create_ticket_for_answered_call.delay(call.id, user_id)
+    logger.info(f"Triggered answered call ticket task for call #{call.id}")

@@ -1,0 +1,23 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+{{ block.super }}
+
+    {% if show_import_export %}
+<li>
+    <a href="download-template/" class="addlink" style="background: #6c757d; border-color: #6c757d;">
+        📋 Λήψη Template
+    </a>
+</li>
+<li>
+    <a href="import/" class="addlink" style="background: #17a2b8; border-color: #17a2b8;">
+        📥 Import από Excel
+    </a>
+</li>
+<li>
+    <a href="mass-update/" class="addlink" style="background: #ffc107; border-color: #ffc107; color: #000;">
+        ⚡ Μαζική Ενημέρωση
+    </a>
+</li>
+    {% endif %}
+{% endblock %}

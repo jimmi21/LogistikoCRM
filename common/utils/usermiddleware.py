@@ -22,24 +22,24 @@ class UserMiddleware:
             set_user_groups(request, groups)
             set_user_department(request, groups)
             iem = apps.get_app_config('crm')
-            iem.import_emails(request.user)
+          #q  iem.import_emails(request.user)
             activate_stored_messages_to_user(request, profile)
             check_user_language(profile)
         return self.get_response(request)
 
 
 def activate_stored_messages_to_user(request: WSGIRequest, profile: UserProfile) -> None:
-    if profile.messages:
+    if profile and profile.messages:
         while profile.messages:
             msg = mark_safe(profile.messages.pop(0))    # NOQA
             level = profile.messages.pop(0)             # NOQA
             messages.add_message(request, getattr(messages, level), msg)
-        profile.save(update_fields=['messages'])
+            profile.save(update_fields=['messages'])
 
 
 def check_user_language(profile: UserProfile) -> None:
     cur_language = get_language()
-    if cur_language != profile.language_code:
+    if profile and cur_language != profile.language_code:
         profile.language_code = cur_language
         profile.save(update_fields=['language_code'])
 

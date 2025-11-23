@@ -1,0 +1,140 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<style>
+    .import-container {
+        max-width: 600px;
+        margin: 50px auto;
+    }
+    
+    .instructions-box {
+        background: #417690;
+        color: white;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .instructions-box h3 {
+        color: white;
+        margin-top: 0;
+    }
+    
+    .instructions-box ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    
+    .instructions-box li {
+        margin-bottom: 8px;
+    }
+    
+    .form-container {
+        background: #f8f9fa;
+        padding: 30px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+    }
+    
+    .file-input-wrapper {
+        margin-bottom: 20px;
+    }
+    
+    .file-input-wrapper label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+    }
+    
+    .file-input-wrapper input[type="file"] {
+        width: 100%;
+        padding: 10px;
+        border: 2px dashed #ced4da;
+        border-radius: 4px;
+        background: white;
+    }
+    
+    .button-group {
+        margin-top: 30px;
+    }
+    
+    .btn-primary {
+        background: #417690;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 500;
+    }
+    
+    .btn-primary:hover {
+        background: #356178;
+    }
+    
+    .btn-secondary {
+        margin-left: 10px;
+        padding: 12px 24px;
+        text-decoration: none;
+        color: #6c757d;
+        background: white;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        display: inline-block;
+        font-size: 15px;
+    }
+    
+    .btn-secondary:hover {
+        background: #e9ecef;
+        text-decoration: none;
+    }
+    
+    h1 {
+        color: #333;
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="import-container">
+    <h1>{{ title }}</h1>
+    
+    <div class="instructions-box">
+        <h3>ℹ️ Οδηγίες Import:</h3>
+        <ul>
+            <li>Επιλέξτε ένα αρχείο Excel (.xlsx) με τους πελάτες</li>
+            <li>Το αρχείο πρέπει να έχει τα σωστά headers (χρησιμοποιήστε το template)</li>
+            <li>Υποχρεωτικά πεδία: ΑΦΜ, Επωνυμία, Είδος Υπόχρεου</li>
+            <li>Αν ένας πελάτης με το ίδιο ΑΦΜ υπάρχει ήδη, θα ενημερωθεί</li>
+        </ul>
+    </div>
+    
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="form-container">
+            <div class="file-input-wrapper">
+                <label for="excel_file">Επιλογή Αρχείου Excel:</label>
+                <input type="file" 
+                       id="excel_file" 
+                       name="excel_file" 
+                       accept=".xlsx,.xls" 
+                       required>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="btn-primary">
+                    📥 Import Πελατών
+                </button>
+                <a href=".." class="btn-secondary">
+                    Ακύρωση
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

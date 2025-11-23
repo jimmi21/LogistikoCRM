@@ -1,0 +1,120 @@
+<!-- templates/admin/accounting/import_confirm.html -->
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 50px auto;">
+
+    {% if step == 'upload' %}
+    <!-- Step 1: Upload -->
+    <h1>📤 Import Πελατών</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
+            <label style="display: block; margin-bottom: 10px; font-weight: bold;">
+                Επιλογή αρχείου Excel:
+            </label>
+            <input type="file" name="excel_file" accept=".xlsx" required
+                   style="width: 100%; padding: 10px;">
+
+            <button type="submit" style="margin-top: 20px; padding: 12px 30px;
+                    background: #667eea; color: white; border: none;
+                    border-radius: 4px; font-size: 16px; cursor: pointer;">
+                ➡️ Συνέχεια
+            </button>
+        </div>
+    </form>
+
+    {% elif step == 'confirm' %}
+    <!-- Step 2: Choose Mode -->
+    <h1>⚙️ Επιλογή Τρόπου Import</h1>
+    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+        <strong>📁 Αρχείο:</strong> {{ file_name }}<br>
+        <strong>📊 Υπάρχοντες πελάτες:</strong> {{ existing_count }}
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="confirm_import" value="1">
+
+        <div style="background: #d1ecf1; padding: 20px; border-radius: 5px; margin-bottom: 15px;">
+            <label>
+                <input type="radio" name="import_mode" value="update" checked>
+                <strong>🔄 ΕΝΗΜΕΡΩΣΗ (Προτείνεται)</strong><br>
+                <small>
+                    • Νέα ΑΦΜ: Δημιουργούνται νέοι πελάτες<br>
+                    • Υπάρχοντα ΑΦΜ: Ενημερώνονται τα στοιχεία<br>
+                    • Ασφαλές - Δεν χάνονται δεδομένα
+                </small>
+            </label>
+        </div>
+
+        <div style="background: #f8d7da; padding: 20px; border-radius: 5px; margin-bottom: 15px;">
+            <label>
+                <input type="radio" name="import_mode" value="replace">
+                <strong>⚠️ ΑΝΤΙΚΑΤΑΣΤΑΣΗ (Προσοχή!)</strong><br>
+                <small>
+                    • Διαγράφονται ΟΛΑ τα υπάρχοντα<br>
+                    • Εισάγονται μόνο όσα είναι στο Excel<br>
+                    • ΜΟΝΙΜΗ διαγραφή - Χρήση με προσοχή!
+                </small>
+            </label>
+        </div>
+
+        <button type="submit" style="padding: 12px 30px; background: #28a745;
+                color: white; border: none; border-radius: 4px;
+                font-size: 16px; cursor: pointer;">
+            ✅ Συνέχεια
+        </button>
+
+        <a href=".." style="margin-left: 10px; padding: 12px 30px;
+           background: #6c757d; color: white; text-decoration: none;
+           display: inline-block; border-radius: 4px;">
+            ❌ Ακύρωση
+        </a>
+    </form>
+
+    {% elif step == 'double_confirm' %}
+    <!-- Step 3: Double Confirm for REPLACE -->
+    <h1 style="color: #dc3545;">⚠️⚠️ ΤΕΛΙΚΗ ΕΠΙΒΕΒΑΙΩΣΗ ⚠️⚠️</h1>
+
+    <div style="background: #dc3545; color: white; padding: 20px;
+                border-radius: 5px; margin-bottom: 20px;">
+        <h2>ΠΡΟΣΟΧΗ! ΜΟΝΙΜΗ ΔΙΑΓΡΑΦΗ!</h2>
+        <p>
+            Πρόκειται να διαγράψετε ΟΛΟ το πελατολόγιο και να το
+            αντικαταστήσετε με τα δεδομένα του Excel!
+        </p>
+        <p><strong>Αυτή η ενέργεια ΔΕΝ μπορεί να αναιρεθεί!</strong></p>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="confirm_import" value="1">
+        <input type="hidden" name="import_mode" value="replace">
+        <input type="hidden" name="double_confirm" value="1">
+
+        <div style="margin: 30px 0;">
+            <label style="font-size: 18px;">
+                <input type="checkbox" required>
+                Κατανοώ ότι ΟΛΑ τα δεδομένα θα διαγραφούν μόνιμα
+            </label>
+        </div>
+
+        <button type="submit" style="padding: 12px 30px;
+                background: #dc3545; color: white; border: none;
+                border-radius: 4px; font-size: 16px; cursor: pointer;"
+                onclick="return confirm('ΤΕΛΕΥΤΑΙΑ ΕΥΚΑΙΡΙΑ! Είστε ΣΙΓΟΥΡΟΙ;')">
+            ⚠️ ΝΑΙ, ΑΝΤΙΚΑΤΑΣΤΑΣΗ ΟΛΩΝ
+        </button>
+
+        <a href=".." style="margin-left: 10px; padding: 12px 30px;
+           background: #28a745; color: white; text-decoration: none;
+           display: inline-block; border-radius: 4px; font-weight: bold;">
+            ✅ ΟΧΙ, ΑΚΥΡΩΣΗ!
+        </a>
+    </form>
+    {% endif %}
+
+</div>
+{% endblock %}

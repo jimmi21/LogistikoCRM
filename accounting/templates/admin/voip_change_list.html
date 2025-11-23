@@ -1,0 +1,25 @@
+{% extends "admin/change_list.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+// Auto-refresh κάθε 10 δευτερόλεπτα
+setTimeout(function() {
+    location.reload();
+}, 10000);
+</script>
+<style>
+    /* Καλύτερα χρώματα */
+    .row1 {
+        background-color: #f0fdf4;
+    }
+
+    .row2 {
+        background-color: #f9fafb;
+    }
+
+    .changelistfilter {
+        background-color: #fafbfc;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,470 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<link rel="stylesheet" href="{% static 'accounting/css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+
+    <!-- 🚪 DOOR WIDGET - TOP RIGHT -->
+    <div class="door-widget-container">
+        {% include 'accounting/door_widget.html' %}
+    </div>
+
+    <!-- PAGE HEADER WITH NAVIGATION -->
+    <header class="dashboard-header">
+        <div class="header-wrapper">
+            <div class="header-left">
+                <div class="header-icon">📊</div>
+                <div class="header-content">
+                    <h1 class="page-title">Dashboard - Επισκόπηση</h1>
+                    <p class="page-subtitle">Προηγμένη διαχείριση υποχρεώσεων με έξυπνη ανάλυση</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <a href="{% url 'accounting:reports' %}" class="btn btn-gradient btn-lg">
+                    <span class="icon">📈</span>
+                    <span>Reports & Analytics</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- STATS CARDS -->
+        <div class="stats-grid">
+            <div class="stat-card stat-pending">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-content">
+                    <div class="stat-label">Εκκρεμείς</div>
+                    <div class="stat-value">{{ pending }}</div>
+                </div>
+            </div>
+            <div class="stat-card stat-completed">
+                <div class="stat-icon">✅</div>
+                <div class="stat-content">
+                    <div class="stat-label">Ολοκληρωμένες</div>
+                    <div class="stat-value">{{ completed }}</div>
+                </div>
+            </div>
+            <div class="stat-card stat-overdue">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-content">
+                    <div class="stat-label">Καθυστερημένες</div>
+                    <div class="stat-value">{{ overdue }}</div>
+                </div>
+            </div>
+            <div class="stat-card stat-total">
+                <div class="stat-icon">👥</div>
+                <div class="stat-content">
+                    <div class="stat-label">Σύνολο Πελατών</div>
+                    <div class="stat-value">{{ total_clients }}</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- FILTERS SECTION WITH ANIMATIONS -->
+    <section class="filters-section">
+        <div class="filters-badge" id="active-filters-count" style="display: none;">0</div>
+
+        <div class="filters-header">
+            <div class="filters-title-group">
+                <h2 class="filters-title">
+                    <span class="filters-icon">🔍</span>
+                    Φίλτρα & Αναζήτηση
+                </h2>
+                <div class="filters-subtitle">Αποτελέσματα: <strong>{{ upcoming_count }}</strong></div>
+            </div>
+            <button type="button" id="filters-toggle" class="btn btn-icon" title="Expand/Collapse filters">
+                <span>▼</span>
+            </button>
+        </div>
+
+        <form method="get" id="filter-form" class="filters-form">
+            <div class="filters-content">
+
+                <!-- MAIN FILTERS GRID -->
+                <div class="filters-grid">
+                    <!-- Status -->
+                    <div class="filter-group">
+                        <label for="filter-status" class="filter-label">
+                            <span class="filter-icon">📊</span>
+                            Κατάσταση
+                        </label>
+                        <select id="filter-status" name="status" class="filter-select" data-filter="status">
+                            <option value="">-- Όλες --</option>
+                            <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>⏳ Εκκρεμείς</option>
+                            <option value="completed" {% if filter_status == 'completed' %}selected{% endif %}>✅ Ολοκληρωμένες</option>
+                            <option value="overdue" {% if filter_status == 'overdue' %}selected{% endif %}>⚠️ Καθυστερημένες</option>
+                        </select>
+                    </div>
+
+                    <!-- Client -->
+                    <div class="filter-group">
+                        <label for="filter-client" class="filter-label">
+                            <span class="filter-icon">👤</span>
+                            Πελάτης
+                        </label>
+                        <select id="filter-client" name="client" class="filter-select" data-filter="client">
+                            <option value="">-- Όλοι οι πελάτες --</option>
+                            {% for client in all_clients %}
+                            <option value="{{ client.id }}" {% if filter_client == client.id|stringformat:"s" %}selected{% endif %}>
+                                {{ client.eponimia }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Type -->
+                    <div class="filter-group">
+                        <label for="filter-type" class="filter-label">
+                            <span class="filter-icon">📋</span>
+                            Τύπος Υποχρέωσης
+                        </label>
+                        <select id="filter-type" name="type" class="filter-select" data-filter="type">
+                            <option value="">-- Όλοι οι τύποι --</option>
+                            {% for type in all_types %}
+                            <option value="{{ type.id }}" {% if filter_type == type.id|stringformat:"s" %}selected{% endif %}>
+                                {{ type.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Date Range -->
+                    <div class="filter-group">
+                        <label for="filter-date-from" class="filter-label">
+                            <span class="filter-icon">📅</span>
+                            Περίοδος
+                        </label>
+                        <div class="date-range-inputs">
+                            <input type="date" id="filter-date-from" name="date_from"
+                                   class="date-input" placeholder="Από" value="{{ date_from }}">
+                            <span class="date-separator">→</span>
+                            <input type="date" id="filter-date-to" name="date_to"
+                                   class="date-input" placeholder="Έως" value="{{ date_to }}">
+                        </div>
+                    </div>
+
+                    <!-- Sort -->
+                    <div class="filter-group">
+                        <label for="filter-sort" class="filter-label">
+                            <span class="filter-icon">🔄</span>
+                            Ταξινόμηση
+                        </label>
+                        <select id="filter-sort" name="sort" class="filter-select">
+                            <option value="deadline" {% if sort_by == 'deadline' %}selected{% endif %}>Προθεσμία (πρώτα κοντινές)</option>
+                            <option value="client" {% if sort_by == 'client' %}selected{% endif %}>Πελάτης (A-Z)</option>
+                            <option value="type" {% if sort_by == 'type' %}selected{% endif %}>Τύπος</option>
+                            <option value="status" {% if sort_by == 'status' %}selected{% endif %}>Κατάσταση</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ACTIVE FILTERS DISPLAY -->
+                <div id="active-filters-display" class="active-filters-display" style="display: none;">
+                    <span class="active-label">Ενεργά φίλτρα:</span>
+                    <div id="active-filters-list" class="active-filters-list"></div>
+                </div>
+
+                <!-- FILTER ACTIONS -->
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <span class="icon">🔍</span>
+                        <span>Εφαρμογή Φίλτρων</span>
+                    </button>
+                    <button type="button" onclick="clearFilters()" class="btn btn-secondary">
+                        <span class="icon">✖️</span>
+                        <span>Καθαρισμός</span>
+                    </button>
+                    <button type="button" id="filter-preset-today" class="btn btn-outline">Σήμερα</button>
+                    <button type="button" id="filter-preset-week" class="btn btn-outline">Αυτή την εβδομάδα</button>
+                    <button type="button" id="filter-preset-month" class="btn btn-outline">Αυτό το μήνα</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- BULK ACTIONS BAR WITH ANIMATIONS -->
+    <div id="bulk-actions-bar" class="bulk-actions-bar" style="display: none;">
+        <div class="bulk-info">
+            <span class="bulk-count">
+                <span class="icon">✓</span>
+                <span id="selected-count">0</span>
+                <span class="plural">υποχρεώσεις</span>
+            </span>
+        </div>
+
+        <div class="bulk-actions-main">
+            <div class="bulk-section">
+                <h4 class="bulk-section-title">Επιλογή</h4>
+                <div class="bulk-buttons">
+                    <button type="button" onclick="selectAll()" class="btn btn-small btn-outline">✓ Όλες</button>
+                    <button type="button" onclick="deselectAll()" class="btn btn-small btn-outline">✗ Καμία</button>
+                </div>
+            </div>
+
+            <div class="bulk-section">
+                <h4 class="bulk-section-title">Ενέργειες</h4>
+                <div class="bulk-buttons">
+                    <button type="button" onclick="showAdvancedBulkComplete()" class="btn btn-small btn-success" title="Smart completion with grouping">
+                        <span class="icon">✓</span>
+                        <span>Έξυπνη Ολοκλήρωση</span>
+                    </button>
+                    <button type="button" onclick="bulkEmail()" class="btn btn-small btn-info">
+                        <span class="icon">📧</span>
+                        <span>Email</span>
+                    </button>
+                    <button type="button" onclick="bulkExport()" class="btn btn-small btn-primary">
+                        <span class="icon">📥</span>
+                        <span>Export</span>
+                    </button>
+                    <button type="button" onclick="bulkDelete()" class="btn btn-small btn-danger" title="Requires confirmation">
+                        <span class="icon">🗑️</span>
+                        <span>Διαγραφή</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" onclick="closeBulkBar()" class="btn btn-icon btn-ghost" title="Close bulk actions">
+            <span class="icon">×</span>
+        </button>
+    </div>
+
+    <!-- RESULTS TABLE WITH ADVANCED FEATURES -->
+    <section class="results-section">
+        <div class="results-header">
+            <div class="results-title-group">
+                <h2 class="results-title">
+                    <span class="results-icon">📋</span>
+                    Επόμενες Υποχρεώσεις
+                </h2>
+                <div class="results-meta">
+                    <span class="badge badge-primary">{{ upcoming_count }} υποχρεώσεις</span>
+                    <button type="button" onclick="toggleTableCompactView()" class="btn btn-icon" title="Toggle compact view">
+                        <span>◰</span>
+                    </button>
+                </div>
+            </div>
+            <div class="results-actions">
+                <a href="/accounting/export-excel/?{{ request.GET.urlencode }}" class="btn btn-secondary btn-sm">
+                    <span class="icon">📊</span>
+                    <span>Export Excel</span>
+                </a>
+                <button type="button" onclick="toggleTableFullscreen()" class="btn btn-icon" title="Fullscreen">
+                    <span>⛶</span>
+                </button>
+            </div>
+        </div>
+
+        {% if upcoming %}
+        <div class="table-container">
+            <div class="table-wrapper">
+                <table class="data-table" id="obligations-table">
+                    <thead>
+                        <tr>
+                            <th class="col-checkbox">
+                                <input type="checkbox" id="select-all-header" onchange="toggleAllCheckboxes(this)"
+                                       aria-label="Select all obligations" title="Select/deselect all">
+                            </th>
+                            <th class="col-deadline sortable" data-sort="deadline">
+                                <span>📅 Προθεσμία</span>
+                                <span class="sort-indicator">⬍</span>
+                            </th>
+                            <th class="col-client sortable" data-sort="client">
+                                <span>👤 Πελάτης</span>
+                                <span class="sort-indicator">⬍</span>
+                            </th>
+                            <th class="col-obligation">📋 Υποχρέωση</th>
+                            <th class="col-status center sortable" data-sort="status">
+                                <span>📊 Κατάσταση</span>
+                                <span class="sort-indicator">⬍</span>
+                            </th>
+                            <th class="col-actions center">⚙️ Ενέργειες</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for obl in upcoming %}
+                        <tr class="data-row"
+                            data-obligation-id="{{ obl.id }}"
+                            data-client-id="{{ obl.client.id }}"
+                            data-client-afm="{{ obl.client.afm }}"
+                            data-client-name="{{ obl.client.eponimia }}"
+                            data-status="{{ obl.status }}"
+                            data-deadline="{{ obl.deadline|date:'Y-m-d' }}"
+                            role="row">
+
+                            <!-- Checkbox -->
+                            <td class="col-checkbox">
+                                <input type="checkbox" class="obl-checkbox"
+                                       value="{{ obl.id }}"
+                                       data-client-afm="{{ obl.client.afm }}"
+                                       data-client-name="{{ obl.client.eponimia }}"
+                                       data-obligation-type="{{ obl.obligation_type.name }}"
+                                       data-deadline="{{ obl.deadline|date:'d/m/Y' }}"
+                                       onchange="updateBulkBar()"
+                                       aria-label="Select this obligation">
+                            </td>
+
+                            <!-- Deadline -->
+                            <td class="col-deadline clickable" onclick="event.stopPropagation(); navigateToObligation({{ obl.id }})">
+                                <div class="deadline-badge">
+                                    <div class="deadline-date">{{ obl.deadline|date:"d/m/Y" }}</div>
+                                    <div class="deadline-day">{{ obl.deadline|date:"D" }}</div>
+                                </div>
+                            </td>
+
+                            <!-- Client -->
+                            <td class="col-client">
+                                <a href="{% url 'accounting:client_detail' obl.client.id %}"
+                                   onclick="event.stopPropagation();"
+                                   class="client-link" title="View client details">
+                                    <div class="client-avatar">{{ obl.client.eponimia|first|upper }}</div>
+                                    <div class="client-info">
+                                        <div class="client-name">{{ obl.client.eponimia }}</div>
+                                        <div class="client-afm">{{ obl.client.afm }}</div>
+                                    </div>
+                                </a>
+                            </td>
+
+                            <!-- Obligation Type -->
+                            <td class="col-obligation clickable" onclick="event.stopPropagation(); navigateToObligation({{ obl.id }})">
+                                <div class="obligation-type-badge">
+                                    <span class="obligation-type-name">{{ obl.obligation_type.name }}</span>
+                                    {% if obl.notes %}
+                                    <span class="obligation-has-notes" title="Has notes">📝</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Status -->
+                            <td class="col-status center clickable" onclick="event.stopPropagation(); navigateToObligation({{ obl.id }})">
+                                {% if obl.status  ==  'completed' %}
+                                <span class="status-badge status-completed" data-status="completed">
+                                    <span class="status-icon">✓</span>
+                                    <span class="status-label">Ολοκληρωμένη</span>
+                                </span>
+                                {% elif obl.status  ==  'overdue' %}
+                                <span class="status-badge status-overdue" data-status="overdue">
+                                    <span class="status-icon">⚠️</span>
+                                    <span class="status-label">Καθυστερημένη</span>
+                                </span>
+                                {% else %}
+                                <span class="status-badge status-pending" data-status="pending">
+                                    <span class="status-icon">⏳</span>
+                                    <span class="status-label">Εκκρεμής</span>
+                                </span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="col-actions center">
+                                {% if obl.status != 'completed' %}
+                                <button type="button"
+                                        onclick="event.stopPropagation(); quickComplete({{ obl.id }});"
+                                        class="btn btn-action btn-success btn-sm"
+                                        title="Mark as completed">
+                                    <span class="icon">✓</span>
+                                    <span class="label">Ολοκλήρωση</span>
+                                </button>
+                                {% else %}
+                                <div class="completed-actions">
+                                    <span class="completed-icon" title="Completed">✓</span>
+                                    {% if obl.attachment %}
+                                    <a href="{{ obl.attachment.url }}"
+                                       target="_blank"
+                                       onclick="event.stopPropagation();"
+                                       class="attachment-link"
+                                       title="Download attachment">
+                                        📎
+                                    </a>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <div class="empty-content">
+                <h3 class="empty-title">Δεν βρέθηκαν υποχρεώσεις</h3>
+                <p class="empty-description">Δοκιμάστε να αλλάξετε τα φίλτρα αναζήτησης</p>
+                <button type="button" onclick="clearFilters()" class="btn btn-primary">
+                    🔄 Καθαρισμός Φίλτρων
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- TABLE FOOTER WITH PAGINATION INFO -->
+        {% if upcoming %}
+        <div class="table-footer">
+            <div class="footer-info">
+                <span>Εμφάνιση <strong>{{ upcoming|length }}</strong> από <strong>{{ upcoming_count }}</strong> συνολικά</span>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+</div>
+
+<!-- SCRIPTS -->
+<script src="{% static 'accounting/js/dashboard.js' %}"></script>
+<script>
+    // Initialize dashboard on load
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('✅ Dashboard loaded');
+        initializeFilterPresets();
+    });
+
+    // Filter preset buttons
+    function initializeFilterPresets() {
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        document.getElementById('filter-preset-today')?.addEventListener('click', () => {
+            document.getElementById('filter-date-from').value = todayStr;
+            document.getElementById('filter-date-to').value = todayStr;
+            document.getElementById('filter-form').submit();
+        });
+
+        document.getElementById('filter-preset-week')?.addEventListener('click', () => {
+            document.getElementById('filter-date-from').value = weekAgo;
+            document.getElementById('filter-date-to').value = todayStr;
+            document.getElementById('filter-form').submit();
+        });
+
+        document.getElementById('filter-preset-month')?.addEventListener('click', () => {
+            document.getElementById('filter-date-from').value = monthAgo;
+            document.getElementById('filter-date-to').value = todayStr;
+            document.getElementById('filter-form').submit();
+        });
+    }
+
+    // Bulk bar close
+    function closeBulkBar() {
+        document.getElementById('bulk-actions-bar').style.display = 'none';
+    }
+
+    // Table compact view toggle
+    function toggleTableCompactView() {
+        document.getElementById('obligations-table')?.classList.toggle('compact');
+    }
+
+    // Fullscreen toggle
+    function toggleTableFullscreen() {
+        document.querySelector('.table-container')?.classList.toggle('fullscreen');
+    }
+</script>
+
+{% endblock %}

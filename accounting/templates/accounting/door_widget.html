@@ -1,0 +1,196 @@
+﻿<!-- templates/accounting/door_widget.html - SIMPLE ON/OFF TOGGLE -->
+<div style="
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 20px;
+    max-width: 450px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+        <!-- Left: Info -->
+        <div style="color: white;">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700;">
+                🚪 Πόρτα Γραφείου
+            </h3>
+            <div id="stateText" style="font-size: 16px; font-weight: 600;">
+                Loading...
+            </div>
+            <div id="lastTime" style="font-size: 12px; opacity: 0.8; margin-top: 4px;">
+                -
+            </div>
+        </div>
+
+        <!-- Right: ON/OFF Button -->
+        <button onclick="toggleSwitch()" id="switchBtn" style="
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 4px solid white;
+            background: white;
+            cursor: pointer;
+            font-size: 42px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            ❓
+        </button>
+    </div>
+</div>
+
+<script>
+    (function () {
+        'use strict';
+
+        let currentState = null;
+        let statusInterval = null;
+
+        // Check status on load
+        checkStatus();
+
+        // Auto-refresh every 5 seconds
+        statusInterval = setInterval(checkStatus, 5000);
+
+        function checkStatus() {
+            fetch('/accounting/door-status/')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        updateUI(data.status, data.raw_power);
+                    } else {
+                        updateUI('error');
+                    }
+                })
+                .catch(() => {
+                    updateUI('error');
+                });
+        }
+
+        function updateUI(status, rawPower) {
+            currentState = status;
+            const btn = document.getElementById('switchBtn');
+            const stateText = document.getElementById('stateText');
+            const lastTime = document.getElementById('lastTime');
+
+            btn.disabled = false;
+            lastTime.textContent = new Date().toLocaleTimeString('el-GR');
+
+            if (status === 'open') {
+                // ON state - Green
+                btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                btn.style.borderColor = '#10b981';
+                btn.style.color = 'white';
+                btn.textContent = '🔓';
+                stateText.innerHTML = '🟢 ON / ΑΝΟΙΧΤΗ';
+            } else if (status === 'closed') {
+                // OFF state - Red/White
+                btn.style.background = 'white';
+                btn.style.borderColor = 'white';
+                btn.style.color = '#ef4444';
+                btn.textContent = '🔒';
+                stateText.innerHTML = '🔴 OFF / ΚΛΕΙΣΤΗ';
+            } else {
+                // Error/Unknown
+                btn.style.background = '#6b7280';
+                btn.style.borderColor = '#6b7280';
+                btn.style.color = 'white';
+                btn.textContent = '⚠️';
+                stateText.innerHTML = '⚠️ OFFLINE';
+                btn.disabled = true;
+            }
+        }
+
+        window.toggleSwitch = function () {
+            const btn = document.getElementById('switchBtn');
+            const stateText = document.getElementById('stateText');
+
+            // Disable during action
+            btn.disabled = true;
+            btn.textContent = '⏳';
+            stateText.innerHTML = '⏳ Αλλαγή κατάστασης...';
+
+            // Send toggle command
+            fetch('/accounting/open-door/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        // Success - show checkmark
+                        btn.style.background = '#10b981';
+                        btn.style.color = 'white';
+                        btn.textContent = '✓';
+                        stateText.innerHTML = '✓ Επιτυχία!';
+
+                        // Refresh status after 1 second
+                        setTimeout(() => {
+                            checkStatus();
+                        }, 1000);
+                    } else {
+                        // Error
+                        btn.style.background = '#ef4444';
+                        btn.style.color = 'white';
+                        btn.textContent = '✗';
+                        stateText.innerHTML = '✗ Σφάλμα: ' + (data.error || 'Unknown');
+
+                        setTimeout(() => {
+                            updateUI(currentState);
+                        }, 2000);
+                    }
+                })
+                .catch(err => {
+                    console.error('Toggle error:', err);
+                    btn.style.background = '#ef4444';
+                    btn.style.color = 'white';
+                    btn.textContent = '✗';
+                    stateText.innerHTML = '✗ Σφάλμα σύνδεσης';
+
+                    setTimeout(() => {
+                        updateUI(currentState);
+                    }, 2000);
+                });
+        };
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Cleanup
+        window.addEventListener('beforeunload', function () {
+            if (statusInterval) clearInterval(statusInterval);
+        });
+    })();
+</script>
+
+<style>
+    #switchBtn:hover:not(:disabled) {
+        transform: scale(1.08);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+
+    #switchBtn:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+
+    #switchBtn:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+</style>

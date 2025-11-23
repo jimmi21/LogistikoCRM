@@ -1,0 +1,206 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .stat-number {
+        font-size: 36px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    .chart-container {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <a href="/accounting/dashboard/" style="color: #667eea; text-decoration: none; font-weight: 600;">← Επιστροφή στο Dashboard</a>
+</div>
+
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 30px;">
+    <h1 style="margin: 0 0 10px 0;">📊 Reports & Analytics</h1>
+    <p style="margin: 0; opacity: 0.9;">Ανάλυση απόδοσης και στατιστικά</p>
+</div>
+
+<!-- Current Month Summary -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div class="stat-card" style="border-top: 4px solid #667eea;">
+        <div style="color: #666; font-size: 14px;">Τρέχων Μήνας - Σύνολο</div>
+        <div class="stat-number" style="color: #667eea;">{{ current_stats.total }}</div>
+    </div>
+    
+    <div class="stat-card" style="border-top: 4px solid #28a745;">
+        <div style="color: #666; font-size: 14px;">Ολοκληρωμένες</div>
+        <div class="stat-number" style="color: #28a745;">{{ current_stats.completed }}</div>
+    </div>
+    
+    <div class="stat-card" style="border-top: 4px solid #ffc107;">
+        <div style="color: #666; font-size: 14px;">Εκκρεμείς</div>
+        <div class="stat-number" style="color: #ffc107;">{{ current_stats.pending }}</div>
+    </div>
+    
+    <div class="stat-card" style="border-top: 4px solid #dc3545;">
+        <div style="color: #666; font-size: 14px;">Καθυστερημένες</div>
+        <div class="stat-number" style="color: #dc3545;">{{ current_stats.overdue }}</div>
+    </div>
+</div>
+
+<!-- Monthly Trend Chart -->
+<div class="chart-container">
+    <h3 style="margin: 0 0 20px 0; color: #333;">📈 Μηνιαία Εξέλιξη ({{ months_back }} μήνες)</h3>
+    <canvas id="monthlyChart" height="80"></canvas>
+</div>
+
+<!-- Time & Revenue Stats -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div class="chart-container">
+        <h3 style="margin: 0 0 15px 0; color: #333;">⏱️ Time Tracking</h3>
+        <div style="text-align: center;">
+            <div style="font-size: 48px; font-weight: bold; color: #667eea; margin: 20px 0;">
+                {{ time_stats.total_hours|floatformat:1|default:"0" }}h
+            </div>
+            <div style="color: #666; margin-bottom: 10px;">Συνολικές Ώρες</div>
+            <div style="color: #999; font-size: 14px;">
+                Μέσος όρος: {{ time_stats.avg_hours|floatformat:1|default:"0" }}h ανά task
+            </div>
+            <div style="color: #999; font-size: 14px;">
+                Σύνολο tasks: {{ time_stats.total_tasks }}
+            </div>
+        </div>
+    </div>
+    
+    <div class="chart-container">
+        <h3 style="margin: 0 0 15px 0; color: #333;">💰 Revenue</h3>
+        <div style="text-align: center;">
+            <div style="font-size: 48px; font-weight: bold; color: #28a745; margin: 20px 0;">
+                €{{ total_revenue|floatformat:2 }}
+            </div>
+            <div style="color: #666; margin-bottom: 10px;">Συνολικά Έσοδα</div>
+            <div style="color: #999; font-size: 14px;">
+                Βάσει time tracking
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Clients -->
+<div class="chart-container">
+    <h3 style="margin: 0 0 20px 0; color: #333;">👥 Top 10 Clients</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 12px; text-align: left;">Πελάτης</th>
+                <th style="padding: 12px; text-align: center;">Σύνολο</th>
+                <th style="padding: 12px; text-align: center;">Ολοκλ.</th>
+                <th style="padding: 12px; text-align: center;">Completion %</th>
+                <th style="padding: 12px; text-align: center;">Ώρες</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in client_stats %}
+            <tr style="border-bottom: 1px solid #e9ecef;">
+                <td style="padding: 12px;">
+                    <a href="{% url 'accounting:client_detail' client.client__id %}" style="color: #667eea; text-decoration: none; font-weight: 500;">
+                        {{ client.client__eponimia }}
+                    </a>
+                </td>
+                <td style="padding: 12px; text-align: center;">{{ client.total }}</td>
+                <td style="padding: 12px; text-align: center; color: #28a745; font-weight: 600;">{{ client.completed }}</td>
+                <td style="padding: 12px; text-align: center;">
+                    <div style="background: #f0f8ff; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                        {{ client.completion_rate|floatformat:0 }}%
+                    </div>
+                </td>
+                <td style="padding: 12px; text-align: center;">{{ client.total_time|floatformat:1|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Obligation Types Stats -->
+<div class="chart-container">
+    <h3 style="margin: 0 0 20px 0; color: #333;">📋 Top Υποχρεώσεις</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <th style="padding: 12px; text-align: left;">Τύπος</th>
+                <th style="padding: 12px; text-align: center;">Σύνολο</th>
+                <th style="padding: 12px; text-align: center;">Ολοκλ.</th>
+                <th style="padding: 12px; text-align: center;">Μ.Ο. Χρόνος</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for type in type_stats %}
+            <tr style="border-bottom: 1px solid #e9ecef;">
+                <td style="padding: 12px; font-weight: 500;">{{ type.obligation_type__name }}</td>
+                <td style="padding: 12px; text-align: center;">{{ type.total }}</td>
+                <td style="padding: 12px; text-align: center; color: #28a745;">{{ type.completed }}</td>
+                <td style="padding: 12px; text-align: center;">{{ type.avg_time|floatformat:1|default:"—" }}h</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+// Monthly Trend Chart
+const ctx = document.getElementById('monthlyChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels_json|safe }},
+        datasets: [{
+            label: 'Ολοκληρωμένες',
+            data: {{ chart_completed_json|safe }},
+            borderColor: '#28a745',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            tension: 0.4,
+            fill: true
+        }, {
+            label: 'Εκκρεμείς',
+            data: {{ chart_pending_json|safe }},
+            borderColor: '#ffc107',
+            backgroundColor: 'rgba(255, 193, 7, 0.1)',
+            tension: 0.4,
+            fill: true
+        }, {
+            label: 'Καθυστερημένες',
+            data: {{ chart_overdue_json|safe }},
+            borderColor: '#dc3545',
+            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+
+{% endblock %}

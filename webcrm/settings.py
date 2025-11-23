@@ -1,13 +1,27 @@
-import sys
+﻿import sys
+import os
 from pathlib import Path
 from datetime import datetime as dt
 from django.utils.translation import gettext_lazy as _
+from pathlib import Path
+from datetime import datetime as dt
+from django.utils.translation import gettext_lazy as _
+# Near top of settings.py
+from celery.schedules import crontab
+# ΝΕΟ: Load environment variables
+
+from dotenv import load_dotenv
+load_dotenv()
+
 
 from crm.settings import *          # NOQA
 from common.settings import *       # NOQA
 from tasks.settings import *        # NOQA
 from voip.settings import *         # NOQA
 from .datetime_settings import *    # NOQA
+# Μετά συνέχισε με τα imports σου
+from crm.settings import *          # NOQA
+from common.settings import *       # NOQA
 
 # ---- Django settings ---- #
 
@@ -18,7 +32,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # To get new value of key use code:
 # from django.core.management.utils import get_random_secret_key
 # print(get_random_secret_key())
-SECRET_KEY = 'j1c=6$s-dh#$ywt@(q4cm=j&0c*!0x!e-qm6k1%yoliec(15tn'
+SECRET_KEY = os.getenv('SECRET_KEY', 'default-key-for-development')
 
 # Add your hosts to the list.
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
@@ -46,25 +60,31 @@ DATABASES = {
     }
 }
 
-EMAIL_HOST = '<specify host>'   # 'smtp.example.com'
-EMAIL_HOST_PASSWORD = '<specify password>'
-EMAIL_HOST_USER = 'crm@example.com'
+EMAIL_HOST = 'smtp.gmail.com'   # 'smtp.example.com'
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_HOST_USER = 'dpeconsolutions@gmail.com'
 EMAIL_PORT = 587
 EMAIL_SUBJECT_PREFIX = 'CRM: '
 EMAIL_USE_TLS = True
 
-SERVER_EMAIL = 'test@example.com'
-DEFAULT_FROM_EMAIL = 'test@example.com'
+SERVER_EMAIL = 'dpeconsolutions@gmail.com'
+DEFAULT_FROM_EMAIL = 'dpeconsolutions@gmail.com'
 
-ADMINS = [("<Admin1>", "<admin1_box@example.com>")]   # specify admin
+ADMINS = [("<Admin1>", "dpeconsolutions@gmail.com")]   # specify admin
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '192.168.178.28',
+    '192.168.178.*',
+]
 
 FORMS_URLFIELD_ASSUME_HTTPS = True
 
 # Internationalization
-LANGUAGE_CODE = 'en'
+LANGUAGE_CODE = 'el'
 LANGUAGES = [
     ('ar', 'Arabic'),
     ('cs', 'Czech'),
@@ -90,7 +110,7 @@ LANGUAGES = [
     ('zh-hans', 'Chinese'),
 ]
 
-TIME_ZONE = 'UTC'   # specify your time zone
+TIME_ZONE = 'Europe/Athens'   # specify your time zone
 
 USE_I18N = True
 
@@ -103,7 +123,9 @@ LOCALE_PATHS = [
 LOGIN_URL = '/admin/login/'
 
 # Application definition
+# Application definition
 INSTALLED_APPS = [
+    'accounting',
     'django.contrib.sites',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -119,11 +141,20 @@ INSTALLED_APPS = [
     'chat.apps.ChatConfig',
     'voip',
     'common.apps.CommonConfig',
-    'settings'
+    'settings',
+    'rest_framework',
+    'corsheaders',
+    'rest_framework_simplejwt',
+    'inventory',
+    'mydata',
+    'rest_framework.authtoken',
+    'django_q',
+    # 'tinymce',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # ← ΝΕΟ
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -246,7 +277,7 @@ MODEL_ON_INDEX_PAGE = {
 }
 
 # Country VAT value
-VAT = 0    # %
+VAT = 24    # %
 
 # 2-Step Verification Credentials for Google Accounts.
 #  OAuth 2.0
@@ -291,11 +322,15 @@ INDEX_TITLE = _('Main Menu')
 
 # Allow mailing
 MAILING = True
+ENABLE_EMAIL_IMPORT = False
+#ENABLE_IMAP_IMPORT = False
+#EMAIL_IMPORT_ENABLED = False
+
 
 # This is copyright information. Please don't change it!
 COPYRIGHT_STRING = f"Django-CRM. Copyright (c) {dt.now().year}"
-PROJECT_NAME = "Django-CRM"
-PROJECT_SITE = "https://djangocrm.github.io/info/"
+PROJECT_NAME = "dpeconsolutions_crm "
+PROJECT_SITE = "www.dpeconsolutions.com"
 
 
 TESTING = sys.argv[1:2] == ['test']
@@ -303,3 +338,139 @@ if TESTING:
     SECURE_SSL_REDIRECT = False
     LANGUAGE_CODE = 'en'
     LANGUAGES = [('en', ''), ('uk', '')]
+
+
+    # CORS Settings
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    ]
+CORS_ALLOW_CREDENTIALS = True
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+}
+
+# JWT Settings
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+}
+# myDATA Configuration (DUMMY για testing)
+MYDATA_USER_ID = "ddiplas"
+MYDATA_SUBSCRIPTION_KEY = os.getenv('MYDATA_SUBSCRIPTION_KEY', '')
+
+MYDATA_IS_SANDBOX = True  
+
+
+Q_CLUSTER = {
+    'name': 'LogistikoCRM',
+    'workers': 2,
+    'timeout': 90,
+    'retry': 120,
+    'queue_limit': 50,
+    'bulk': 10,
+    'orm': 'default',  # Use Django ORM instead of Redis!
+    'sync': False,  # Run async
+    'save_limit': 100,
+    'label': 'Λογιστικό CRM',
+}
+
+
+# ==============================================================================
+# 🏢 PERSONALIZATION - LogistikoCRM Configuration
+# ==============================================================================
+
+# Company Information
+COMPANY_NAME = "D.P. Accounting - Λογιστικό Γραφείο"
+COMPANY_SHORT_NAME = "Δ. Δίπλας"
+COMPANY_WEBSITE = "https://dpeconsolutions.gr"  # ΘΑ ΤΟ ΑΛΛΑΞΕΙΣ
+COMPANY_PHONE = "+30 24310 76322"  # ΘΑ ΤΟ ΑΛΛΑΞΕΙΣ
+COMPANY_ADDRESS = "Τρίκαλα, Ελλάδα"
+
+# Accountant Information
+ACCOUNTANT_NAME = "Δημήτρης Δίπλας"
+ACCOUNTANT_TITLE = "Λογιστής - Φοροτεχνικός"
+ACCOUNTANT_EMAIL = EMAIL_HOST_USER  # Uses the email above
+ACCOUNTANT_PHONE = COMPANY_PHONE
+
+# Email Template Defaults
+EMAIL_SIGNATURE = f"""
+Με εκτίμηση,
+
+{ACCOUNTANT_NAME}
+{ACCOUNTANT_TITLE}
+{COMPANY_NAME}
+
+📧 {ACCOUNTANT_EMAIL}
+📞 {COMPANY_PHONE}
+🌐 {COMPANY_WEBSITE}
+"""
+
+# Email Subject Prefixes
+EMAIL_SUBJECT_PREFIX_COMPLETION = "✅ Ολοκλήρωση Υποχρέωσης"
+EMAIL_SUBJECT_PREFIX_REMINDER = "⏰ Υπενθύμιση Προθεσμίας"
+EMAIL_SUBJECT_PREFIX_OVERDUE = "⚠️ Καθυστερημένη Υποχρέωση"
+
+# Branding
+SITE_TITLE = 'LogistikoCRM - Λογιστικό Σύστημα'
+ADMIN_HEADER = "ΔΙΑΧΕΙΡΙΣΗ ΛΟΓΙΣΤΙΚΟΥ"
+ADMIN_TITLE = "LogistikoCRM Admin"
+INDEX_TITLE = 'Κεντρικό Μενού'
+
+# Copyright
+COPYRIGHT_STRING = f"{COMPANY_NAME}. Copyright © {dt.now().year}"
+PROJECT_NAME = "LogistikoCRM"
+
+# Business Hours (for scheduling)
+BUSINESS_HOURS_START = "09:00"
+BUSINESS_HOURS_END = "17:00"
+
+# Default Email Templates Context
+DEFAULT_EMAIL_CONTEXT = {
+    'company_name': COMPANY_NAME,
+    'company_short_name': COMPANY_SHORT_NAME,
+    'accountant_name': ACCOUNTANT_NAME,
+    'accountant_title': ACCOUNTANT_TITLE,
+    'email_signature': EMAIL_SIGNATURE,
+    'website': COMPANY_WEBSITE,
+    'phone': COMPANY_PHONE,
+}
+
+
+# ==================== CELERY CONFIG ====================
+CELERY_BROKER_URL = 'redis://localhost:6379'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/Athens'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 min
+# ==================== CELERY BEAT - SCHEDULED TASKS ====================
+
+CELERY_BEAT_SCHEDULE = {
+    'send-obligation-reminders': {
+        'task': 'accounting.tasks.send_obligation_reminders',
+        'schedule': crontab(hour=9, minute=0, day_of_week='1-5'),  # 09:00 Mon-Fri
+    },
+    'send-daily-summary': {
+        'task': 'accounting.tasks.send_daily_summary',
+        'schedule': crontab(hour=17, minute=0, day_of_week='1-5'),  # 17:00 Mon-Fri
+    },
+}
+
+# ==================== SITE CONFIGURATION ====================
+
+# Used for emails and external links
+SITE_URL = 'http://127.0.0.1:8000'  # Change for production!
