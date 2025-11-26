@@ -244,3 +244,181 @@ admin.site.register(admin.models.LogEntry, LogEntrytAdmin)
 admin.site.register(Reminder, ReminderAdmin)
 admin.site.register(TheFile, TheFileAdmin)
 admin.site.register(UserProfile, UserProfileAdmin)
+
+
+# ============================================================================
+# AUDIT LOG ADMIN
+# ============================================================================
+
+from common.models import AuditLog
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """
+    Read-only admin interface for audit logs
+    Critical for compliance and security monitoring
+    """
+    list_display = [
+        'timestamp_formatted',
+        'username_display',
+        'action_badge',
+        'model_name',
+        'object_repr_short',
+        'severity_badge',
+        'ip_address',
+    ]
+
+    list_filter = [
+        'action',
+        'severity',
+        'model_name',
+        ('timestamp', admin.DateFieldListFilter),
+    ]
+
+    search_fields = [
+        'username',
+        'model_name',
+        'object_repr',
+        'description',
+        'ip_address',
+    ]
+
+    readonly_fields = [
+        'user',
+        'username',
+        'action',
+        'model_name',
+        'object_id',
+        'object_repr',
+        'changes_display',
+        'description',
+        'severity',
+        'timestamp',
+        'ip_address',
+        'user_agent',
+        'extra_data',
+    ]
+
+    date_hierarchy = 'timestamp'
+    ordering = ['-timestamp']
+    list_per_page = 100
+
+    # Disable add/edit/delete
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def timestamp_formatted(self, obj):
+        from django.utils.html import format_html
+        return format_html(
+            '<span style="font-family: monospace;">{}</span>',
+            obj.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        )
+    timestamp_formatted.short_description = '⏰ Timestamp'
+    timestamp_formatted.admin_order_field = 'timestamp'
+
+    def username_display(self, obj):
+        from django.utils.html import format_html, escape
+        if obj.user:
+            return format_html(
+                '<span style="font-weight: 600;">👤 {}</span>',
+                escape(obj.username)
+            )
+        return format_html('<span style="color: #999;">Anonymous</span>')
+    username_display.short_description = 'User'
+    username_display.admin_order_field = 'username'
+
+    def action_badge(self, obj):
+        from django.utils.html import format_html
+        colors = {
+            'create': '#10b981',
+            'update': '#3b82f6',
+            'delete': '#ef4444',
+            'view': '#6b7280',
+            'export': '#f59e0b',
+            'login': '#8b5cf6',
+            'logout': '#6b7280',
+            'failed_login': '#dc2626',
+            'permission_denied': '#ef4444',
+        }
+        color = colors.get(obj.action, '#666')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.85em;">{}</span>',
+            color,
+            obj.get_action_display()
+        )
+    action_badge.short_description = 'Action'
+    action_badge.admin_order_field = 'action'
+
+    def severity_badge(self, obj):
+        from django.utils.html import format_html
+        colors = {
+            'low': '#10b981',
+            'medium': '#f59e0b',
+            'high': '#ef4444',
+            'critical': '#991b1b',
+        }
+        icons = {
+            'low': 'ℹ️',
+            'medium': '⚠️',
+            'high': '🔴',
+            'critical': '🚨',
+        }
+        color = colors.get(obj.severity, '#666')
+        icon = icons.get(obj.severity, '•')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 4px 10px; border-radius: 4px; font-weight: 600;">{} {}</span>',
+            color,
+            icon,
+            obj.get_severity_display()
+        )
+    severity_badge.short_description = 'Severity'
+    severity_badge.admin_order_field = 'severity'
+
+    def object_repr_short(self, obj):
+        from django.utils.html import escape
+        if obj.object_repr:
+            repr_str = obj.object_repr[:50]
+            if len(obj.object_repr) > 50:
+                repr_str += '...'
+            return escape(repr_str)
+        return '—'
+    object_repr_short.short_description = 'Object'
+
+    def changes_display(self, obj):
+        from django.utils.html import format_html, escape
+        if not obj.changes:
+            return '—'
+
+        html = '<table style="border-collapse: collapse; width: 100%;">'
+        html += '<tr><th style="text-align: left; padding: 5px; border-bottom: 1px solid #ddd;">Field</th><th style="text-align: left; padding: 5px; border-bottom: 1px solid #ddd;">Old</th><th style="text-align: left; padding: 5px; border-bottom: 1px solid #ddd;">New</th></tr>'
+
+        for field, change in obj.changes.items():
+            old = escape(str(change.get('old', '—')))
+            new = escape(str(change.get('new', '—')))
+            html += f'<tr><td style="padding: 5px;"><strong>{escape(field)}</strong></td><td style="padding: 5px; color: #ef4444;">{old}</td><td style="padding: 5px; color: #10b981;">{new}</td></tr>'
+
+        html += '</table>'
+        return format_html(html)
+    changes_display.short_description = 'Changes'
+
+    fieldsets = (
+        ('Who', {
+            'fields': ('user', 'username', 'ip_address', 'user_agent')
+        }),
+        ('What', {
+            'fields': ('action', 'model_name', 'object_id', 'object_repr', 'changes_display', 'description')
+        }),
+        ('When & Severity', {
+            'fields': ('timestamp', 'severity')
+        }),
+        ('Additional Data', {
+            'fields': ('extra_data',),
+            'classes': ('collapse',)
+        }),
+    )

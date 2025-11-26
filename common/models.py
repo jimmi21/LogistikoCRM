@@ -330,3 +330,111 @@ class UserProfile(models.Model):
         if not self.language_code:
             self.language_code = settings.LANGUAGE_CODE
         super().save(*args, **kwargs)
+
+# ============================================================================
+# AUDIT TRAIL SYSTEM
+# ============================================================================
+
+class AuditLog(models.Model):
+    """
+    Comprehensive audit trail for all critical operations
+    Critical for accounting office compliance
+    """
+
+    ACTION_CHOICES = [
+        ('create', 'Created'),
+        ('update', 'Updated'),
+        ('delete', 'Deleted'),
+        ('view', 'Viewed'),
+        ('export', 'Exported'),
+        ('login', 'Login'),
+        ('logout', 'Logout'),
+        ('failed_login', 'Failed Login'),
+        ('permission_denied', 'Permission Denied'),
+    ]
+
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+
+    # Who
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='audit_logs'
+    )
+    username = models.CharField(max_length=150, db_index=True)
+
+    # What
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, db_index=True)
+    model_name = models.CharField(max_length=100, db_index=True)
+    object_id = models.CharField(max_length=255, blank=True)
+    object_repr = models.CharField(max_length=255, blank=True)
+
+    # Generic relation
+    content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    # Details
+    changes = models.JSONField(default=dict, blank=True)
+    description = models.TextField(blank=True)
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES, default='low', db_index=True)
+
+    # When & Where
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    extra_data = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp', 'user']),
+            models.Index(fields=['model_name', 'action']),
+            models.Index(fields=['severity', '-timestamp']),
+        ]
+        verbose_name = _('Audit Log Entry')
+        verbose_name_plural = _('Audit Log')
+
+    def __str__(self):
+        return f'{self.timestamp:%Y-%m-%d %H:%M:%S} - {self.username} - {self.get_action_display()}'
+
+    @classmethod
+    def log(cls, user, action, obj=None, changes=None, description='', severity='low', request=None):
+        """Create audit log entry"""
+        username = user.username if user else 'anonymous'
+        ip_address = None
+        user_agent = ''
+
+        if request:
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip_address = x_forwarded_for.split(',')[0].strip()
+            else:
+                ip_address = request.META.get('REMOTE_ADDR')
+            user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+
+        log_entry = cls(
+            user=user,
+            username=username,
+            action=action,
+            description=description,
+            severity=severity,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            changes=changes or {}
+        )
+
+        if obj:
+            log_entry.model_name = obj.__class__.__name__
+            log_entry.object_id = str(obj.pk)
+            log_entry.object_repr = str(obj)[:255]
+            log_entry.content_object = obj
+
+        log_entry.save()
+        return log_entry

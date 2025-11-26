@@ -1,0 +1,76 @@
+# ============================================================================
+# LogistikoCRM - Production Requirements
+# Python Dependencies για Λογιστικό Γραφείο
+# ============================================================================
+
+# Django Core
+Django>=5.0,<5.1
+django-cors-headers>=4.3.0
+django-environ>=0.11.2
+
+# Database
+psycopg2-binary>=2.9.9  # PostgreSQL adapter (production)
+
+# REST API
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+
+# Async Tasks & Queue
+celery>=5.3.4
+redis>=5.0.1  # Celery broker
+django-q>=1.3.9
+
+# File Processing
+openpyxl>=3.1.2  # Excel export/import
+Pillow>=10.1.0  # Image processing
+python-magic>=0.4.27  # File type validation (SECURITY)
+
+# Email & Communication
+requests>=2.31.0  # HTTP requests (door control, APIs)
+
+# GeoIP (Optional - για location tracking)
+geoip2>=4.7.0
+
+# Security & Environment
+python-dotenv>=1.0.0  # .env file support
+cryptography>=41.0.7  # Για encryption αν χρειαστεί
+
+# Development & Testing (Optional)
+# Uncomment για development environment:
+# django-debug-toolbar>=4.2.0
+# pytest>=7.4.3
+# pytest-django>=4.7.0
+# coverage>=7.3.2
+# factory-boy>=3.3.0
+# faker>=20.1.0
+
+# ============================================================================
+# Production Server (WSGI)
+# ============================================================================
+
+# Gunicorn (Recommended για production)
+gunicorn>=21.2.0
+
+# Alternative: uWSGI
+# uwsgi>=2.0.23
+
+# ============================================================================
+# Additional Production Tools
+# ============================================================================
+
+# Monitoring & Logging
+sentry-sdk>=1.39.1  # Error tracking (optional)
+
+# Static files
+whitenoise>=6.6.0  # Static file serving
+
+# Admin enhancements
+django-import-export>=3.3.5  # Better import/export (optional)
+
+# ============================================================================
+# Notes:
+# - Install: pip install -r requirements.txt
+# - Για PostgreSQL: apt-get install libpq-dev python3-dev
+# - Για python-magic: apt-get install libmagic1
+# - Για production: pip freeze > requirements-lock.txt για version pinning
+# ============================================================================

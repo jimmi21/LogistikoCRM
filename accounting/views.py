@@ -2433,10 +2433,12 @@ def door_status(request):
         }, status=500)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def open_door(request):
-    """Toggle door - ON ↔ OFF"""
+    """
+    Toggle door - ON ↔ OFF
+    ✅ SECURITY FIX: CSRF protection enabled to prevent unauthorized door control
+    """
     try:
         # TOGGLE command
         url = f"http://{TASMOTA_IP}:{TASMOTA_PORT}/cm?cmnd=Power%20TOGGLE"

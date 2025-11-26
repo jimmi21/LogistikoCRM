@@ -242,37 +242,46 @@ class StockMovement(models.Model):
         return f"{self.get_movement_type_display()} - {self.product.code} - {self.quantity} {self.product.unit}"
     
     def save(self, *args, **kwargs):
-        """Override save για auto-update του stock"""
-        is_new = self.pk is None
-        old_movement = None if is_new else StockMovement.objects.get(pk=self.pk)
-        
-        super().save(*args, **kwargs)
-        
-        # Update product stock
-        if is_new:
-            if self.movement_type == 'IN':
-                self.product.current_stock += self.quantity
-            elif self.movement_type == 'OUT':
-                self.product.current_stock -= self.quantity
-            elif self.movement_type == 'ADJ':
-                # Για adjustment, η quantity είναι η διαφορά
-                self.product.current_stock += self.quantity
-            
-            self.product.save()
-        else:
-            # Undo old movement
-            if old_movement.movement_type == 'IN':
-                self.product.current_stock -= old_movement.quantity
-            elif old_movement.movement_type == 'OUT':
-                self.product.current_stock += old_movement.quantity
-            
-            # Apply new movement
-            if self.movement_type == 'IN':
-                self.product.current_stock += self.quantity
-            elif self.movement_type == 'OUT':
-                self.product.current_stock -= self.quantity
-            
-            self.product.save()
+        """
+        Override save για auto-update του stock
+        SECURITY FIX: Use transaction and select_for_update to prevent race conditions
+        """
+        from django.db import transaction
+
+        with transaction.atomic():
+            is_new = self.pk is None
+            old_movement = None if is_new else StockMovement.objects.get(pk=self.pk)
+
+            # Lock the product row to prevent concurrent updates (RACE CONDITION FIX)
+            product = Product.objects.select_for_update().get(pk=self.product.pk)
+
+            super().save(*args, **kwargs)
+
+            # Update product stock atomically
+            if is_new:
+                if self.movement_type == 'IN':
+                    product.current_stock += self.quantity
+                elif self.movement_type == 'OUT':
+                    product.current_stock -= self.quantity
+                elif self.movement_type == 'ADJ':
+                    # Για adjustment, η quantity είναι η διαφορά
+                    product.current_stock += self.quantity
+
+                product.save()
+            else:
+                # Undo old movement
+                if old_movement.movement_type == 'IN':
+                    product.current_stock -= old_movement.quantity
+                elif old_movement.movement_type == 'OUT':
+                    product.current_stock += old_movement.quantity
+
+                # Apply new movement
+                if self.movement_type == 'IN':
+                    product.current_stock += self.quantity
+                elif self.movement_type == 'OUT':
+                    product.current_stock -= self.quantity
+
+                product.save()
     
     @property
     def total_value(self):

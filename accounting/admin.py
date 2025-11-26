@@ -1,5 +1,5 @@
 from django.urls import reverse, path
-from django.utils.html import format_html
+from django.utils.html import format_html, escape
 from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -145,7 +145,7 @@ class ObligationProfileForm(forms.ModelForm):
 # ============================================================================
 
 from django.urls import reverse, path
-from django.utils.html import format_html
+from django.utils.html import format_html, escape
 from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -940,22 +940,23 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
     def client_display(self, obj):
         """Πελάτης με link και επιπλέον πληροφορίες"""
         url = reverse('admin:accounting_clientprofile_change', args=[obj.client.id])
-        
+
         # Badge για active/inactive
         active_badge = ''
         if not obj.client.is_active:
             active_badge = '<span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; margin-left: 5px;">ΑΝΕΝΕΡΓΟΣ</span>'
-        
+
+        # ✅ SECURITY FIX: Explicitly escape user input to prevent XSS
         return format_html(
             '<a href="{}" style="font-weight: 600; color: #667eea; text-decoration: none;">'
             '👤 {}'
             '</a>{}<br>'
             '<small style="color: #666;">ΑΦΜ: {} • {}</small>',
             url,
-            obj.client.eponimia,
+            escape(obj.client.eponimia),
             active_badge,
-            obj.client.afm,
-            obj.client.get_eidos_ipoxreou_display()
+            escape(obj.client.afm),
+            escape(obj.client.get_eidos_ipoxreou_display())
         )
     client_display.short_description = '👤 Πελάτης'
     client_display.admin_order_field = 'client__eponimia'
@@ -999,7 +1000,8 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
                 file_size = round(obj.attachment.size / 1024, 1)
             except:
                 file_size = '—'
-            
+
+            # ✅ SECURITY FIX: Escape filename to prevent XSS
             return format_html(
                 '<div style="padding: 10px; background: #f0f8ff; border-radius: 6px; border-left: 4px solid #667eea;">'
                 '<strong>📎 Τρέχον Αρχείο:</strong><br>'
@@ -1007,7 +1009,7 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
                 '<div style="font-size: 12px; color: #666; margin-top: 5px;">Μέγεθος: {} KB</div>'
                 '</div>',
                 obj.attachment.url,
-                filename,
+                escape(filename),
                 file_size
             )
         return "—"
@@ -1358,7 +1360,8 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
     actions = ['send_now', 'cancel_emails']
     
     def subject_preview(self, obj):
-        preview = obj.subject[:50]
+        # ✅ SECURITY FIX: Escape subject to prevent XSS
+        preview = escape(obj.subject[:50])
         if len(obj.subject) > 50:
             preview += '...'
         return preview
@@ -1496,20 +1499,22 @@ class VoIPCallAdmin(admin.ModelAdmin):
     call_id_colored.short_description = '📱 Call ID'
     
     def phone_number_link(self, obj):
+        # ✅ SECURITY FIX: Escape phone number to prevent XSS
         return format_html(
             '<a href="tel:{}" style="color: #2563eb; text-decoration: none; font-weight: 600;">📞 {}</a>',
-            obj.phone_number,
-            obj.phone_number
+            escape(obj.phone_number),
+            escape(obj.phone_number)
         )
     phone_number_link.short_description = '🔔 Αριθμός'
-    
+
     def client_link(self, obj):
         if obj.client:
             url = reverse('admin:accounting_clientprofile_change', args=[obj.client.id])
+            # ✅ SECURITY FIX: Escape client name to prevent XSS
             return format_html(
                 '<a href="{}" style="color: #059669; font-weight: 600;">👤 {}</a>',
                 url,
-                obj.client.eponimia
+                escape(obj.client.eponimia)
             )
         return format_html('<span style="color: #999;">—</span>')
     client_link.short_description = '👤 Πελάτης'
@@ -1642,10 +1647,11 @@ class VoIPCallLogAdmin(admin.ModelAdmin):
     
     def call_link(self, obj):
         url = reverse('admin:accounting_voipcall_change', args=[obj.call.id])
+        # ✅ SECURITY FIX: Escape phone number to prevent XSS
         return format_html(
             '<a href="{}" style="color: #2563eb; font-weight: 600;">📞 {}</a>',
             url,
-            obj.call.phone_number
+            escape(obj.call.phone_number)
         )
     call_link.short_description = 'Κλήση'
     
@@ -1666,7 +1672,9 @@ class VoIPCallLogAdmin(admin.ModelAdmin):
     action_badge.short_description = 'Ενέργεια'
     
     def description_short(self, obj):
-        return obj.description[:80] + '...' if len(obj.description) > 80 else obj.description
+        # ✅ SECURITY FIX: Escape description to prevent XSS
+        desc = escape(obj.description)
+        return desc[:80] + '...' if len(obj.description) > 80 else desc
     description_short.short_description = 'Περιγραφή'
     
     def created_at_formatted(self, obj):
@@ -1755,13 +1763,16 @@ class TicketAdmin(admin.ModelAdmin):
     ticket_id_display.short_description = '🎫'
     
     def title_short(self, obj):
-        return obj.title[:50] + '...' if len(obj.title) > 50 else obj.title
+        # ✅ SECURITY FIX: Escape title to prevent XSS
+        title = escape(obj.title)
+        return title[:50] + '...' if len(obj.title) > 50 else title
     title_short.short_description = 'Τίτλος'
-    
+
     def client_link(self, obj):
         if obj.client:
             url = reverse('admin:accounting_clientprofile_change', args=[obj.client.id])
-            return format_html('<a href="{}">{}</a>', url, obj.client.eponimia)
+            # ✅ SECURITY FIX: Escape client name to prevent XSS
+            return format_html('<a href="{}">{}</a>', url, escape(obj.client.eponimia))
         return '—'
     client_link.short_description = 'Πελάτης'
     
@@ -1774,12 +1785,13 @@ class TicketAdmin(admin.ModelAdmin):
     
     def call_info(self, obj):
         if obj.call:
+            # ✅ SECURITY FIX: Escape phone number to prevent XSS
             return format_html(
                 '📞 {}<br>↔️ {}<br>🕐 {}<br>⏱️ {}',
-                obj.call.phone_number,
-                obj.call.get_direction_display(),
+                escape(obj.call.phone_number),
+                escape(obj.call.get_direction_display()),
                 obj.call.started_at.strftime('%d/%m/%Y %H:%M'),
-                obj.call.duration_formatted
+                escape(obj.call.duration_formatted)
             )
         return '—'
     call_info.short_description = 'Call Details'

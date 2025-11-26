@@ -37,26 +37,18 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default-key-for-development')
 # Add your hosts to the list.
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-# Database
+# Database - SECURITY FIX: Use environment variables
 DATABASES = {
     'default': {
-        # for SQLite3
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # SQLite for development
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),
+        'NAME': os.getenv('DB_NAME', str(BASE_DIR / 'db.sqlite3')),
 
-        # for MySQl
-        #'ENGINE': 'django.db.backends.mysql',
-        #'PORT': '3306',
-
-        # for PostgreSQL
-        # "ENGINE": "django.db.backends.postgresql",
-        # 'PORT': '5432',   # for PostgreSQL
-
-        'NAME': 'crm_db',
-        'USER': 'crm_user',
-        'PASSWORD': 'crmpass',
-        'HOST': 'localhost',
-
+        # For PostgreSQL/MySQL production
+        'USER': os.getenv('DB_USER', ''),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', ''),
     }
 }
 
@@ -73,7 +65,8 @@ DEFAULT_FROM_EMAIL = 'dpeconsolutions@gmail.com'
 ADMINS = [("<Admin1>", "dpeconsolutions@gmail.com")]   # specify admin
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY FIX: Default to False, only enable in dev with explicit env var
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
