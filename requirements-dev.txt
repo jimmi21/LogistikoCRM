@@ -1,0 +1,42 @@
+# ============================================================================
+# Development Dependencies
+# Επιπλέον packages για development environment
+# ============================================================================
+
+# Install με: pip install -r requirements.txt -r requirements-dev.txt
+
+# Debugging
+django-debug-toolbar>=4.2.0
+django-extensions>=3.2.3
+
+# Testing
+pytest>=7.4.3
+pytest-django>=4.7.0
+pytest-cov>=4.1.0
+coverage>=7.3.2
+factory-boy>=3.3.0
+faker>=20.1.0
+
+# Code Quality
+black>=23.12.1  # Code formatter
+flake8>=6.1.0  # Linter
+isort>=5.13.2  # Import sorter
+mypy>=1.7.1  # Type checker
+pylint>=3.0.3
+
+# Documentation
+sphinx>=7.2.6
+sphinx-rtd-theme>=2.0.0
+
+# Development tools
+ipython>=8.18.1
+ipdb>=0.13.13
+watchdog>=3.0.0  # File monitoring
+
+# Database tools
+django-extensions>=3.2.3  # shell_plus, etc.
+
+# ============================================================================
+# Pre-commit hooks (optional)
+# ============================================================================
+# pre-commit>=3.6.0
