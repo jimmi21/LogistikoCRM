@@ -276,6 +276,165 @@ function handleFileUpload(event) {
 
 
 // ============================================================================
+// BULK COMPLETION - Μαζική Ολοκλήρωση
+// ============================================================================
+
+function showBulkCompletionModal(obligationIds) {
+    const modal = document.getElementById('bulk-completion-modal');
+    if (!modal) {
+        createBulkCompletionModal();
+    }
+
+    const modalElement = document.getElementById('bulk-completion-modal');
+    modalElement.dataset.obligationIds = JSON.stringify(obligationIds);
+    modalElement.style.display = 'flex';
+
+    // Update count in modal
+    document.getElementById('bulk-modal-count').textContent = obligationIds.length;
+
+    // Reset form
+    document.getElementById('bulk-completion-form').reset();
+}
+
+function createBulkCompletionModal() {
+    const modalHTML = `
+    <div id="bulk-completion-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>✓ Μαζική Ολοκλήρωση <span class="badge" id="bulk-modal-count">0</span> Υποχρεώσεων</h2>
+                <button type="button" class="modal-close" onclick="closeBulkCompletionModal()">&times;</button>
+            </div>
+
+            <form id="bulk-completion-form" onsubmit="handleBulkCompletion(event)">
+                <div class="modal-body">
+                    <!-- File Upload (OPTIONAL) -->
+                    <div class="form-group">
+                        <label for="bulk-file-input" class="form-label">
+                            <span class="icon">📎</span>
+                            Επισύναψη Αρχείου (προαιρετικό - κοινό για όλες)
+                        </label>
+                        <input type="file"
+                               id="bulk-file-input"
+                               name="file"
+                               accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.zip"
+                               class="file-input">
+                        <small class="help-text">Το αρχείο θα επισυναφθεί σε όλες τις επιλεγμένες υποχρεώσεις</small>
+                    </div>
+
+                    <!-- Category -->
+                    <div class="form-group">
+                        <label for="bulk-file-category" class="form-label">
+                            <span class="icon">📁</span>
+                            Κατηγορία Εγγράφου
+                        </label>
+                        <select id="bulk-file-category" name="category" class="form-select">
+                            <option value="general">📁 Γενικά</option>
+                            <option value="tax">📋 Φορολογικά</option>
+                            <option value="vat">💶 ΦΠΑ</option>
+                            <option value="myf">📊 ΜΥΦ</option>
+                            <option value="invoices">🧾 Τιμολόγια</option>
+                            <option value="contracts">📜 Συμβάσεις</option>
+                            <option value="payroll">👥 Μισθοδοσία</option>
+                        </select>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="form-group">
+                        <label for="bulk-description" class="form-label">
+                            <span class="icon">📝</span>
+                            Περιγραφή (προαιρετικό)
+                        </label>
+                        <textarea id="bulk-description"
+                                  name="description"
+                                  rows="3"
+                                  class="form-textarea"
+                                  placeholder="Κοινές σημειώσεις για όλες τις υποχρεώσεις..."></textarea>
+                    </div>
+
+                    <!-- Email Notification -->
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox"
+                                   id="bulk-send-email"
+                                   name="send_email"
+                                   value="1"
+                                   class="form-checkbox">
+                            <span class="icon">📧</span>
+                            <span>Αποστολή email στους πελάτες</span>
+                        </label>
+                        <small class="help-text">Κάθε πελάτης θα ενημερωθεί για τις δικές του υποχρεώσεις</small>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeBulkCompletionModal()">
+                        Ακύρωση
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <span class="icon">✓</span>
+                        <span>Ολοκλήρωση Όλων</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeBulkCompletionModal() {
+    const modal = document.getElementById('bulk-completion-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function handleBulkCompletion(event) {
+    event.preventDefault();
+
+    const modal = document.getElementById('bulk-completion-modal');
+    const obligationIds = JSON.parse(modal.dataset.obligationIds);
+    const form = event.target;
+    const formData = new FormData(form);
+
+    // Add obligation IDs to form data
+    formData.append('obligation_ids', JSON.stringify(obligationIds));
+
+    // Disable submit button
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalHTML = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="icon">⏳</span><span>Ολοκλήρωση...</span>';
+
+    // Send bulk completion request
+    fetch('/accounting/bulk-complete/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(\`✅ Ολοκληρώθηκαν \${data.completed_count} υποχρεώσεις επιτυχώς!\`, 'success');
+            closeBulkCompletionModal();
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            throw new Error(data.error || 'Σφάλμα κατά τη μαζική ολοκλήρωση');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('❌ Σφάλμα: ' + error.message, 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHTML;
+    });
+}
+
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

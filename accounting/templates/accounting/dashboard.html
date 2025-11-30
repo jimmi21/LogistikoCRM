@@ -359,9 +359,9 @@
             <div class="bulk-section">
                 <h4 class="bulk-section-title">Ενέργειες</h4>
                 <div class="bulk-buttons">
-                    <button type="button" onclick="showAdvancedBulkComplete()" class="btn btn-small btn-success" title="Smart completion with grouping">
+                    <button type="button" onclick="bulkComplete()" class="btn btn-small btn-success" title="Bulk complete with optional file upload">
                         <span class="icon">✓</span>
-                        <span>Έξυπνη Ολοκλήρωση</span>
+                        <span>Μαζική Ολοκλήρωση</span>
                     </button>
                     <button type="button" onclick="bulkEmail()" class="btn btn-small btn-info">
                         <span class="icon">📧</span>
@@ -610,9 +610,45 @@
         });
     }
 
+    // Bulk selection functions
+    function toggleAllCheckboxes(checkbox) {
+        const checkboxes = document.querySelectorAll('.obl-checkbox');
+        checkboxes.forEach(cb => cb.checked = checkbox.checked);
+        updateBulkBar();
+    }
+
+    function updateBulkBar() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        const count = checkboxes.length;
+        const bulkBar = document.getElementById('bulk-actions-bar');
+        const countSpan = document.getElementById('selected-count');
+
+        if (count > 0) {
+            bulkBar.style.display = 'flex';
+            if (countSpan) countSpan.textContent = count;
+        } else {
+            bulkBar.style.display = 'none';
+        }
+    }
+
+    function bulkComplete() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        const obligationIds = Array.from(checkboxes).map(cb => cb.value);
+
+        if (obligationIds.length === 0) {
+            alert('Δεν έχετε επιλέξει καμία υποχρέωση');
+            return;
+        }
+
+        showBulkCompletionModal(obligationIds);
+    }
+
     // Bulk bar close
     function closeBulkBar() {
         document.getElementById('bulk-actions-bar').style.display = 'none';
+        // Deselect all checkboxes
+        document.querySelectorAll('.obl-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('select-all-header').checked = false;
     }
 
     // Table compact view toggle

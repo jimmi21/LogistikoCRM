@@ -45,7 +45,7 @@ urlpatterns = [
     path("obligation/<int:obligation_id>/complete/", views.quick_complete_obligation, name="obligation_complete"),
     path("obligation/<int:obligation_id>/complete-with-file/", views.complete_with_file, name="obligation_complete_file"),
     path("quick-complete/<int:obligation_id>/", views.quick_complete_obligation, name="quick_complete"),  # Legacy
-    path("bulk-complete/", views.bulk_complete_view, name="bulk_complete"),
+    path("bulk-complete/", views.bulk_complete_obligations, name="bulk_complete"),  # Enhanced bulk complete with email & file
     path("advanced-bulk-complete/", views.advanced_bulk_complete, name="advanced_bulk_complete"),
 
     # EXPORT

@@ -2680,6 +2680,142 @@ def complete_with_file(request, obligation_id):
         }, status=500)
 
 
+@require_POST
+@staff_member_required
+def bulk_complete_obligations(request):
+    """
+    Bulk complete multiple obligations with optional file upload
+    Handles μαζική ολοκλήρωση με προαιρετικό αρχείο
+    """
+    try:
+        import json
+
+        # Get obligation IDs
+        obligation_ids_str = request.POST.get('obligation_ids')
+        if not obligation_ids_str:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν επιλέξατε υποχρεώσεις'
+            }, status=400)
+
+        obligation_ids = json.loads(obligation_ids_str)
+
+        if not obligation_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν επιλέξατε υποχρεώσεις'
+            }, status=400)
+
+        # Get obligations
+        obligations = MonthlyObligation.objects.filter(
+            id__in=obligation_ids,
+            status__in=['pending', 'overdue']
+        )
+
+        if not obligations.exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν βρέθηκαν έγκυρες υποχρεώσεις προς ολοκλήρωση'
+            }, status=404)
+
+        # Get optional parameters
+        send_email = request.POST.get('send_email') == '1'
+        category = request.POST.get('category', 'general')
+        description = request.POST.get('description', '')
+        uploaded_file = request.FILES.get('file')
+
+        # Validate file if provided
+        if uploaded_file:
+            from common.utils.file_validation import validate_file_upload
+            try:
+                validate_file_upload(uploaded_file)
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Μη έγκυρο αρχείο: {str(e)}'
+                }, status=400)
+
+        completed_count = 0
+        failed_count = 0
+        errors = []
+
+        # Complete each obligation
+        for obligation in obligations:
+            try:
+                old_status = obligation.status
+                obligation.status = 'completed'
+                obligation.completed_date = timezone.now().date()
+                obligation.completed_by = request.user
+
+                # Attach file if provided
+                if uploaded_file:
+                    # Create document for this obligation
+                    ClientDocument.objects.create(
+                        client=obligation.client,
+                        obligation=obligation,
+                        file=uploaded_file,
+                        filename=uploaded_file.name,
+                        file_type=uploaded_file.content_type,
+                        document_category=category,
+                        description=description or f'Μαζική ολοκλήρωση - {timezone.now().date()}'
+                    )
+                    obligation.attachment = uploaded_file
+
+                obligation.save()
+
+                # Audit log
+                from common.models import AuditLog
+                AuditLog.log(
+                    user=request.user,
+                    action='update',
+                    obj=obligation,
+                    changes={
+                        'status': {'old': old_status, 'new': 'completed'},
+                        'bulk_completion': True
+                    },
+                    description=f'Μαζική ολοκλήρωση: {obligation}',
+                    severity='medium',
+                    request=request
+                )
+
+                # Send email if requested
+                if send_email:
+                    from accounting.services.email_service import trigger_automation_rules
+                    trigger_automation_rules(obligation, trigger_type='on_complete')
+
+                completed_count += 1
+
+            except Exception as e:
+                failed_count += 1
+                errors.append(f'{obligation.client.eponimia} - {obligation.obligation_type.name}: {str(e)}')
+                logger.error(f'Error bulk completing obligation {obligation.id}: {e}')
+
+        # Build response message
+        message = f'Ολοκληρώθηκαν {completed_count} υποχρεώσεις επιτυχώς'
+        if failed_count > 0:
+            message += f' ({failed_count} απέτυχαν)'
+
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'completed_count': completed_count,
+            'failed_count': failed_count,
+            'errors': errors if errors else None
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Μη έγκυρα δεδομένα υποχρεώσεων'
+        }, status=400)
+    except Exception as e:
+        logger.error(f'Error in bulk completion: {e}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
 @staff_member_required
 def obligation_detail_view(request, obligation_id):
     """
