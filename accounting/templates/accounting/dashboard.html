@@ -96,6 +96,21 @@
     color: #666;
 }
 
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
 /* Notification Styles */
 .notification {
     position: fixed;
@@ -500,18 +515,11 @@
                                 {% if obl.status != 'completed' %}
                                 <div class="action-buttons">
                                     <button type="button"
-                                            onclick="event.stopPropagation(); quickComplete({{ obl.id }});"
+                                            onclick="event.stopPropagation(); showCompletionModal({{ obl.id }});"
                                             class="btn btn-action btn-success btn-sm"
-                                            title="Γρήγορη ολοκλήρωση χωρίς αρχείο">
+                                            title="Ολοκλήρωση υποχρέωσης (με προαιρετικό αρχείο και email)">
                                         <span class="icon">✓</span>
                                         <span class="label">Ολοκλήρωση</span>
-                                    </button>
-                                    <button type="button"
-                                            onclick="event.stopPropagation(); completeWithFile({{ obl.id }});"
-                                            class="btn btn-action btn-primary btn-sm"
-                                            title="Ολοκλήρωση με ανέβασμα αρχείου">
-                                        <span class="icon">📎</span>
-                                        <span class="label">+Αρχείο</span>
                                     </button>
                                     <button type="button"
                                             onclick="event.stopPropagation(); navigateToObligation({{ obl.id }});"

@@ -55,49 +55,48 @@ function quickComplete(obligationId) {
 
 
 // ============================================================================
-// COMPLETE WITH FILE - Ολοκλήρωση με Ανέβασμα Αρχείου
+// COMPLETION MODAL - Ολοκλήρωση (με προαιρετικό αρχείο & email)
 // ============================================================================
 
-function completeWithFile(obligationId) {
-    // Show file upload modal
-    showFileUploadModal(obligationId);
-}
-
-function showFileUploadModal(obligationId) {
-    const modal = document.getElementById('file-upload-modal');
+function showCompletionModal(obligationId) {
+    const modal = document.getElementById('completion-modal');
     if (!modal) {
-        createFileUploadModal();
+        createCompletionModal();
     }
 
-    const modalElement = document.getElementById('file-upload-modal');
+    const modalElement = document.getElementById('completion-modal');
     modalElement.dataset.obligationId = obligationId;
     modalElement.style.display = 'flex';
 
     // Reset form
-    document.getElementById('upload-form').reset();
+    document.getElementById('completion-form').reset();
 }
 
-function createFileUploadModal() {
+// Legacy function - for backwards compatibility
+function completeWithFile(obligationId) {
+    showCompletionModal(obligationId);
+}
+
+function createCompletionModal() {
     const modalHTML = `
-    <div id="file-upload-modal" class="modal" style="display: none;">
+    <div id="completion-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2>📎 Ανέβασμα Αρχείου & Ολοκλήρωση</h2>
-                <button type="button" class="modal-close" onclick="closeFileUploadModal()">&times;</button>
+                <h2>✓ Ολοκλήρωση Υποχρέωσης</h2>
+                <button type="button" class="modal-close" onclick="closeCompletionModal()">&times;</button>
             </div>
 
-            <form id="upload-form" onsubmit="handleFileUpload(event)">
+            <form id="completion-form" onsubmit="handleCompletion(event)">
                 <div class="modal-body">
-                    <!-- File Upload -->
+                    <!-- File Upload (OPTIONAL) -->
                     <div class="form-group">
                         <label for="file-input" class="form-label">
-                            <span class="icon">📄</span>
-                            Επιλογή Αρχείου *
+                            <span class="icon">📎</span>
+                            Επισύναψη Αρχείου (προαιρετικό)
                         </label>
                         <input type="file"
                                id="file-input"
                                name="file"
-                               required
                                accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png"
                                class="file-input">
                         <small class="help-text">Επιτρεπόμενοι τύποι: PDF, Excel, Word, εικόνες</small>
@@ -147,15 +146,29 @@ function createFileUploadModal() {
                                class="form-input"
                                placeholder="π.χ. 1.5">
                     </div>
+
+                    <!-- Email Notification -->
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox"
+                                   id="send-email"
+                                   name="send_email"
+                                   value="1"
+                                   class="form-checkbox">
+                            <span class="icon">📧</span>
+                            <span>Αποστολή email ειδοποίησης στον πελάτη</span>
+                        </label>
+                        <small class="help-text">Ο πελάτης θα ενημερωθεί για την ολοκλήρωση της υποχρέωσης</small>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeFileUploadModal()">
+                    <button type="button" class="btn btn-secondary" onclick="closeCompletionModal()">
                         Ακύρωση
                     </button>
                     <button type="submit" class="btn btn-success">
                         <span class="icon">✓</span>
-                        <span>Ανέβασμα & Ολοκλήρωση</span>
+                        <span>Ολοκλήρωση</span>
                     </button>
                 </div>
             </form>
@@ -166,57 +179,99 @@ function createFileUploadModal() {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
-function closeFileUploadModal() {
-    const modal = document.getElementById('file-upload-modal');
+function closeCompletionModal() {
+    const modal = document.getElementById('completion-modal');
     if (modal) {
         modal.style.display = 'none';
     }
 }
 
-function handleFileUpload(event) {
+// Legacy function
+function closeFileUploadModal() {
+    closeCompletionModal();
+}
+
+function handleCompletion(event) {
     event.preventDefault();
 
-    const modal = document.getElementById('file-upload-modal');
+    const modal = document.getElementById('completion-modal');
     const obligationId = modal.dataset.obligationId;
     const form = event.target;
-    const formData = new FormData(form);
+    const fileInput = form.querySelector('#file-input');
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
 
     // Disable submit button
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalHTML = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="icon">⏳</span><span>Ανέβασμα...</span>';
+    submitBtn.innerHTML = '<span class="icon">⏳</span><span>Ολοκλήρωση...</span>';
 
-    // Upload file and complete
-    fetch(`/accounting/obligation/${obligationId}/complete-with-file/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('✅ Το αρχείο ανέβηκε και η υποχρέωση ολοκληρώθηκε!', 'success');
-            closeFileUploadModal();
+    if (hasFile) {
+        // Complete WITH file upload
+        const formData = new FormData(form);
 
-            // Reload page
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            throw new Error(data.error || 'Σφάλμα κατά το ανέβασμα');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification('❌ Σφάλμα: ' + error.message, 'error');
+        fetch(`/accounting/obligation/${obligationId}/complete-with-file/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('✅ Το αρχείο ανέβηκε και η υποχρέωση ολοκληρώθηκε!', 'success');
+                closeCompletionModal();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                throw new Error(data.error || 'Σφάλμα κατά το ανέβασμα');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('❌ Σφάλμα: ' + error.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalHTML;
+        });
+    } else {
+        // Complete WITHOUT file (simple completion)
+        const sendEmail = form.querySelector('#send-email').checked;
+        const timeSpent = form.querySelector('#time-spent').value;
 
-        // Restore button
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHTML;
-    });
+        fetch(`/accounting/obligation/${obligationId}/complete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                status: 'completed',
+                send_email: sendEmail,
+                time_spent: timeSpent || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('✅ Η υποχρέωση ολοκληρώθηκε επιτυχώς!', 'success');
+                closeCompletionModal();
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                throw new Error(data.error || 'Σφάλμα κατά την ολοκλήρωση');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('❌ Σφάλμα: ' + error.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalHTML;
+        });
+    }
+}
+
+// Legacy function - for backwards compatibility
+function handleFileUpload(event) {
+    handleCompletion(event);
 }
 
 

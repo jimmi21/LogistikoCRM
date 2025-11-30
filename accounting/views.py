@@ -2503,32 +2503,65 @@ def door_control(request):
 def quick_complete_obligation(request, obligation_id):
     """
     Quick complete obligation without file upload
-    AJAX endpoint για γρήγορη ολοκλήρωση
+    AJAX endpoint για γρήγορη ολοκλήρωση με προαιρετικό email notification
     """
     try:
+        import json
         obligation = MonthlyObligation.objects.get(id=obligation_id)
 
+        # Parse JSON body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            data = {}
+
+        # Get optional parameters
+        send_email = data.get('send_email', False)
+        time_spent = data.get('time_spent')
+
         # Update status
+        old_status = obligation.status
         obligation.status = 'completed'
-        obligation.completed_date = timezone.now()
+        obligation.completed_date = timezone.now().date()  # DateField, not datetime
         obligation.completed_by = request.user
+
+        # Update time spent if provided
+        if time_spent:
+            try:
+                obligation.time_spent = float(time_spent)
+            except (ValueError, TypeError):
+                pass
+
         obligation.save()
 
         # Log to audit trail
         from common.models import AuditLog
+        changes = {
+            'status': {'old': old_status, 'new': 'completed'}
+        }
+        if time_spent:
+            changes['time_spent'] = {'old': None, 'new': time_spent}
+
         AuditLog.log(
             user=request.user,
             action='update',
             obj=obligation,
-            changes={'status': {'old': 'pending', 'new': 'completed'}},
+            changes=changes,
             description=f'Γρήγορη ολοκλήρωση υποχρέωσης: {obligation}',
             severity='medium',
             request=request
         )
 
+        # Send email notification if requested
+        if send_email:
+            from accounting.services.email_service import trigger_automation_rules
+            emails_created = trigger_automation_rules(obligation, trigger_type='on_complete')
+            logger.info(f'📧 Created {len(emails_created)} email notifications for obligation {obligation_id}')
+
         return JsonResponse({
             'success': True,
-            'message': 'Η υποχρέωση ολοκληρώθηκε επιτυχώς!'
+            'message': 'Η υποχρέωση ολοκληρώθηκε επιτυχώς!' +
+                      (' (Email στάλθηκε)' if send_email else '')
         })
 
     except MonthlyObligation.DoesNotExist:
@@ -2588,8 +2621,9 @@ def complete_with_file(request, obligation_id):
         )
 
         # Update obligation
+        old_status = obligation.status
         obligation.status = 'completed'
-        obligation.completed_date = timezone.now()
+        obligation.completed_date = timezone.now().date()  # DateField, not datetime
         obligation.completed_by = request.user
         obligation.attachment = uploaded_file  # Set primary attachment
 
@@ -2610,7 +2644,7 @@ def complete_with_file(request, obligation_id):
             action='update',
             obj=obligation,
             changes={
-                'status': {'old': 'pending', 'new': 'completed'},
+                'status': {'old': old_status, 'new': 'completed'},
                 'attachment': {'old': None, 'new': uploaded_file.name}
             },
             description=f'Ολοκλήρωση με αρχείο: {obligation}',
@@ -2618,9 +2652,17 @@ def complete_with_file(request, obligation_id):
             request=request
         )
 
+        # Send email notification if requested
+        send_email = request.POST.get('send_email') == '1'
+        if send_email:
+            from accounting.services.email_service import trigger_automation_rules
+            emails_created = trigger_automation_rules(obligation, trigger_type='on_complete')
+            logger.info(f'📧 Created {len(emails_created)} email notifications for obligation {obligation_id}')
+
         return JsonResponse({
             'success': True,
-            'message': 'Το αρχείο ανέβηκε και η υποχρέωση ολοκληρώθηκε!',
+            'message': 'Το αρχείο ανέβηκε και η υποχρέωση ολοκληρώθηκε!' +
+                      (' (Email στάλθηκε)' if send_email else ''),
             'document_id': document.id,
             'obligation_id': obligation.id
         })
