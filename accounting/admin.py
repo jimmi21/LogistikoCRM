@@ -78,25 +78,43 @@ class BulkAssignForm(forms.Form):
 
 
 class ClientObligationForm(forms.ModelForm):
-    """Custom form με validation για ΦΠΑ"""
+    """Custom form με validation για ΦΠΑ και όλα τα exclusion groups"""
     class Meta:
         model = ClientObligation
         fields = '__all__'
-    
+
     def clean(self):
         cleaned_data = super().clean()
         obligation_types = cleaned_data.get('obligation_types')
-        
+
         if obligation_types:
+            # ✅ ENHANCED VALIDATION: Έλεγχος για όλα τα exclusion groups
+            exclusion_groups = {}
+            for obl_type in obligation_types:
+                if obl_type.exclusion_group:
+                    group_name = obl_type.exclusion_group.name
+                    if group_name not in exclusion_groups:
+                        exclusion_groups[group_name] = []
+                    exclusion_groups[group_name].append(obl_type.name)
+
+            # Αν υπάρχει group με >1 υποχρέωση, error
+            for group_name, type_names in exclusion_groups.items():
+                if len(type_names) > 1:
+                    raise forms.ValidationError(
+                        f'❌ Δεν μπορείτε να επιλέξετε ταυτόχρονα: {", ".join(type_names)} '
+                        f'(ανήκουν στην ομάδα αλληλοαποκλεισμού "{group_name}")'
+                    )
+
+            # Legacy ΦΠΑ validation (για backward compatibility)
             type_names = [t.name for t in obligation_types]
             has_monthly = any('ΦΠΑ Μηνιαίο' in name or 'ΦΠΑ ΜΗΝΙΑΙΟ' in name.upper() for name in type_names)
             has_quarterly = any('ΦΠΑ Τρίμηνο' in name or 'ΦΠΑ ΤΡΙΜΗΝΟ' in name.upper() for name in type_names)
-            
+
             if has_monthly and has_quarterly:
                 raise forms.ValidationError(
                     '❌ Δεν μπορείτε να επιλέξετε ταυτόχρονα ΦΠΑ Μηνιαίο και ΦΠΑ Τρίμηνο!'
                 )
-        
+
         return cleaned_data
 
 
@@ -224,25 +242,43 @@ class BulkAssignForm(forms.Form):
 
 
 class ClientObligationForm(forms.ModelForm):
-    """Custom form με validation για ΦΠΑ"""
+    """Custom form με validation για ΦΠΑ και όλα τα exclusion groups"""
     class Meta:
         model = ClientObligation
         fields = '__all__'
-    
+
     def clean(self):
         cleaned_data = super().clean()
         obligation_types = cleaned_data.get('obligation_types')
-        
+
         if obligation_types:
+            # ✅ ENHANCED VALIDATION: Έλεγχος για όλα τα exclusion groups
+            exclusion_groups = {}
+            for obl_type in obligation_types:
+                if obl_type.exclusion_group:
+                    group_name = obl_type.exclusion_group.name
+                    if group_name not in exclusion_groups:
+                        exclusion_groups[group_name] = []
+                    exclusion_groups[group_name].append(obl_type.name)
+
+            # Αν υπάρχει group με >1 υποχρέωση, error
+            for group_name, type_names in exclusion_groups.items():
+                if len(type_names) > 1:
+                    raise forms.ValidationError(
+                        f'❌ Δεν μπορείτε να επιλέξετε ταυτόχρονα: {", ".join(type_names)} '
+                        f'(ανήκουν στην ομάδα αλληλοαποκλεισμού "{group_name}")'
+                    )
+
+            # Legacy ΦΠΑ validation (για backward compatibility)
             type_names = [t.name for t in obligation_types]
             has_monthly = any('ΦΠΑ Μηνιαίο' in name or 'ΦΠΑ ΜΗΝΙΑΙΟ' in name.upper() for name in type_names)
             has_quarterly = any('ΦΠΑ Τρίμηνο' in name or 'ΦΠΑ ΤΡΙΜΗΝΟ' in name.upper() for name in type_names)
-            
+
             if has_monthly and has_quarterly:
                 raise forms.ValidationError(
                     '❌ Δεν μπορείτε να επιλέξετε ταυτόχρονα ΦΠΑ Μηνιαίο και ΦΠΑ Τρίμηνο!'
                 )
-        
+
         return cleaned_data
 
 
@@ -865,17 +901,20 @@ class ClientObligationAdmin(admin.ModelAdmin):
 
 @admin.register(MonthlyObligation)
 class MonthlyObligationAdmin(admin.ModelAdmin):
+    # ✅ INLINE DOCUMENTS - Detail view με συνημμένα
+    inlines = [ClientDocumentInline]
+
     list_display = [
         'client_display',  # ✅ Νέο με link
         'obligation_type',
         'deadline_with_icon',
         'status_badge',  # Enhanced
-        'time_spent', 
+        'time_spent',
         'cost_display',
         'has_attachment',
         'completed_by_display',  # Enhanced
     ]
-    
+
     # ✅ AUTOCOMPLETE ΓΙΑ CLIENT
     autocomplete_fields = ['client', 'obligation_type']
     
@@ -1918,3 +1957,19 @@ admin.site.index_template = 'admin/custom_index.html'
 admin.site.site_header = 'LogistikoCRM Administration'
 admin.site.site_title = 'LogistikoCRM'
 admin.site.index_title = 'Καλώς ήρθατε στο LogistikoCRM'
+
+# ============================================================================
+# INLINES - Document management
+# ============================================================================
+
+class ClientDocumentInline(admin.TabularInline):
+    """Inline για documents στο MonthlyObligation detail view"""
+    model = ClientDocument
+    extra = 1
+    fields = ['document_category', 'file', 'description']
+    verbose_name = 'Έγγραφο'
+    verbose_name_plural = '📎 Συνημμένα Έγγραφα'
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('client')
