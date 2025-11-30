@@ -2493,3 +2493,201 @@ def door_control(request):
         return open_door(request)
     else:
         return door_status(request)
+
+# ============================================================================
+# QUICK COMPLETE & FILE UPLOAD VIEWS
+# ============================================================================
+
+@require_POST
+@staff_member_required
+def quick_complete_obligation(request, obligation_id):
+    """
+    Quick complete obligation without file upload
+    AJAX endpoint για γρήγορη ολοκλήρωση
+    """
+    try:
+        obligation = MonthlyObligation.objects.get(id=obligation_id)
+
+        # Update status
+        obligation.status = 'completed'
+        obligation.completed_date = timezone.now()
+        obligation.completed_by = request.user
+        obligation.save()
+
+        # Log to audit trail
+        from common.models import AuditLog
+        AuditLog.log(
+            user=request.user,
+            action='update',
+            obj=obligation,
+            changes={'status': {'old': 'pending', 'new': 'completed'}},
+            description=f'Γρήγορη ολοκλήρωση υποχρέωσης: {obligation}',
+            severity='medium',
+            request=request
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Η υποχρέωση ολοκληρώθηκε επιτυχώς!'
+        })
+
+    except MonthlyObligation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Η υποχρέωση δεν βρέθηκε'
+        }, status=404)
+    except Exception as e:
+        logger.error(f'Error completing obligation {obligation_id}: {e}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_POST
+@staff_member_required
+def complete_with_file(request, obligation_id):
+    """
+    Complete obligation WITH file upload
+    Handles multipart/form-data για file upload + ολοκλήρωση
+    """
+    try:
+        obligation = MonthlyObligation.objects.get(id=obligation_id)
+
+        # Validate file
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν ανεβάσατε αρχείο'
+            }, status=400)
+
+        uploaded_file = request.FILES['file']
+
+        # ✅ SECURITY: File validation
+        from common.utils.file_validation import validate_file_upload
+        try:
+            validate_file_upload(uploaded_file)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Μη έγκυρο αρχείο: {str(e)}'
+            }, status=400)
+
+        # Create ClientDocument
+        category = request.POST.get('category', 'general')
+        description = request.POST.get('description', '')
+
+        document = ClientDocument.objects.create(
+            client=obligation.client,
+            obligation=obligation,
+            file=uploaded_file,
+            filename=uploaded_file.name,
+            file_type=uploaded_file.content_type,
+            document_category=category,
+            description=description
+        )
+
+        # Update obligation
+        obligation.status = 'completed'
+        obligation.completed_date = timezone.now()
+        obligation.completed_by = request.user
+        obligation.attachment = uploaded_file  # Set primary attachment
+
+        # Update time spent if provided
+        time_spent = request.POST.get('time_spent')
+        if time_spent:
+            try:
+                obligation.time_spent = float(time_spent)
+            except ValueError:
+                pass
+
+        obligation.save()
+
+        # Log to audit trail
+        from common.models import AuditLog
+        AuditLog.log(
+            user=request.user,
+            action='update',
+            obj=obligation,
+            changes={
+                'status': {'old': 'pending', 'new': 'completed'},
+                'attachment': {'old': None, 'new': uploaded_file.name}
+            },
+            description=f'Ολοκλήρωση με αρχείο: {obligation}',
+            severity='medium',
+            request=request
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Το αρχείο ανέβηκε και η υποχρέωση ολοκληρώθηκε!',
+            'document_id': document.id,
+            'obligation_id': obligation.id
+        })
+
+    except MonthlyObligation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Η υποχρέωση δεν βρέθηκε'
+        }, status=404)
+    except Exception as e:
+        logger.error(f'Error completing obligation {obligation_id} with file: {e}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@staff_member_required
+def obligation_detail_view(request, obligation_id):
+    """
+    Detail view για MonthlyObligation
+    Επιτρέπει προβολή και επεξεργασία όλων των πεδίων + upload εγγράφων
+    """
+    try:
+        obligation = MonthlyObligation.objects.select_related(
+            'client', 'obligation_type', 'completed_by'
+        ).prefetch_related(
+            'client__documents'
+        ).get(id=obligation_id)
+
+        # Get all documents for this obligation
+        documents = ClientDocument.objects.filter(
+            Q(obligation=obligation) | Q(client=obligation.client)
+        ).order_by('-uploaded_at')
+
+        # Handle POST (edit obligation)
+        if request.method == 'POST':
+            # Update obligation fields
+            obligation.notes = request.POST.get('notes', '')
+            
+            time_spent = request.POST.get('time_spent')
+            if time_spent:
+                try:
+                    obligation.time_spent = float(time_spent)
+                except ValueError:
+                    pass
+
+            hourly_rate = request.POST.get('hourly_rate')
+            if hourly_rate:
+                try:
+                    obligation.hourly_rate = float(hourly_rate)
+                except ValueError:
+                    pass
+
+            obligation.save()
+
+            messages.success(request, '✅ Η υποχρέωση ενημερώθηκε επιτυχώς!')
+            return redirect('accounting:obligation_detail', obligation_id=obligation.id)
+
+        context = {
+            'obligation': obligation,
+            'documents': documents,
+            'title': f'Υποχρέωση #{obligation.id} - {obligation.client.eponimia}',
+        }
+
+        return render(request, 'accounting/obligation_detail.html', context)
+
+    except MonthlyObligation.DoesNotExist:
+        messages.error(request, 'Η υποχρέωση δεν βρέθηκε')
+        return redirect('accounting:dashboard')
