@@ -899,6 +899,23 @@ class ClientObligationAdmin(admin.ModelAdmin):
         return super().changelist_view(request, extra_context)
 
 
+# ============================================================================
+# INLINES - Document management
+# ============================================================================
+
+class ClientDocumentInline(admin.TabularInline):
+    """Inline για documents στο MonthlyObligation detail view"""
+    model = ClientDocument
+    extra = 1
+    fields = ['document_category', 'file', 'description']
+    verbose_name = 'Έγγραφο'
+    verbose_name_plural = '📎 Συνημμένα Έγγραφα'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('client')
+
+
 @admin.register(MonthlyObligation)
 class MonthlyObligationAdmin(admin.ModelAdmin):
     # ✅ INLINE DOCUMENTS - Detail view με συνημμένα
@@ -1957,19 +1974,3 @@ admin.site.index_template = 'admin/custom_index.html'
 admin.site.site_header = 'LogistikoCRM Administration'
 admin.site.site_title = 'LogistikoCRM'
 admin.site.index_title = 'Καλώς ήρθατε στο LogistikoCRM'
-
-# ============================================================================
-# INLINES - Document management
-# ============================================================================
-
-class ClientDocumentInline(admin.TabularInline):
-    """Inline για documents στο MonthlyObligation detail view"""
-    model = ClientDocument
-    extra = 1
-    fields = ['document_category', 'file', 'description']
-    verbose_name = 'Έγγραφο'
-    verbose_name_plural = '📎 Συνημμένα Έγγραφα'
-    
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related('client')
