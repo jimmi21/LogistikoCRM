@@ -279,3 +279,12 @@ document.addEventListener('DOMContentLoaded', function() {
         createFileUploadModal();
     }
 });
+
+
+// ============================================================================
+// NAVIGATION
+// ============================================================================
+
+function navigateToObligation(obligationId) {
+    window.location.href = `/accounting/obligation/${obligationId}/`;
+}
