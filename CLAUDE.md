@@ -1,394 +1,478 @@
-# CLAUDE.md - LogistikoCRM AI Assistant Guide
+# CLAUDE.md - Οδηγός LogistikoCRM για AI Assistants
 
-## Project Overview
+## 📋 Επισκόπηση Project
 
-**LogistikoCRM** is a production-ready Django-based CRM system tailored for Greek accounting offices (Λογιστικό Γραφείο). It's built on top of the open-source Django-CRM project with specialized accounting and tax compliance features.
+**LogistikoCRM** είναι ένα production-ready Django CRM σύστημα ειδικά σχεδιασμένο για ελληνικά λογιστικά γραφεία. Βασίζεται στο open-source Django-CRM με εξειδικευμένες λειτουργίες για λογιστική και φορολογική συμμόρφωση.
 
-**Key characteristics:**
-- Enterprise-grade CRM with Greek tax (myDATA) integration
-- Django 5.x backend with React.js frontend option
-- PostgreSQL/MySQL for production, SQLite for development
-- Multi-language support (23 languages, Greek default)
+**Βασικά χαρακτηριστικά:**
+- Enterprise-grade CRM με ενσωμάτωση myDATA (ΑΑΔΕ)
+- Django 5.x backend με επιλογή React.js frontend
+- PostgreSQL/MySQL για παραγωγή, SQLite για ανάπτυξη
+- Υποστήριξη 23 γλωσσών (ελληνικά default)
 - Timezone: Europe/Athens
 
-## Technology Stack
+---
+
+## 🚀 Προτεραιότητες Ανάπτυξης
+
+### Φάση 1: Καθαρό Backend (ΤΡΕΧΟΥΣΑ)
+- [ ] Διόρθωση όλων των migration θεμάτων
+- [ ] Όλα τα models να έχουν `__str__`, `get_absolute_url`
+- [ ] Καθαρισμός αχρησιμοποίητου κώδικα
+- [ ] Προσθήκη validation στα models
+
+### Φάση 2: Διασύνδεση Αρχείων-Υποχρεώσεων
+- [ ] Σύνδεση uploaded αρχείων με συγκεκριμένες υποχρεώσεις
+- [ ] Αυτόματη δημιουργία φακέλων κατά το upload
+- [ ] Προβολή όλων των εγγράφων ανά πελάτη στο admin
+- [ ] Κουμπί "Άνοιγμα φακέλου πελάτη" στο admin
+
+### Φάση 3: Email Αυτοματισμοί
+- [ ] Celery task για μηνιαίες υπενθυμίσεις
+- [ ] Email ειδοποίησης για νέα έγγραφα
+- [ ] Email templates (στα ελληνικά)
+
+### Φάση 4: Αναζήτηση & Φίλτρα
+- [ ] Αναζήτηση πελάτη (ΑΦΜ, επωνυμία, τηλέφωνο)
+- [ ] Φίλτρα υποχρεώσεων (μήνας, κατάσταση, τύπος)
+- [ ] Full-text search με PostgreSQL SearchVector
+
+### Φάση 5: Έτοιμο για Παραγωγή
+- [ ] Docker configuration
+- [ ] PostgreSQL setup
+- [ ] Redis/Celery configuration
+- [ ] Nginx configuration
+- [ ] Health checks
+
+---
+
+## 🛠️ Τεχνολογίες
 
 ### Backend
 - **Framework:** Django 5.0-5.2 (LTS)
-- **Database:** PostgreSQL 14+ (production), SQLite (development)
-- **API:** Django REST Framework 3.14+ with JWT authentication
-- **Task Queue:** Celery 5.3+ with Redis, Django-Q (database-backed alternative)
-- **WSGI Server:** Gunicorn 21.2+
+- **Βάση Δεδομένων:** PostgreSQL 14+ (production), SQLite (development)
+- **API:** Django REST Framework 3.14+ με JWT authentication
+- **Task Queue:** Celery 5.3+ με Redis, Django-Q (database-backed εναλλακτικά)
+- **Caching:** Redis ή database cache
+- **Search:** PostgreSQL full-text search με SearchVector
 
 ### Frontend
-- **Framework:** React 19.2 (in `/frontend/`)
-- **Styling:** Tailwind CSS 4.1+
-- **Charts:** Recharts 3.2+
-- **HTTP Client:** Axios 1.12+
+- **React:** 19.2 με Create React App
+- **Styling:** Tailwind CSS 4.x
+- **Charts:** Recharts
+- **HTTP Client:** Axios
+- **Τοποθεσία:** `/frontend/` directory
 
-### Key Dependencies
-```
-Django>=5.0,<5.1
-djangorestframework>=3.14.0
-djangorestframework-simplejwt>=5.3.0
-celery>=5.3.4
-redis>=5.0.1
-openpyxl>=3.1.2
-Pillow>=10.1.0
-python-magic>=0.4.27
-gunicorn>=21.2.0
-```
+### Ενσωματώσεις
+- **VoIP:** Fritz!Box μέσω πρωτοκόλλου TR-064
+- **IoT:** Tasmota για έλεγχο πόρτας
+- **MyData:** API ΑΑΔΕ για φορολογικά
 
-## Directory Structure
+---
+
+## 📁 Δομή Project
 
 ```
 LogistikoCRM/
-├── accounting/          # Greek accounting office features (ClientProfile, Obligations)
-├── analytics/           # Reports & dashboards (IncomeStat, RequestStat, etc.)
-├── chat/                # Internal messaging system
-├── common/              # Shared utilities (UserProfile, Reminder, Tag, File, AuditLog)
-├── crm/                 # Core CRM (Request, Deal, Lead, Company, Contact, Payment)
-├── crm-frontend/        # Alternative frontend
-├── docs/                # Documentation (MkDocs)
-├── frontend/            # React.js frontend application
-├── help/                # Context-sensitive help system
-├── inventory/           # Inventory management with myDATA compliance
-├── locale/              # i18n translations (23 languages)
-├── massmail/            # Email marketing & campaigns
-├── media/               # User-uploaded files (runtime)
-├── mydata/              # Greek myDATA tax authority API integration
-├── scripts/             # Automation scripts (backup, etc.)
-├── settings/            # CRM configuration module
-├── static/              # Static assets (CSS, JS, images)
-├── tasks/               # Task & project management
-├── templates/           # Django HTML templates
-├── tests/               # Test suites (pytest-django)
-├── voip/                # VoIP & telephony integration
-├── webcrm/              # Django project configuration
-│   ├── settings.py      # Main Django settings
-│   ├── urls.py          # URL routing
-│   ├── wsgi.py          # WSGI application
+├── accounting/          # 🏦 Κύριο app - πελάτες, υποχρεώσεις, αρχεία
+│   ├── models.py        # ClientProfile, MonthlyObligation, Ticket
+│   ├── admin.py         # Προσαρμοσμένο admin interface
+│   ├── views/           # Class-based views
+│   └── migrations/      # Database migrations
+├── crm/                 # 📊 Core CRM λειτουργικότητα
+│   ├── models/          # Company, Contact, Deal, Lead, etc.
+│   ├── views/           # CRUD operations
+│   └── utils/           # Helper functions
+├── tasks/               # ✅ Διαχείριση εργασιών & tickets
+│   ├── models/          # Task, Memo models
+│   └── views/           # Task management views
+├── voip/                # 📞 VoIP ενσωμάτωση (Fritz!Box)
+│   ├── models.py        # CallLog, VoIPSettings
+│   └── services/        # Fritz!Box API integration
+├── inventory/           # 📦 Διαχείριση αποθέματος
+│   └── models.py        # Product, Stock models
+├── analytics/           # 📈 Αναφορές & Dashboards
+├── chat/                # 💬 Εσωτερικό messaging
+├── common/              # 🔧 Shared utilities & base classes
+│   ├── models.py        # Base models, mixins
+│   └── utils/           # Common helper functions
+├── help/                # ❓ Σύστημα βοήθειας
+├── massmail/            # 📧 Μαζικά email
+├── settings/            # ⚙️ App-specific settings models
+├── docs/                # 📚 Τεκμηρίωση (MkDocs)
+├── frontend/            # ⚛️ React frontend
+│   ├── src/             # Source code
+│   └── public/          # Static assets
+├── scripts/             # 🔨 Utility scripts
+│   └── backup_cron.sh   # Backup automation
+├── templates/           # 🎨 Django templates
+├── static/              # 📁 Static files
+├── tests/               # 🧪 Test suite
+│   ├── accounting/      # Accounting tests
+│   ├── crm/             # CRM tests
+│   └── utils/           # Test utilities
+├── webcrm/              # ⚙️ Django project settings
+│   ├── settings.py      # Main settings
+│   ├── settings_local.py # Local overrides
+│   ├── urls.py          # Root URL configuration
 │   ├── celery.py        # Celery configuration
-│   └── datetime_settings.py
-└── .github/             # GitHub workflows & templates
+│   └── wsgi.py          # WSGI entry point
+├── manage.py            # Django management
+├── requirements.txt     # Production dependencies
+├── requirements-dev.txt # Development dependencies
+└── setup.cfg            # Linting/testing configuration
 ```
 
-## Development Setup
+---
 
-### Prerequisites
+## 🇬🇷 Ελληνική Επιχειρηματική Λογική
+
+### Επικύρωση ΑΦΜ
+```python
+def validate_afm(afm):
+    """
+    Επικυρώνει ελληνικό ΑΦΜ (9 ψηφία, έλεγχος checksum)
+    """
+    if len(afm) != 9 or not afm.isdigit():
+        return False
+    # Αλγόριθμος checksum
+    total = sum(int(afm[i]) * (2 ** (8 - i)) for i in range(8))
+    check_digit = (total % 11) % 10
+    return check_digit == int(afm[8])
+```
+
+### Τύποι Υποχρεώσεων
+| Κωδικός | Περιγραφή | Συχνότητα | Προθεσμία |
+|---------|-----------|-----------|-----------|
+| ΦΠΑ | Φόρος Προστιθέμενης Αξίας | Μηνιαία/Τριμηνιαία | 20η μήνα |
+| ΑΠΔ | Αναλυτική Περιοδική Δήλωση ΕΦΚΑ | Μηνιαία | Τελευταία εργάσιμη |
+| ΕΝΦΙΑ | Ενιαίος Φόρος Ιδιοκτησίας | Ετήσια | Σεπτέμβριος |
+| Ε1 | Δήλωση Φορολογίας Εισοδήματος | Ετήσια | Ιούλιος |
+| Ε3 | Κατάσταση Οικονομικών Στοιχείων | Ετήσια | Ιούλιος |
+| ΜΥΦ | Συγκεντρωτικές Καταστάσεις | Μηνιαία | 20η μήνα |
+
+### Δομή Αρχειοθέτησης
+```
+Μοτίβο:  clients/{ΑΦΜ}_{Επωνυμία}/{έτος}/{μήνας}/{τύπος_υποχρέωσης}/
+Παράδειγμα: clients/123456789_ΕΤΑΙΡΕΙΑ_ΑΕ/2025/01/ΦΠΑ/
+```
+
+### Καταστάσεις Υποχρεώσεων
+```python
+OBLIGATION_STATUS = [
+    ('pending', 'Εκκρεμεί'),
+    ('in_progress', 'Σε εξέλιξη'),
+    ('completed', 'Ολοκληρώθηκε'),
+    ('overdue', 'Εκπρόθεσμη'),
+    ('cancelled', 'Ακυρώθηκε'),
+]
+```
+
+---
+
+## ⚠️ Σημαντικοί Κανόνες
+
+### ❌ ΜΗΝ ΚΑΝΕΙΣ
+- Χρήση πολύπλοκων JavaScript frameworks (React μόνο στο /frontend/)
+- Δημιουργία διπλών migrations
+- Αποθήκευση ευαίσθητων δεδομένων στο settings.py
+- Παράλειψη μεθόδων `__str__` στα models
+- Hardcode ελληνικού κειμένου χωρίς translations
+- Αλλαγές στα models χωρίς dry-run
+- Απενεργοποίηση CSRF protection
+
+### ✅ ΠΑΝΤΑ ΝΑ ΚΑΝΕΙΣ
+- Τρέξε `python manage.py makemigrations --dry-run` πριν δημιουργήσεις migrations
+- Δοκίμασε με ελληνικούς χαρακτήρες (UTF-8)
+- Πρόσθεσε logging για σημαντικές λειτουργίες
+- Χρησιμοποίησε timezone-aware datetimes
+- Επικύρωσε το ΑΦΜ πριν την αποθήκευση
+- Ρώτα πριν κάνεις μεγάλες αλλαγές σε models/migrations
+- Ακολούθα PEP 8 με Black formatting
+
+---
+
+## 🔧 Εντολές Ανάπτυξης
+
+### Αρχική Εγκατάσταση
 ```bash
-# System dependencies (Debian/Ubuntu)
-sudo apt-get install python3.10+ libpq-dev python3-dev libmagic1
-
-# Create virtual environment
+# Δημιουργία virtual environment
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
 
-# Install dependencies
+# Εγκατάσταση dependencies
 pip install -r requirements.txt
-pip install -r requirements-dev.txt  # For development
-```
+pip install -r requirements-dev.txt  # για development
 
-### Environment Configuration
-Copy `.env.example` to `.env` and configure:
-```bash
-SECRET_KEY=your-random-secret-key
-DEBUG=True  # False in production
-DB_ENGINE=django.db.backends.sqlite3  # or postgresql
-DB_NAME=db.sqlite3
-EMAIL_HOST_PASSWORD=your-email-app-password
-```
-
-### Database Setup
-```bash
+# Ρύθμιση βάσης
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py runserver 0.0.0.0:8000
+
+# Εκκίνηση server
+python manage.py runserver
 ```
 
-### Frontend Development (React)
+### Frontend Development
 ```bash
 cd frontend
 npm install
-npm start        # Development server at :3000
-npm run build    # Production build
+npm start          # Development server (port 3000)
+npm run build      # Production build
+npm test           # Εκτέλεση tests
 ```
 
-## Testing
-
-### Run All Tests
+### Testing
 ```bash
-python manage.py test tests/ --noinput
-```
+# Django tests
+python manage.py test
 
-### Run Specific App Tests
-```bash
-python manage.py test tests.accounting tests.inventory tests.crm --keepdb
-```
+# Συγκεκριμένο app
+python manage.py test accounting
+python manage.py test accounting.tests.test_models
 
-### With pytest (preferred)
-```bash
-pytest tests/
+# Με pytest (αν είναι εγκατεστημένο)
+pytest
 pytest tests/accounting/ -v
-pytest tests/ --cov=accounting --cov-report=html
+pytest --cov=accounting  # Με coverage
 ```
 
-### Test Structure
-```
-tests/
-├── accounting/          # Accounting models, email service, commands
-├── analytics/           # Analytics tests
-├── chat/                # Chat tests
-├── common/              # Common utilities, middleware, signals
-├── crm/                 # CRM models, views, utils
-├── help/                # Help system tests
-├── integration/         # Integration tests (workflows)
-├── inventory/           # Inventory tests
-├── massmail/            # Email marketing tests
-├── tasks/               # Task management tests
-├── fixtures/            # Test data
-├── utils/               # Test helpers
-└── base_test_classes.py # Base test classes
-```
-
-## Code Conventions
-
-### Python Style
-- Follow PEP 8 guidelines
-- Use `black` for formatting: `black .`
-- Use `flake8` for linting: `flake8 .`
-- Use `isort` for import sorting: `isort .`
-
-### Django Patterns
-- Models in `app/models.py` or `app/models/` directory
-- Views in `app/views.py` or `app/views/` directory
-- Admin customization in `app/admin.py`
-- Forms in `app/forms.py`
-- Serializers in `app/serializers.py`
-- Management commands in `app/management/commands/`
-
-### Naming Conventions
-- Models: PascalCase (e.g., `ClientProfile`, `MonthlyObligation`)
-- Views: snake_case functions or PascalCase for class-based views
-- URLs: kebab-case (e.g., `/api/client-profiles/`)
-- Templates: snake_case (e.g., `client_profile_list.html`)
-
-### Greek-Specific Considerations
-- VAT (ΦΠΑ) rate: 24% (configurable in settings: `VAT = 24`)
-- Tax ID field: `afm` (9-digit Greek Tax ID)
-- Tax office field: `doy` (Greek tax office name)
-- Date formats: European style (DD/MM/YYYY)
-- Currency: EUR (€)
-
-## Key Configuration Files
-
-### webcrm/settings.py
-Main Django settings. Key sections:
-- Lines 40-53: Database configuration (use env vars)
-- Lines 120-146: INSTALLED_APPS
-- Lines 344-354: REST Framework config
-- Lines 358-361: JWT token lifetimes
-- Lines 369-380: Django-Q cluster config
-- Lines 444-464: Celery configuration
-
-### Important Settings
-```python
-DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
-LANGUAGE_CODE = 'el'  # Greek default
-TIME_ZONE = 'Europe/Athens'
-VAT = 24  # Greek VAT rate
-```
-
-## Database Schema Highlights
-
-### Core Models
-
-**accounting.ClientProfile** - Extended client data for tax purposes:
-- `afm` - Greek Tax ID (9 digits)
-- `doy` - Tax office
-- `taxpayer_type` - individual/professional/company
-- `book_category` - tax book category
-- Multiple addresses (home/business)
-- Bank info (IBAN, etc.)
-
-**accounting.MonthlyObligation** - Tax/social security deadlines:
-- `client` - FK to ClientProfile
-- `obligation_type` - FK to ObligationType
-- `month`, `year` - Period
-- `deadline` - Due date
-- `status` - pending/submitted/paid/overdue
-
-**crm.Request** - Commercial inquiries
-**crm.Deal** - Sales opportunities
-**crm.Lead** - Potential customers
-**crm.Company** - Business entities
-**crm.Contact** - Person contacts
-
-**inventory.Invoice** - myDATA compliant invoices
-**inventory.Product** - Goods/services catalog
-
-## API Structure
-
-### Authentication
-- JWT tokens via `/api/token/` and `/api/token/refresh/`
-- Session authentication for admin interface
-- Access token lifetime: 5 hours
-- Refresh token lifetime: 1 day
-
-### CORS Configuration
-Allowed origins for development:
-- `http://localhost:3000` (React)
-- `http://localhost:5173` (Vite)
-
-### Pagination
-Default: 50 items per page
-
-## Common Tasks
-
-### Create Database Backup
+### Celery Workers
 ```bash
-python manage.py backup_database
-# Or use script:
-./scripts/backup_cron.sh
-```
-
-### Run Celery Workers
-```bash
+# Εκκίνηση worker
 celery -A webcrm worker -l info
-celery -A webcrm beat -l info  # For scheduled tasks
+
+# Εκκίνηση beat scheduler
+celery -A webcrm beat -l info
+
+# Flower monitoring (αν είναι εγκατεστημένο)
+celery -A webcrm flower
 ```
 
-### Run Django-Q Workers (Alternative)
+### Στατικά Αρχεία & Μεταφράσεις
 ```bash
-python manage.py qcluster
-```
+# Collect static files
+python manage.py collectstatic
 
-### Collect Static Files
-```bash
-python manage.py collectstatic --noinput
-```
-
-### Create Translations
-```bash
-python manage.py makemessages -l el  # Greek
+# Μεταφράσεις
+python manage.py makemessages -l el
 python manage.py compilemessages
 ```
 
-### Production Deployment Check
-```bash
-python manage.py check --deploy
+---
+
+## 📊 Βασικά Models
+
+### ClientProfile (accounting/models.py)
+```python
+# Κύρια πεδία
+- afm (CharField, unique, 9 χαρακτήρες)  # ΑΦΜ
+- onoma (CharField)                       # Επωνυμία
+- email (EmailField)
+- phone (CharField)
+- doy (CharField)                         # ΔΟΥ
+- is_active (BooleanField)
+- created, modified (timestamps)
 ```
 
-## Security Considerations
+### MonthlyObligation (accounting/models.py)
+```python
+# Μηνιαίες υποχρεώσεις πελάτη
+- client (ForeignKey → ClientProfile)
+- obligation_type (CharField)             # Τύπος (ΦΠΑ, ΑΠΔ, κλπ)
+- period_month, period_year               # Περίοδος
+- due_date (DateField)                    # Προθεσμία
+- status (CharField)                      # Κατάσταση
+- completed_date (DateField, null)
+- notes (TextField)
+```
+
+### Ticket (accounting/models.py)
+```python
+# Tickets για follow-up
+- client (ForeignKey → ClientProfile)
+- subject (CharField)
+- description (TextField)
+- status (CharField)
+- priority (CharField)
+- assigned_to (ForeignKey → User)
+- created_at, updated_at
+```
+
+---
+
+## 🌐 API Structure
+
+### Authentication
+```python
+# JWT tokens
+POST /api/token/           # Λήψη token
+POST /api/token/refresh/   # Ανανέωση token
+POST /api/token/verify/    # Επαλήθευση token
+```
+
+### Κύρια Endpoints
+```
+/api/clients/              # ClientProfile CRUD
+/api/obligations/          # MonthlyObligation CRUD
+/api/tickets/              # Ticket management
+/api/calls/                # VoIP call logs
+```
+
+### CORS Configuration
+```python
+# Επιτρεπόμενα origins (από settings.py)
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+```
+
+---
+
+## 📞 Ενσωματώσεις
+
+### Fritz!Box VoIP
+```python
+# Παρακολούθηση κλήσεων μέσω TR-064
+# Αυτόματη δημιουργία ticket για αναπάντητες
+# Αντιστοίχιση caller ID με πελάτη
+
+# Ρυθμίσεις στο .env
+FRITZBOX_HOST=192.168.178.1
+FRITZBOX_USER=admin
+FRITZBOX_PASSWORD=xxx
+```
+
+### Tasmota IoT
+```python
+# Έλεγχος πόρτας γραφείου
+# HTTP API: ON/OFF toggle
+# Endpoint: http://{ip}/cm?cmnd=Power%20Toggle
+
+TASMOTA_DOOR_IP=192.168.1.100
+```
+
+### MyData ΑΑΔΕ
+```python
+# Ενσωμάτωση με εφορία
+# Υποβολή/ανάκτηση τιμολογίων
+# Απαιτεί πιστοποιητικό
+
+MYDATA_USER_ID=xxx
+MYDATA_SUBSCRIPTION_KEY=xxx
+MYDATA_ENVIRONMENT=test  # ή prod
+```
+
+---
+
+## 🔐 Ασφάλεια
+
+### Environment Variables (.env)
+```bash
+# Απαραίτητες μεταβλητές
+SECRET_KEY=your-secret-key-here
+DEBUG=False
+ALLOWED_HOSTS=yourdomain.com
+
+# Database
+DATABASE_URL=postgres://user:pass@host:5432/dbname
+
+# Email
+EMAIL_HOST=smtp.example.com
+EMAIL_HOST_USER=user@example.com
+EMAIL_HOST_PASSWORD=xxx
+```
 
 ### File Upload Validation
-Files are validated in `common/utils/file_validation.py`:
-- Whitelist extensions only
-- MIME type verification via `python-magic`
-- Size limits enforced
-
-### Environment Variables
-Never commit secrets. Use `.env` file for:
-- `SECRET_KEY`
-- `DB_PASSWORD`
-- `EMAIL_HOST_PASSWORD`
-- `MYDATA_SUBSCRIPTION_KEY`
-
-### Production Settings
-For production, ensure:
 ```python
-DEBUG = False
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000
+# Επιτρεπόμενοι τύποι αρχείων
+ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.png']
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 ```
 
-## Scheduled Tasks
-
-### Celery Beat Schedule
-- `send_obligation_reminders` - 09:00 Mon-Fri
-- `send_daily_summary` - 17:00 Mon-Fri
-
-### Django-Q Alternative
-Uses database-backed queue (no Redis required):
-- 2 workers
-- 90-second timeout
-- 50-item queue limit
-
-## URLs Structure
-
-Admin URLs use secret prefixes (configurable in settings):
-- CRM: `/{SECRET_CRM_PREFIX}/`
-- Admin: `/{SECRET_ADMIN_PREFIX}/`
-- Login: `/{SECRET_LOGIN_PREFIX}/`
-
-Default values: `123/`, `456-admin/`, `789-login/`
-
-## Useful Commands
-
-```bash
-# Development server
-python manage.py runserver 0.0.0.0:8000
-
-# Shell with enhanced features
-python manage.py shell_plus  # Requires django-extensions
-
-# Create migrations
-python manage.py makemigrations accounting inventory crm
-
-# Apply migrations
-python manage.py migrate
-
-# Load initial data
-python manage.py loaddata tests/fixtures/*.json
-
-# Export data
-python manage.py dumpdata accounting --indent 2 > backup.json
+### Production Checklist
+```
+[ ] DEBUG = False
+[ ] SECRET_KEY από environment
+[ ] ALLOWED_HOSTS ρυθμισμένο
+[ ] HTTPS enabled
+[ ] CSRF protection ενεργό
+[ ] Database backups configured
+[ ] Logging σε αρχεία
+[ ] Static files served by nginx
 ```
 
-## Troubleshooting
+---
 
-### Common Issues
+## 🐛 Troubleshooting
 
-**1. Missing python-magic library:**
+### Συνηθισμένα Προβλήματα
+
+**Migration conflicts:**
 ```bash
-# Linux
-sudo apt-get install libmagic1
-
-# macOS
-brew install libmagic
+python manage.py showmigrations
+python manage.py migrate --fake app_name migration_name
 ```
 
-**2. PostgreSQL connection issues:**
+**Static files not loading:**
 ```bash
-# Ensure psycopg2 is installed
-pip install psycopg2-binary
+python manage.py collectstatic --clear
 ```
 
-**3. Static files not loading:**
+**Celery tasks not running:**
 ```bash
-python manage.py collectstatic --noinput
-# Ensure STATIC_ROOT is set correctly
-```
-
-**4. Celery tasks not running:**
-```bash
-# Check Redis is running
+# Έλεγχος Redis
 redis-cli ping
-# Or use Django-Q (database-backed)
-python manage.py qcluster
+
+# Restart worker
+celery -A webcrm control shutdown
+celery -A webcrm worker -l info
 ```
 
-## Documentation Resources
+**Greek characters encoding:**
+```python
+# Βεβαιώσου ότι υπάρχει στην αρχή του αρχείου
+# -*- coding: utf-8 -*-
+```
 
-- **User Guide:** `/docs/django-crm_user_guide.md`
-- **Installation:** `/docs/installation_and_configuration_guide.md`
-- **System Overview:** `/docs/crm_system_overview.md`
-- **Task Features:** `/docs/django-crm_task_features.md`
-- **Analytics:** `/docs/django-crm_analytics_app_overview.md`
-- **ReadTheDocs:** https://django-crm-admin.readthedocs.io
+---
 
-## License
+## 💡 Συμβουλές για Claude Code
 
-AGPL-3.0 - See LICENSE file for details.
+1. **Ρώτα πριν από μεγάλες αλλαγές** - Αν αναδιαρθρώνεις models ή migrations, επιβεβαίωσε πρώτα
+2. **Δοκίμασε ελληνικούς χαρακτήρες** - Πάντα δοκιμή με πραγματικό ελληνικό κείμενο
+3. **Κράτα το απλό** - Προτίμησε Django built-ins αντί για third-party packages
+4. **Τεκμηρίωσε τη business logic** - Χρήση ελληνικών σχολίων για domain-specific κώδικα
+5. **Σταδιακές αλλαγές** - Μικρά commits, δοκιμή μετά από κάθε αλλαγή
+6. **Admin πρώτα** - Οι περισσότερες λειτουργίες χρησιμοποιούνται μέσω Django Admin
+7. **Μην υποθέτεις** - Αν δεν είσαι σίγουρος, ρώτα τον χρήστη
+
+---
+
+## 📚 Χρήσιμοι Σύνδεσμοι
+
+- Django Docs: https://docs.djangoproject.com/
+- DRF Docs: https://www.django-rest-framework.org/
+- MyData API: https://www.aade.gr/mydata
+- MkDocs (project docs): http://localhost:8000 (με `mkdocs serve`)
+
+---
+
+## 📋 Αρχεία Αναφοράς
+
+| Αρχείο | Περιγραφή |
+|--------|-----------|
+| `README.md` | Project overview |
+| `CONTRIBUTING.md` | Οδηγίες συνεισφοράς |
+| `DEPLOYMENT.md` | Οδηγίες deployment |
+| `PRODUCTION_READY.md` | Production features |
+| `PRODUCTION_CHECKLIST.md` | Pre-deployment checklist |
+| `CHANGELOG.md` | Ιστορικό αλλαγών |
+| `setup.cfg` | Linting/testing config |
+| `.env.example` | Παράδειγμα environment |
+
+---
+
+*Τελευταία Ενημέρωση: Δεκέμβριος 2025*
+*Project Owner: ddiplas*
