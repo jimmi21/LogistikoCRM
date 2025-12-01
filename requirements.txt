@@ -24,7 +24,7 @@ django-q2>=1.6.0  # Django 5.0+ compatible (fork of django-q)
 openpyxl>=3.1.2  # Excel export/import
 Pillow>=10.1.0  # Image processing
 python-magic>=0.4.27  # File type validation (SECURITY)
-weasyprint>=62.0  # PDF report generation
+xhtml2pdf>=0.2.11  # PDF report generation (Windows compatible)
 
 # Email & Communication
 requests>=2.31.0  # HTTP requests (door control, APIs)
