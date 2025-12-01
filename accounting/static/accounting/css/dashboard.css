@@ -1555,6 +1555,125 @@ input[type="radio"] {
 }
 
 /* ============================================
+   QUICK NAVIGATION BAR STYLES
+   ============================================ */
+
+.quick-nav-bar {
+    background: var(--color-gray-50);
+    border-bottom: 1px solid var(--color-gray-200);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: calc(-1 * var(--spacing-lg)) calc(-1 * var(--spacing-lg)) var(--spacing-lg) calc(-1 * var(--spacing-lg));
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.nav-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-500);
+}
+
+.nav-breadcrumb a {
+    color: var(--color-primary);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: color var(--transition-fast);
+}
+
+.nav-breadcrumb a:hover {
+    color: var(--color-primary-dark);
+}
+
+.nav-quick-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.nav-btn {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all var(--transition-fast);
+}
+
+.nav-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Navigation button variants */
+.nav-btn-admin {
+    background: #23949f;
+    color: white;
+}
+
+.nav-btn-primary {
+    background: var(--color-primary);
+    color: white;
+}
+
+.nav-btn-secondary {
+    background: var(--color-gray-600);
+    color: white;
+}
+
+.nav-btn-success {
+    background: var(--color-success);
+    color: white;
+}
+
+.nav-breadcrumb .separator {
+    color: var(--color-gray-400);
+}
+
+.nav-breadcrumb .current {
+    color: var(--color-gray-800);
+    font-weight: var(--font-weight-medium);
+}
+
+/* Quick nav responsive */
+@media (max-width: 768px) {
+    .quick-nav-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: var(--spacing-sm);
+    }
+
+    .nav-quick-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .nav-btn {
+        font-size: var(--font-size-xs);
+        padding: 4px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .nav-quick-actions {
+        flex-wrap: wrap;
+    }
+
+    .nav-btn span:last-child {
+        display: none;
+    }
+}
+
+/* ============================================
    18. ACCESSIBILITY
    ============================================ */
 

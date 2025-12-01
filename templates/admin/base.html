@@ -66,6 +66,9 @@
                 <a href="{% url 'site:common_userprofile_change' user.id %}"><strong>{% firstof user.get_short_name user.get_username %}</strong>.</a>
             {% endblock %}
             {% block userlinks %}
+                {% if user.is_staff %}
+                    <a href="{% url 'accounting:dashboard' %}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-weight: 600; margin-right: 8px;">📊 Dashboard</a> /
+                {% endif %}
                 {% if site_url %}
                     <a href="{{ site_url }}">{% translate 'View site' %}</a> /
                 {% endif %}
