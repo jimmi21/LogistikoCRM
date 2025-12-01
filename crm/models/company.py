@@ -28,15 +28,10 @@ class Company(BaseCounterparty, Base1):
         help_text=_("Separate them with commas.")
     )
     website = models.CharField(
-        max_length=200, 
-        blank=True, 
+        max_length=200,
+        blank=True,
         default='',
         verbose_name=_("Website")
-    )
-    # TODO: The 'active' field is not used and can be removed.
-    active = models.BooleanField(
-        default=True,
-        verbose_name=_("Active"),
     )
     phone = models.CharField(
         max_length=100, 
