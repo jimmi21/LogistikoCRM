@@ -153,6 +153,294 @@
     cursor: pointer;
     margin-left: 15px;
 }
+
+/* Wizard Modal Styles */
+.wizard-modal .modal-content {
+    max-width: 700px;
+    width: 95%;
+}
+
+.wizard-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px 10px 0 0;
+}
+
+.wizard-header h2 {
+    margin: 0;
+    font-size: 1.3rem;
+}
+
+.wizard-progress-text {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.wizard-body {
+    padding: 25px;
+    min-height: 350px;
+}
+
+.wizard-obligation-info {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.wizard-obligation-info .info-row {
+    display: flex;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.wizard-obligation-info .info-label {
+    font-weight: 600;
+    color: #6c757d;
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.wizard-obligation-info .info-value {
+    color: #333;
+    font-weight: 500;
+}
+
+.wizard-obligation-info .client-name {
+    font-size: 1.2rem;
+    color: #333;
+    font-weight: 600;
+}
+
+.wizard-obligation-info .obligation-type {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+}
+
+.wizard-file-upload {
+    margin: 20px 0;
+}
+
+.wizard-dropzone {
+    border: 2px dashed #dee2e6;
+    border-radius: 10px;
+    padding: 30px;
+    text-align: center;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.wizard-dropzone:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.wizard-dropzone.dragging {
+    border-color: #667eea;
+    background: #e8edff;
+}
+
+.wizard-dropzone-icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.wizard-dropzone-text {
+    color: #6c757d;
+    margin-bottom: 10px;
+}
+
+.wizard-dropzone-btn {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.wizard-file-preview {
+    display: flex;
+    align-items: center;
+    background: #e8f5e9;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.wizard-file-preview .file-icon {
+    font-size: 1.5rem;
+    margin-right: 10px;
+}
+
+.wizard-file-preview .file-name {
+    flex-grow: 1;
+    font-weight: 500;
+}
+
+.wizard-file-preview .file-remove {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+.wizard-options {
+    margin: 20px 0;
+}
+
+.wizard-checkbox-group {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.wizard-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 10px 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.wizard-checkbox-label:hover {
+    background: #f8f9fa;
+}
+
+.wizard-checkbox-label.checked {
+    background: #e8f5e9;
+    border-color: #28a745;
+}
+
+.wizard-checkbox-label.skip-checked {
+    background: #fff3cd;
+    border-color: #ffc107;
+}
+
+.wizard-checkbox {
+    width: 20px;
+    height: 20px;
+}
+
+.wizard-footer {
+    padding: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.wizard-nav-btns {
+    display: flex;
+    gap: 10px;
+}
+
+.wizard-progress-dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+}
+
+.wizard-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.wizard-dot.active {
+    background: #667eea;
+    transform: scale(1.2);
+}
+
+.wizard-dot.completed {
+    background: #28a745;
+}
+
+.wizard-dot.skipped {
+    background: #ffc107;
+}
+
+.btn-wizard-prev, .btn-wizard-next {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-wizard-prev {
+    background: #f8f9fa;
+    color: #333;
+    border: 1px solid #dee2e6;
+}
+
+.btn-wizard-next {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-wizard-finish {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-wizard-prev:disabled, .btn-wizard-next:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.wizard-summary {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.wizard-summary-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.wizard-summary-item:last-child {
+    border-bottom: none;
+}
+
+.wizard-summary-item .summary-icon {
+    font-size: 1.2rem;
+    margin-right: 10px;
+}
+
+.wizard-summary-item.will-complete {
+    background: #e8f5e9;
+}
+
+.wizard-summary-item.will-skip {
+    background: #fff3cd;
+}
 </style>
 {% endblock %}
 
@@ -575,6 +863,105 @@
 
 </div>
 
+<!-- WIZARD MODAL -->
+<div id="wizard-modal" class="modal wizard-modal" style="display: none;">
+    <div class="modal-content">
+        <!-- Header -->
+        <div class="wizard-header">
+            <div>
+                <h2 id="wizard-title">Επεξεργασία Υποχρεώσεων</h2>
+                <span class="wizard-progress-text" id="wizard-progress-text">1 από 5</span>
+            </div>
+            <button type="button" class="modal-close" onclick="closeWizard()" style="color: white;">&times;</button>
+        </div>
+
+        <!-- Body -->
+        <div class="wizard-body" id="wizard-body">
+            <!-- Obligation Info -->
+            <div class="wizard-obligation-info">
+                <div class="info-row">
+                    <span class="info-label">Πελάτης:</span>
+                    <span class="info-value client-name" id="wizard-client-name">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">ΑΦΜ:</span>
+                    <span class="info-value" id="wizard-client-afm">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Υποχρέωση:</span>
+                    <span class="info-value">
+                        <span class="obligation-type" id="wizard-obligation-type">-</span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Περίοδος:</span>
+                    <span class="info-value" id="wizard-period">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Προθεσμία:</span>
+                    <span class="info-value" id="wizard-deadline">-</span>
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="wizard-file-upload">
+                <label class="form-label"><span class="icon">📎</span> Αρχείο (προαιρετικό)</label>
+                <div class="wizard-dropzone" id="wizard-dropzone" onclick="document.getElementById('wizard-file-input').click()">
+                    <div class="wizard-dropzone-icon">📁</div>
+                    <div class="wizard-dropzone-text">Σύρε αρχείο εδώ ή κάνε κλικ για επιλογή</div>
+                    <button type="button" class="wizard-dropzone-btn">Επιλογή Αρχείου</button>
+                </div>
+                <input type="file" id="wizard-file-input" style="display: none;"
+                       accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.zip"
+                       onchange="handleWizardFileSelect(this)">
+                <div class="wizard-file-preview" id="wizard-file-preview" style="display: none;">
+                    <span class="file-icon">📄</span>
+                    <span class="file-name" id="wizard-file-name">filename.pdf</span>
+                    <button type="button" class="file-remove" onclick="removeWizardFile()">&times;</button>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="wizard-options">
+                <div class="wizard-checkbox-group">
+                    <label class="wizard-checkbox-label" id="complete-label">
+                        <input type="checkbox" class="wizard-checkbox" id="wizard-complete-checkbox"
+                               onchange="updateWizardCheckboxState()" checked>
+                        <span class="icon">✅</span>
+                        <span>Ολοκλήρωση υποχρέωσης</span>
+                    </label>
+                    <label class="wizard-checkbox-label" id="skip-label">
+                        <input type="checkbox" class="wizard-checkbox" id="wizard-skip-checkbox"
+                               onchange="updateWizardCheckboxState()">
+                        <span class="icon">⏭️</span>
+                        <span>Παράλειψη (χωρίς αλλαγές)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="wizard-footer">
+            <div class="wizard-nav-btns">
+                <button type="button" class="btn-wizard-prev" id="wizard-prev-btn" onclick="wizardPrev()">
+                    ← Προηγούμενη
+                </button>
+            </div>
+            <div class="wizard-progress-dots" id="wizard-dots">
+                <!-- Dots will be generated dynamically -->
+            </div>
+            <div class="wizard-nav-btns">
+                <button type="button" class="btn-wizard-next" id="wizard-next-btn" onclick="wizardNext()">
+                    Επόμενη →
+                </button>
+                <button type="button" class="btn-wizard-finish" id="wizard-finish-btn" onclick="wizardFinish()" style="display: none;">
+                    ✓ Ολοκλήρωση Όλων
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- SCRIPTS -->
 <script src="{% static 'accounting/js/dashboard.js' %}"></script>
 <script>
@@ -640,7 +1027,8 @@
             return;
         }
 
-        showBulkCompletionModal(obligationIds);
+        // Open wizard instead of simple modal
+        openWizard(obligationIds);
     }
 
     // Bulk bar close
@@ -659,6 +1047,455 @@
     // Fullscreen toggle
     function toggleTableFullscreen() {
         document.querySelector('.table-container')?.classList.toggle('fullscreen');
+    }
+
+    // ============================================================================
+    // WIZARD FUNCTIONALITY
+    // ============================================================================
+
+    // Wizard state
+    let wizardState = {
+        obligations: [],     // Array of obligation objects from API
+        currentIndex: 0,     // Current position in wizard
+        results: {},         // { obligationId: { file: File|null, complete: bool, skip: bool } }
+        files: {}            // Store files separately { obligationId: File }
+    };
+
+    // Open wizard with selected obligation IDs
+    function openWizard(obligationIds) {
+        console.log('Opening wizard with IDs:', obligationIds);
+
+        // Show loading state
+        const modal = document.getElementById('wizard-modal');
+        modal.style.display = 'flex';
+        document.getElementById('wizard-body').innerHTML = `
+            <div style="text-align: center; padding: 50px;">
+                <div style="font-size: 3rem; margin-bottom: 20px;">⏳</div>
+                <p>Φόρτωση υποχρεώσεων...</p>
+            </div>
+        `;
+
+        // Fetch obligation details from API
+        fetch(`/accounting/api/obligations-wizard/?ids=${obligationIds.join(',')}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.obligations.length > 0) {
+                    // Initialize wizard state
+                    wizardState.obligations = data.obligations;
+                    wizardState.currentIndex = 0;
+                    wizardState.results = {};
+                    wizardState.files = {};
+
+                    // Initialize results for each obligation
+                    data.obligations.forEach(ob => {
+                        wizardState.results[ob.id] = {
+                            complete: true,
+                            skip: false,
+                            notes: ''
+                        };
+                    });
+
+                    // Restore wizard body
+                    restoreWizardBody();
+
+                    // Generate progress dots
+                    generateProgressDots();
+
+                    // Render first obligation
+                    renderCurrentObligation();
+                } else {
+                    showNotification('❌ Δεν βρέθηκαν υποχρεώσεις', 'error');
+                    closeWizard();
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching obligations:', error);
+                showNotification('❌ Σφάλμα φόρτωσης υποχρεώσεων', 'error');
+                closeWizard();
+            });
+    }
+
+    // Restore wizard body HTML
+    function restoreWizardBody() {
+        document.getElementById('wizard-body').innerHTML = `
+            <!-- Obligation Info -->
+            <div class="wizard-obligation-info">
+                <div class="info-row">
+                    <span class="info-label">Πελάτης:</span>
+                    <span class="info-value client-name" id="wizard-client-name">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">ΑΦΜ:</span>
+                    <span class="info-value" id="wizard-client-afm">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Υποχρέωση:</span>
+                    <span class="info-value">
+                        <span class="obligation-type" id="wizard-obligation-type">-</span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Περίοδος:</span>
+                    <span class="info-value" id="wizard-period">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Προθεσμία:</span>
+                    <span class="info-value" id="wizard-deadline">-</span>
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="wizard-file-upload">
+                <label class="form-label"><span class="icon">📎</span> Αρχείο (προαιρετικό)</label>
+                <div class="wizard-dropzone" id="wizard-dropzone" onclick="document.getElementById('wizard-file-input').click()">
+                    <div class="wizard-dropzone-icon">📁</div>
+                    <div class="wizard-dropzone-text">Σύρε αρχείο εδώ ή κάνε κλικ για επιλογή</div>
+                    <button type="button" class="wizard-dropzone-btn">Επιλογή Αρχείου</button>
+                </div>
+                <input type="file" id="wizard-file-input" style="display: none;"
+                       accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.zip"
+                       onchange="handleWizardFileSelect(this)">
+                <div class="wizard-file-preview" id="wizard-file-preview" style="display: none;">
+                    <span class="file-icon">📄</span>
+                    <span class="file-name" id="wizard-file-name">filename.pdf</span>
+                    <button type="button" class="file-remove" onclick="removeWizardFile()">&times;</button>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="wizard-options">
+                <div class="wizard-checkbox-group">
+                    <label class="wizard-checkbox-label" id="complete-label">
+                        <input type="checkbox" class="wizard-checkbox" id="wizard-complete-checkbox"
+                               onchange="updateWizardCheckboxState()" checked>
+                        <span class="icon">✅</span>
+                        <span>Ολοκλήρωση υποχρέωσης</span>
+                    </label>
+                    <label class="wizard-checkbox-label" id="skip-label">
+                        <input type="checkbox" class="wizard-checkbox" id="wizard-skip-checkbox"
+                               onchange="updateWizardCheckboxState()">
+                        <span class="icon">⏭️</span>
+                        <span>Παράλειψη (χωρίς αλλαγές)</span>
+                    </label>
+                </div>
+            </div>
+        `;
+
+        // Add drag and drop handlers
+        const dropzone = document.getElementById('wizard-dropzone');
+        if (dropzone) {
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragging');
+            });
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragging');
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragging');
+                if (e.dataTransfer.files.length > 0) {
+                    document.getElementById('wizard-file-input').files = e.dataTransfer.files;
+                    handleWizardFileSelect(document.getElementById('wizard-file-input'));
+                }
+            });
+        }
+    }
+
+    // Generate progress dots
+    function generateProgressDots() {
+        const dotsContainer = document.getElementById('wizard-dots');
+        dotsContainer.innerHTML = '';
+
+        // Limit dots to show (max 10, then show count)
+        const totalObs = wizardState.obligations.length;
+        const maxDots = Math.min(totalObs, 10);
+
+        for (let i = 0; i < maxDots; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'wizard-dot';
+            dot.title = `Υποχρέωση ${i + 1}`;
+            dotsContainer.appendChild(dot);
+        }
+
+        if (totalObs > 10) {
+            const more = document.createElement('span');
+            more.textContent = `+${totalObs - 10}`;
+            more.style.marginLeft = '5px';
+            more.style.fontSize = '0.8rem';
+            more.style.color = '#6c757d';
+            dotsContainer.appendChild(more);
+        }
+    }
+
+    // Update progress dots
+    function updateProgressDots() {
+        const dots = document.querySelectorAll('.wizard-dot');
+        dots.forEach((dot, i) => {
+            dot.classList.remove('active', 'completed', 'skipped');
+
+            if (i === wizardState.currentIndex) {
+                dot.classList.add('active');
+            } else if (i < wizardState.currentIndex) {
+                const ob = wizardState.obligations[i];
+                const result = wizardState.results[ob.id];
+                if (result && result.skip) {
+                    dot.classList.add('skipped');
+                } else {
+                    dot.classList.add('completed');
+                }
+            }
+        });
+    }
+
+    // Render current obligation in wizard
+    function renderCurrentObligation() {
+        const ob = wizardState.obligations[wizardState.currentIndex];
+        const result = wizardState.results[ob.id] || { complete: true, skip: false };
+
+        // Update info fields
+        document.getElementById('wizard-client-name').textContent = ob.client_name;
+        document.getElementById('wizard-client-afm').textContent = ob.client_afm;
+        document.getElementById('wizard-obligation-type').textContent = ob.obligation_type;
+        document.getElementById('wizard-period').textContent = ob.period_display;
+        document.getElementById('wizard-deadline').textContent = ob.due_date;
+
+        // Update progress text
+        document.getElementById('wizard-progress-text').textContent =
+            `${wizardState.currentIndex + 1} από ${wizardState.obligations.length}`;
+
+        // Update checkboxes
+        document.getElementById('wizard-complete-checkbox').checked = result.complete;
+        document.getElementById('wizard-skip-checkbox').checked = result.skip;
+        updateWizardCheckboxState();
+
+        // Show/hide file if previously selected
+        const filePreview = document.getElementById('wizard-file-preview');
+        const dropzone = document.getElementById('wizard-dropzone');
+        if (wizardState.files[ob.id]) {
+            document.getElementById('wizard-file-name').textContent = wizardState.files[ob.id].name;
+            filePreview.style.display = 'flex';
+            dropzone.style.display = 'none';
+        } else {
+            filePreview.style.display = 'none';
+            dropzone.style.display = 'block';
+        }
+
+        // Clear file input
+        document.getElementById('wizard-file-input').value = '';
+
+        // Update navigation buttons
+        updateNavigationButtons();
+
+        // Update dots
+        updateProgressDots();
+    }
+
+    // Update navigation buttons state
+    function updateNavigationButtons() {
+        const prevBtn = document.getElementById('wizard-prev-btn');
+        const nextBtn = document.getElementById('wizard-next-btn');
+        const finishBtn = document.getElementById('wizard-finish-btn');
+
+        prevBtn.disabled = wizardState.currentIndex === 0;
+
+        const isLast = wizardState.currentIndex === wizardState.obligations.length - 1;
+        nextBtn.style.display = isLast ? 'none' : 'flex';
+        finishBtn.style.display = isLast ? 'block' : 'none';
+    }
+
+    // Save current state before navigation
+    function saveCurrentState() {
+        const ob = wizardState.obligations[wizardState.currentIndex];
+
+        wizardState.results[ob.id] = {
+            complete: document.getElementById('wizard-complete-checkbox').checked,
+            skip: document.getElementById('wizard-skip-checkbox').checked,
+            notes: ''
+        };
+
+        // File is already saved in wizardState.files when selected
+    }
+
+    // Navigate to previous obligation
+    function wizardPrev() {
+        if (wizardState.currentIndex > 0) {
+            saveCurrentState();
+            wizardState.currentIndex--;
+            renderCurrentObligation();
+        }
+    }
+
+    // Navigate to next obligation
+    function wizardNext() {
+        if (wizardState.currentIndex < wizardState.obligations.length - 1) {
+            saveCurrentState();
+            wizardState.currentIndex++;
+            renderCurrentObligation();
+        }
+    }
+
+    // Handle file selection
+    function handleWizardFileSelect(input) {
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            const ob = wizardState.obligations[wizardState.currentIndex];
+
+            // Store file
+            wizardState.files[ob.id] = file;
+
+            // Update UI
+            document.getElementById('wizard-file-name').textContent = file.name;
+            document.getElementById('wizard-file-preview').style.display = 'flex';
+            document.getElementById('wizard-dropzone').style.display = 'none';
+        }
+    }
+
+    // Remove selected file
+    function removeWizardFile() {
+        const ob = wizardState.obligations[wizardState.currentIndex];
+        delete wizardState.files[ob.id];
+
+        document.getElementById('wizard-file-input').value = '';
+        document.getElementById('wizard-file-preview').style.display = 'none';
+        document.getElementById('wizard-dropzone').style.display = 'block';
+    }
+
+    // Update checkbox visual state
+    function updateWizardCheckboxState() {
+        const completeCheck = document.getElementById('wizard-complete-checkbox');
+        const skipCheck = document.getElementById('wizard-skip-checkbox');
+        const completeLabel = document.getElementById('complete-label');
+        const skipLabel = document.getElementById('skip-label');
+
+        // Mutual exclusion
+        if (skipCheck.checked) {
+            completeCheck.checked = false;
+        }
+
+        // Update visual state
+        completeLabel.classList.toggle('checked', completeCheck.checked);
+        skipLabel.classList.toggle('skip-checked', skipCheck.checked);
+    }
+
+    // Finish wizard and submit all
+    function wizardFinish() {
+        saveCurrentState();
+
+        // Count completions and skips
+        let completeCount = 0;
+        let skipCount = 0;
+
+        Object.values(wizardState.results).forEach(r => {
+            if (r.skip) {
+                skipCount++;
+            } else if (r.complete) {
+                completeCount++;
+            }
+        });
+
+        if (completeCount === 0 && skipCount === wizardState.obligations.length) {
+            if (!confirm('Όλες οι υποχρεώσεις θα παραλειφθούν. Είστε σίγουροι;')) {
+                return;
+            }
+        }
+
+        // Build FormData for submission
+        const formData = new FormData();
+        formData.append('results', JSON.stringify(wizardState.results));
+
+        // Add files
+        for (const [obId, file] of Object.entries(wizardState.files)) {
+            formData.append(`file_${obId}`, file);
+        }
+
+        // Show loading
+        const finishBtn = document.getElementById('wizard-finish-btn');
+        const originalText = finishBtn.innerHTML;
+        finishBtn.disabled = true;
+        finishBtn.innerHTML = '⏳ Επεξεργασία...';
+
+        // Submit to server
+        fetch('/accounting/wizard-bulk-process/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                closeWizard();
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                throw new Error(data.error || 'Σφάλμα κατά την επεξεργασία');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('❌ ' + error.message, 'error');
+            finishBtn.disabled = false;
+            finishBtn.innerHTML = originalText;
+        });
+    }
+
+    // Close wizard
+    function closeWizard() {
+        document.getElementById('wizard-modal').style.display = 'none';
+
+        // Reset state
+        wizardState = {
+            obligations: [],
+            currentIndex: 0,
+            results: {},
+            files: {}
+        };
+    }
+
+    // Select all helper
+    function selectAll() {
+        document.querySelectorAll('.obl-checkbox').forEach(cb => cb.checked = true);
+        document.getElementById('select-all-header').checked = true;
+        updateBulkBar();
+    }
+
+    // Deselect all helper
+    function deselectAll() {
+        document.querySelectorAll('.obl-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('select-all-header').checked = false;
+        updateBulkBar();
+    }
+
+    // Placeholder functions for other bulk actions
+    function bulkEmail() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        if (checkboxes.length === 0) {
+            alert('Δεν έχετε επιλέξει καμία υποχρέωση');
+            return;
+        }
+        alert('Η λειτουργία μαζικού email θα υλοποιηθεί σύντομα');
+    }
+
+    function bulkExport() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        if (checkboxes.length === 0) {
+            alert('Δεν έχετε επιλέξει καμία υποχρέωση');
+            return;
+        }
+        // Redirect to export with selected IDs
+        const ids = Array.from(checkboxes).map(cb => cb.value).join(',');
+        window.location.href = `/accounting/export-excel/?ids=${ids}`;
+    }
+
+    function bulkDelete() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        if (checkboxes.length === 0) {
+            alert('Δεν έχετε επιλέξει καμία υποχρέωση');
+            return;
+        }
+        alert('Η λειτουργία μαζικής διαγραφής απαιτεί επιβεβαίωση. Επικοινωνήστε με τον διαχειριστή.');
     }
 </script>
 
