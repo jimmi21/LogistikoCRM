@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LogistikoCRM{% endblock %}</title>
+    <style>
+        /* Reset styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+        }
+
+        /* Container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        /* Header */
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .email-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .email-header .subtitle {
+            margin-top: 10px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        /* Body */
+        .email-body {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .email-body p {
+            margin: 0 0 15px 0;
+            color: #555555;
+        }
+
+        /* Info Box */
+        .info-box {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .info-box.warning {
+            background-color: #fff3e0;
+            border-left-color: #ff9800;
+        }
+
+        .info-box.danger {
+            background-color: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        .info-box.info {
+            background-color: #e3f2fd;
+            border-left-color: #2196f3;
+        }
+
+        .info-box p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        /* Signature */
+        .signature {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eeeeee;
+        }
+
+        .signature .name {
+            color: #667eea;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .signature .company {
+            color: #888888;
+            font-size: 14px;
+            margin: 5px 0 0 0;
+        }
+
+        /* Button */
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Footer */
+        .email-footer {
+            text-align: center;
+            padding: 20px;
+            color: #888888;
+            font-size: 12px;
+        }
+
+        .email-footer a {
+            color: #667eea;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-container {
+                padding: 10px;
+            }
+
+            .email-header,
+            .email-body {
+                padding: 20px;
+            }
+
+            .email-header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        {% block header %}
+        <div class="email-header">
+            <h1>{% block header_title %}LogistikoCRM{% endblock %}</h1>
+            {% block header_subtitle %}{% endblock %}
+        </div>
+        {% endblock %}
+
+        <div class="email-body">
+            {% block content %}
+            <!-- Main content goes here -->
+            {% endblock %}
+
+            {% block signature %}
+            <div class="signature">
+                <p style="color: #333; margin-bottom: 5px;">Με εκτίμηση,</p>
+                <p class="name">{{ accountant_name }}</p>
+                <p class="company">{{ company_name }}</p>
+            </div>
+            {% endblock %}
+        </div>
+
+        {% block footer %}
+        <div class="email-footer">
+            <p>Αυτό το email στάλθηκε αυτόματα από το LogistikoCRM.</p>
+            <p>{{ company_name }} | {{ company_phone }}</p>
+        </div>
+        {% endblock %}
+    </div>
+</body>
+</html>

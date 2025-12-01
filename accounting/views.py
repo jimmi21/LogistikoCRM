@@ -29,9 +29,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response 
 
 from .models import (
-    ClientProfile, ClientObligation, MonthlyObligation, 
-    ObligationType, VoIPCall, VoIPCallLog, EmailTemplate,Ticket, ClientDocument, ScheduledEmail
-    )
+    ClientProfile, ClientObligation, MonthlyObligation,
+    ObligationType, VoIPCall, VoIPCallLog, EmailTemplate, EmailLog,
+    Ticket, ClientDocument, ScheduledEmail
+)
 from django.utils.html import strip_tags 
 from .serializers import VoIPCallSerializer, ClientDocumentSerializer, VoIPCallLogSerializer 
 
@@ -2989,7 +2990,6 @@ def wizard_bulk_process(request):
             }, status=400)
 
         global_notes = request.POST.get('notes', '')
-        send_email = request.POST.get('send_email') == '1'
 
         completed_count = 0
         skipped_count = 0
@@ -3093,19 +3093,41 @@ def wizard_bulk_process(request):
                 except Exception as audit_error:
                     logger.warning(f"Could not create audit log: {audit_error}")
 
-                # Send email if requested
-                if send_email and obligation.client.email:
+                # Send email if requested for this specific obligation
+                should_send_email = ob_data.get('send_email', False)
+                email_sent = False
+                email_error_msg = None
+
+                if should_send_email and obligation.client.email:
                     try:
-                        from accounting.services.email_service import trigger_automation_rules
-                        trigger_automation_rules(obligation, trigger_type='on_complete')
+                        from accounting.services.email_service import EmailService
+                        success, result = EmailService.send_obligation_completion_email(
+                            obligation=obligation,
+                            user=request.user,
+                            include_attachment=True
+                        )
+                        if success:
+                            email_sent = True
+                            logger.info(f"📧 Email sent for obligation {ob_id} to {obligation.client.email}")
+                        else:
+                            email_error_msg = str(result)
+                            logger.warning(f"Could not send email for {ob_id}: {result}")
                     except Exception as email_error:
+                        email_error_msg = str(email_error)
                         logger.warning(f"Could not send email for {ob_id}: {email_error}")
 
                 completed_count += 1
+                message_parts = [f'{obligation.client.eponimia} - {obligation.obligation_type.name}: Ολοκληρώθηκε']
+                if email_sent:
+                    message_parts.append('📧')
+                elif should_send_email and not email_sent:
+                    message_parts.append(f'(email: {email_error_msg or "αποτυχία"})')
+
                 processed_details.append({
                     'id': ob_id,
                     'status': 'completed',
-                    'message': f'{obligation.client.eponimia} - {obligation.obligation_type.name}: Ολοκληρώθηκε'
+                    'email_sent': email_sent,
+                    'message': ' '.join(message_parts)
                 })
 
             except MonthlyObligation.DoesNotExist:

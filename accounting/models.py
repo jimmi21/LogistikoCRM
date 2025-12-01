@@ -500,40 +500,214 @@ class MonthlyObligation(models.Model):
 
 
 class EmailTemplate(models.Model):
-    """Πρότυπα Email"""
+    """
+    Πρότυπα Email με υποστήριξη {variable} syntax.
+
+    Διαθέσιμες μεταβλητές:
+    - {client_name} - Επωνυμία πελάτη
+    - {client_afm} - ΑΦΜ πελάτη
+    - {client_email} - Email πελάτη
+    - {obligation_type} - Τύπος υποχρέωσης
+    - {period_month} - Μήνας περιόδου (αριθμός)
+    - {period_year} - Έτος περιόδου
+    - {period_display} - Μήνας/Έτος (π.χ. "01/2025")
+    - {deadline} - Προθεσμία (μορφή ημερομηνίας)
+    - {completed_date} - Ημερομηνία ολοκλήρωσης
+    - {accountant_name} - Όνομα λογιστή
+    - {company_name} - Όνομα εταιρείας
+    """
+
     name = models.CharField('Όνομα Προτύπου', max_length=200)
     description = models.TextField('Περιγραφή', blank=True)
-    subject = models.CharField('Θέμα Email', max_length=500)
-    body_html = models.TextField('Κείμενο (HTML)')
-    
-    VARIABLE_CHOICES = (
-        ('client', 'Client Variables: {{client.eponimia}}, {{client.afm}}, {{client.email}}'),
-        ('obligation', 'Obligation Variables: {{obligation.name}}, {{obligation.deadline}}'),
-        ('user', 'User Variables: {{user.name}}, {{company_name}}'),
+    subject = models.CharField('Θέμα Email', max_length=500,
+        help_text='Υποστηρίζει μεταβλητές: {client_name}, {obligation_type}, {period_month}/{period_year}')
+    body_html = models.TextField('Κείμενο (HTML)',
+        help_text='Υποστηρίζει μεταβλητές: {client_name}, {client_afm}, {obligation_type}, {deadline}, {completed_date}, {accountant_name}')
+
+    # Optional: Auto-select for specific obligation type
+    obligation_type = models.ForeignKey(
+        ObligationType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Τύπος Υποχρέωσης (αυτόματη επιλογή)',
+        help_text='Αν οριστεί, αυτό το template επιλέγεται αυτόματα για αυτόν τον τύπο υποχρέωσης'
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField('Ενεργό', default=True)
-    
+
     class Meta:
         verbose_name = 'Πρότυπο Email'
         verbose_name_plural = 'Πρότυπα Email'
         ordering = ['name']
-    
+
     def __str__(self):
         return self.name
-    
+
     def render(self, context):
-        """Render template with context variables"""
+        """
+        Render template with context variables using Django Template syntax.
+        Legacy method for backwards compatibility.
+        """
         from django.template import Template, Context
         subject_template = Template(self.subject)
         body_template = Template(self.body_html)
-        
+
         rendered_subject = subject_template.render(Context(context))
         rendered_body = body_template.render(Context(context))
-        
+
         return rendered_subject, rendered_body
+
+    def render_simple(self, variables):
+        """
+        Render template with simple {variable} replacement.
+
+        Args:
+            variables: dict with keys like 'client_name', 'obligation_type', etc.
+
+        Returns:
+            tuple: (rendered_subject, rendered_body)
+        """
+        subject = self.subject
+        body = self.body_html
+
+        # Replace all variables
+        for key, value in variables.items():
+            placeholder = '{' + key + '}'
+            subject = subject.replace(placeholder, str(value) if value else '')
+            body = body.replace(placeholder, str(value) if value else '')
+
+        return subject, body
+
+    @classmethod
+    def get_template_for_obligation(cls, obligation):
+        """
+        Get the appropriate template for an obligation.
+        First tries to find a template specific to the obligation type,
+        then falls back to a default template.
+        """
+        # Try to find template specific to obligation type
+        template = cls.objects.filter(
+            is_active=True,
+            obligation_type=obligation.obligation_type
+        ).first()
+
+        if template:
+            return template
+
+        # Fall back to default template (name contains "Ολοκλήρωση" or is first active)
+        template = cls.objects.filter(
+            is_active=True,
+            name__icontains='Ολοκλήρωση'
+        ).first()
+
+        if template:
+            return template
+
+        # Last resort: any active template
+        return cls.objects.filter(is_active=True).first()
+
+    @staticmethod
+    def get_available_variables():
+        """Return list of available variables for UI display"""
+        return [
+            ('{client_name}', 'Επωνυμία πελάτη'),
+            ('{client_afm}', 'ΑΦΜ πελάτη'),
+            ('{client_email}', 'Email πελάτη'),
+            ('{obligation_type}', 'Τύπος υποχρέωσης'),
+            ('{period_month}', 'Μήνας περιόδου'),
+            ('{period_year}', 'Έτος περιόδου'),
+            ('{period_display}', 'Περίοδος (ΜΜ/ΕΕΕΕ)'),
+            ('{deadline}', 'Προθεσμία'),
+            ('{completed_date}', 'Ημερομηνία ολοκλήρωσης'),
+            ('{accountant_name}', 'Όνομα λογιστή'),
+            ('{company_name}', 'Όνομα εταιρείας'),
+        ]
+
+
+class EmailLog(models.Model):
+    """
+    Ιστορικό αποσταλμένων email.
+    Καταγράφει κάθε email που στέλνεται από το σύστημα.
+    """
+
+    STATUS_CHOICES = [
+        ('sent', 'Απεστάλη'),
+        ('failed', 'Αποτυχία'),
+        ('pending', 'Σε αναμονή'),
+    ]
+
+    recipient_email = models.EmailField('Email Παραλήπτη')
+    recipient_name = models.CharField('Όνομα Παραλήπτη', max_length=200)
+
+    client = models.ForeignKey(
+        ClientProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='email_logs',
+        verbose_name='Πελάτης'
+    )
+
+    obligation = models.ForeignKey(
+        'MonthlyObligation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='email_logs',
+        verbose_name='Υποχρέωση'
+    )
+
+    template_used = models.ForeignKey(
+        EmailTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Πρότυπο'
+    )
+
+    subject = models.CharField('Θέμα', max_length=500)
+    body = models.TextField('Κείμενο')
+
+    status = models.CharField(
+        'Κατάσταση',
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    error_message = models.TextField('Μήνυμα Σφάλματος', blank=True)
+
+    sent_at = models.DateTimeField('Αποστολή', auto_now_add=True)
+    sent_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sent_emails',
+        verbose_name='Αποστολέας'
+    )
+
+    class Meta:
+        verbose_name = 'Ιστορικό Email'
+        verbose_name_plural = 'Ιστορικό Email'
+        ordering = ['-sent_at']
+        indexes = [
+            models.Index(fields=['client', '-sent_at']),
+            models.Index(fields=['status', '-sent_at']),
+            models.Index(fields=['-sent_at']),
+        ]
+
+    def __str__(self):
+        status_icon = {'sent': '✅', 'failed': '❌', 'pending': '⏳'}.get(self.status, '?')
+        return f"{status_icon} {self.recipient_email} - {self.subject[:50]}"
+
+    @property
+    def status_display(self):
+        """Return status with icon"""
+        icons = {'sent': '✅', 'failed': '❌', 'pending': '⏳'}
+        return f"{icons.get(self.status, '?')} {self.get_status_display()}"
 
 
 class EmailAutomationRule(models.Model):
