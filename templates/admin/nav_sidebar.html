@@ -1,0 +1,94 @@
+{% load i18n %}
+
+<nav class="sticky" id="nav-sidebar">
+    <!-- Dashboard Quick Access - Custom Addition -->
+    <div class="dashboard-quick-access" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 15px; margin-bottom: 10px; border-radius: 8px;">
+        <a href="{% url 'accounting:dashboard' %}" style="color: white; text-decoration: none; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;">
+            <span style="font-size: 18px;">📊</span>
+            <span>Dashboard</span>
+        </a>
+        <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
+            <a href="{% url 'accounting:reports' %}" style="color: rgba(255,255,255,0.9); text-decoration: none; font-size: 11px; background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius: 3px;">
+                📈 Reports
+            </a>
+            <a href="{% url 'accounting:calendar' %}" style="color: rgba(255,255,255,0.9); text-decoration: none; font-size: 11px; background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius: 3px;">
+                📅 Calendar
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats - Shows pending/overdue count -->
+    <div class="sidebar-stats" style="background: #f8f9fa; padding: 10px 12px; margin-bottom: 10px; border-radius: 6px; border-left: 3px solid #667eea;">
+        <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; margin-bottom: 6px;">Quick Status</div>
+        <div style="display: flex; gap: 12px;">
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}?status=pending" style="text-decoration: none; text-align: center;">
+                <div style="font-size: 16px; font-weight: bold; color: #f59e0b;">-</div>
+                <div style="font-size: 10px; color: #6c757d;">Pending</div>
+            </a>
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}?status=overdue" style="text-decoration: none; text-align: center;">
+                <div style="font-size: 16px; font-weight: bold; color: #ef4444;">-</div>
+                <div style="font-size: 10px; color: #6c757d;">Overdue</div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Search Box -->
+    <div class="module filtered" id="nav-filter">
+        <h3>
+            <label for="nav-filter-input" class="visually-hidden">{% translate 'Filter navigation items' %}</label>
+            <input type="text" name="filter" id="nav-filter-input" placeholder="{% translate 'Start typing to filter...' %}">
+        </h3>
+    </div>
+
+    <!-- App List -->
+    <div class="app-list">
+    {% for app in available_apps %}
+        <div class="module app-{{ app.app_label }}{% if app.app_url in request.path|urlencode %} current-app{% endif %}">
+            <caption>
+                <a href="{{ app.app_url }}" class="section" title="{{ app.name }}">{{ app.name }}</a>
+            </caption>
+            <table>
+                <tbody>
+                {% for model in app.models %}
+                    <tr class="model-{{ model.object_name|lower }}{% if model.admin_url in request.path|urlencode %} current-model{% endif %}">
+                        {% if model.admin_url %}
+                            <th scope="row"><a href="{{ model.admin_url }}"{% if model.admin_url in request.path|urlencode %} aria-current="page"{% endif %}>{{ model.name }}</a></th>
+                        {% else %}
+                            <th scope="row">{{ model.name }}</th>
+                        {% endif %}
+
+                        {% if model.add_url %}
+                            <td><a href="{{ model.add_url }}" class="addlink">{% translate 'Add' %}</a></td>
+                        {% else %}
+                            <td></td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endfor %}
+    </div>
+</nav>
+
+<style>
+/* Dashboard Quick Access Hover Effect */
+.dashboard-quick-access:hover {
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+.dashboard-quick-access {
+    transition: all 0.2s ease;
+}
+.dashboard-quick-access a:hover {
+    opacity: 0.9;
+}
+
+/* Sidebar Stats Hover */
+.sidebar-stats a:hover div:first-child {
+    transform: scale(1.1);
+}
+.sidebar-stats a div:first-child {
+    transition: transform 0.2s ease;
+}
+</style>

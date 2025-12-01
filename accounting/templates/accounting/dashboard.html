@@ -451,6 +451,36 @@
         {% include 'accounting/door_widget.html' %}
     </div>
 
+    <!-- QUICK NAVIGATION BAR -->
+    <nav class="quick-nav-bar">
+        <div class="nav-breadcrumb">
+            <a href="{% url 'admin:index' %}">
+                <span>🏠</span>
+                <span>Admin</span>
+            </a>
+            <span class="separator">›</span>
+            <span class="current">📊 Dashboard</span>
+        </div>
+        <div class="nav-quick-actions">
+            <a href="{% url 'admin:index' %}" class="nav-btn nav-btn-admin">
+                <span>←</span>
+                <span>Διαχείριση</span>
+            </a>
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}" class="nav-btn nav-btn-primary">
+                <span>📋</span>
+                <span>Υποχρεώσεις</span>
+            </a>
+            <a href="{% url 'admin:accounting_clientprofile_changelist' %}" class="nav-btn nav-btn-secondary">
+                <span>👥</span>
+                <span>Πελάτες</span>
+            </a>
+            <a href="{% url 'admin:accounting_monthlyobligation_add' %}" class="nav-btn nav-btn-success">
+                <span>➕</span>
+                <span>Νέα Υποχρέωση</span>
+            </a>
+        </div>
+    </nav>
+
     <!-- PAGE HEADER WITH NAVIGATION -->
     <header class="dashboard-header">
         <div class="header-wrapper">
