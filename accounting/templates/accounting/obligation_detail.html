@@ -17,6 +17,15 @@
     margin-bottom: 30px;
 }
 
+.detail-header h1 {
+    margin: 0 0 10px 0;
+}
+
+.detail-header p {
+    margin: 0;
+    opacity: 0.9;
+}
+
 .detail-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -85,6 +94,10 @@
     border: none;
     cursor: pointer;
     font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
 }
 
 .btn-primary {
@@ -102,9 +115,82 @@
     color: white;
 }
 
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
 .action-buttons {
     display: flex;
     gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+/* Edit Form Styles */
+.edit-form {
+    background: white;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-top: 20px;
+}
+
+.edit-form h3 {
+    margin-top: 0;
+    color: #667eea;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
     margin-top: 20px;
 }
 </style>
@@ -119,9 +205,12 @@
 
     <div class="action-buttons">
         <button onclick="history.back()" class="btn btn-secondary">← Πίσω</button>
+        <a href="/admin/accounting/monthlyobligation/{{ obligation.id }}/change/" class="btn btn-warning">
+            ✏️ Επεξεργασία στο Admin
+        </a>
         {% if obligation.status != 'completed' %}
         <button onclick="quickComplete({{ obligation.id }})" class="btn btn-success">✓ Ολοκλήρωση</button>
-        <button onclick="completeWithFile({{ obligation.id }})" class="btn btn-primary">📎 Ανέβασμα Αρχείου</button>
+        <button onclick="completeWithFile({{ obligation.id }})" class="btn btn-primary">📎 Ολοκλήρωση με Αρχείο</button>
         {% endif %}
     </div>
 
@@ -129,10 +218,12 @@
         <!-- Βασικά Στοιχεία -->
         <div class="detail-card">
             <h3>📋 Βασικά Στοιχεία</h3>
-            
+
             <div class="detail-field">
                 <div class="detail-label">Πελάτης</div>
-                <div class="detail-value">{{ obligation.client.eponimia }}</div>
+                <div class="detail-value">
+                    <a href="{% url 'accounting:client_detail' obligation.client.id %}">{{ obligation.client.eponimia }}</a>
+                </div>
             </div>
 
             <div class="detail-field">
@@ -146,6 +237,11 @@
             </div>
 
             <div class="detail-field">
+                <div class="detail-label">Περίοδος</div>
+                <div class="detail-value">{{ obligation.month }}/{{ obligation.year }}</div>
+            </div>
+
+            <div class="detail-field">
                 <div class="detail-label">Προθεσμία</div>
                 <div class="detail-value">{{ obligation.deadline|date:"d/m/Y" }}</div>
             </div>
@@ -154,7 +250,10 @@
                 <div class="detail-label">Κατάσταση</div>
                 <div class="detail-value">
                     <span class="status-badge status-{{ obligation.status }}">
-                        {{ obligation.get_status_display }}
+                        {% if obligation.status == 'pending' %}Εκκρεμεί
+                        {% elif obligation.status == 'completed' %}Ολοκληρωμένη
+                        {% elif obligation.status == 'overdue' %}Εκπρόθεσμη
+                        {% else %}{{ obligation.status }}{% endif %}
                     </span>
                 </div>
             </div>
@@ -163,7 +262,7 @@
         <!-- Χρέωση -->
         <div class="detail-card">
             <h3>💰 Χρέωση</h3>
-            
+
             <div class="detail-field">
                 <div class="detail-label">Χρόνος Εργασίας (ώρες)</div>
                 <div class="detail-value">{{ obligation.time_spent|default:"—" }}</div>
@@ -171,7 +270,7 @@
 
             <div class="detail-field">
                 <div class="detail-label">Ωριαία Χρέωση</div>
-                <div class="detail-value">€{{ obligation.hourly_rate|default:"0.00" }}</div>
+                <div class="detail-value">€{{ obligation.hourly_rate|default:"50.00" }}</div>
             </div>
 
             <div class="detail-field">
@@ -184,7 +283,7 @@
         {% if obligation.status == 'completed' %}
         <div class="detail-card">
             <h3>✅ Ολοκλήρωση</h3>
-            
+
             <div class="detail-field">
                 <div class="detail-label">Ολοκληρώθηκε</div>
                 <div class="detail-value">{{ obligation.completed_date|date:"d/m/Y" }}</div>
@@ -192,14 +291,14 @@
 
             <div class="detail-field">
                 <div class="detail-label">Από</div>
-                <div class="detail-value">{{ obligation.completed_by.get_full_name|default:obligation.completed_by.username }}</div>
+                <div class="detail-value">{{ obligation.completed_by.get_full_name|default:obligation.completed_by.username|default:"—" }}</div>
             </div>
 
             {% if obligation.attachment %}
             <div class="detail-field">
                 <div class="detail-label">Αρχείο</div>
                 <div class="detail-value">
-                    <a href="{{ obligation.attachment.url }}" target="_blank">📎 Λήψη</a>
+                    <a href="{{ obligation.attachment.url }}" target="_blank" class="btn btn-primary">📎 Λήψη Αρχείου</a>
                 </div>
             </div>
             {% endif %}
@@ -207,16 +306,39 @@
         {% endif %}
     </div>
 
-    <!-- Σημειώσεις -->
-    <div class="detail-card">
-        <h3>📝 Σημειώσεις</h3>
-        <p>{{ obligation.notes|default:"Δεν υπάρχουν σημειώσεις" }}</p>
+    <!-- Φόρμα Επεξεργασίας -->
+    <div class="edit-form">
+        <h3>✏️ Γρήγορη Επεξεργασία</h3>
+        <form method="post" id="edit-form">
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="time_spent">Χρόνος Εργασίας (ώρες)</label>
+                    <input type="number" id="time_spent" name="time_spent"
+                           value="{{ obligation.time_spent|default:'' }}"
+                           step="0.25" min="0" placeholder="π.χ. 1.5">
+                </div>
+                <div class="form-group">
+                    <label for="hourly_rate">Ωριαία Χρέωση (€)</label>
+                    <input type="number" id="hourly_rate" name="hourly_rate"
+                           value="{{ obligation.hourly_rate|default:'50.00' }}"
+                           step="0.01" min="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="notes">Σημειώσεις</label>
+                <textarea id="notes" name="notes" placeholder="Προσθέστε σημειώσεις...">{{ obligation.notes|default:'' }}</textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">💾 Αποθήκευση Αλλαγών</button>
+            </div>
+        </form>
     </div>
 
     <!-- Έγγραφα -->
-    <div class="detail-card">
+    <div class="detail-card" style="margin-top: 20px;">
         <h3>📎 Συνημμένα Έγγραφα ({{ documents.count }})</h3>
-        
+
         {% if documents %}
         <ul class="documents-list">
             {% for doc in documents %}
