@@ -1,126 +1,84 @@
 {% extends "admin/index.html" %}
 {% load static %}
 
-{% block extrastyle %}
-{{ block.super }}
-<style>
-    /* Simple Clean Style */
-    .quick-actions {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-
-        .quick-actions a {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: #417690;
-            color: white;
-            padding: 12px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-
-            .quick-actions a:hover {
-                background: #205067;
-                text-decoration: none;
-            }
-
-            .quick-actions a.btn-green {
-                background: #28a745;
-            }
-
-                .quick-actions a.btn-green:hover {
-                    background: #218838;
-                }
-
-            .quick-actions a.btn-orange {
-                background: #fd7e14;
-            }
-
-                .quick-actions a.btn-orange:hover {
-                    background: #e56a00;
-                }
-
-            .quick-actions a.btn-teal {
-                background: #20c997;
-            }
-
-                .quick-actions a.btn-teal:hover {
-                    background: #17a773;
-                }
-
-    /* Mini Stats */
-    .mini-stats {
-        display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
-        padding: 15px;
-        background: #f0f0f0;
-        border-radius: 4px;
-    }
-
-        .mini-stats .stat {
-            flex: 1;
-            text-align: center;
-        }
-
-            .mini-stats .stat strong {
-                display: block;
-                font-size: 24px;
-                color: #333;
-            }
-
-            .mini-stats .stat small {
-                color: #666;
-                font-size: 12px;
-            }
-</style>
-{% endblock %}
-
 {% block content %}
-<!-- Quick Action Buttons -->
-<div class="quick-actions">
-    <a href="/accounting/dashboard/">
-        📊 Dashboard
-    </a>
-    <a href="/accounting/calendar/" class="btn-green">
-        📅 Ημερολόγιο
-    </a>
-    <a href="{% url 'admin:accounting_monthlyobligation_generate' %}" class="btn-orange">
-        🚀 Generate Υποχρεώσεις
-    </a>
-    <a href="{% url 'admin:accounting_clientobligation_bulk' %}" class="btn-teal">
-        ➕ Μαζική Ανάθεση
-    </a>
-</div>
-
-<!-- Mini Stats (Optional - remove if too much) -->
-{% if stats %}
-<div class="mini-stats">
-    <div class="stat">
-        <strong>{{ stats.total_clients|default:0 }}</strong>
-        <small>Πελάτες</small>
-    </div>
-    <div class="stat">
-        <strong>{{ stats.pending_obligations|default:0 }}</strong>
-        <small>Εκκρεμείς</small>
-    </div>
-    <div class="stat" style="color: #dc3545;">
-        <strong>{{ stats.overdue|default:0 }}</strong>
-        <small>Καθυστερημένες</small>
-    </div>
-    <div class="stat" style="color: #28a745;">
-        <strong>{{ stats.today|default:0 }}</strong>
-        <small>Για Σήμερα</small>
-    </div>
-</div>
-{% endif %}
-
-<!-- Default Admin Content -->
 {{ block.super }}
+
+<!-- ✅ ACCOUNTING DASHBOARD - Statistics & Quick Actions -->
+<div class="module" id="accounting-dashboard" style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; color: white;">
+    <h2 style="color: white; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
+        📊 Accounting Dashboard
+    </h2>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px;">
+        <!-- Pending Obligations -->
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+            <div style="font-size: 2.5em; font-weight: bold;">{{ stats.pending_count|default:"0" }}</div>
+            <div style="opacity: 0.9;">⏳ Εκκρεμείς Υποχρεώσεις</div>
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}?status=pending"
+               style="color: #fff; text-decoration: underline; font-size: 0.9em; margin-top: 10px; display: block;">
+                Προβολή →
+            </a>
+        </div>
+
+        <!-- Overdue -->
+        <div style="background: rgba(239,68,68,0.25); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+            <div style="font-size: 2.5em; font-weight: bold;">{{ stats.overdue_count|default:"0" }}</div>
+            <div style="opacity: 0.9;">🔴 Καθυστερημένες</div>
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}?status=overdue"
+               style="color: #fff; text-decoration: underline; font-size: 0.9em; margin-top: 10px; display: block;">
+                Προβολή →
+            </a>
+        </div>
+
+        <!-- Completed This Month -->
+        <div style="background: rgba(16,185,129,0.25); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+            <div style="font-size: 2.5em; font-weight: bold;">{{ stats.completed_this_month|default:"0" }}</div>
+            <div style="opacity: 0.9;">✅ Ολοκληρωμένες (μήνας)</div>
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}?status=completed"
+               style="color: #fff; text-decoration: underline; font-size: 0.9em; margin-top: 10px; display: block;">
+                Προβολή →
+            </a>
+        </div>
+
+        <!-- Total Revenue -->
+        <div style="background: rgba(251,191,36,0.25); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+            <div style="font-size: 2.5em; font-weight: bold;">€{{ stats.total_revenue|default:"0" }}</div>
+            <div style="opacity: 0.9;">💰 Έσοδα (μήνας)</div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(255,255,255,0.3);">
+        <h3 style="color: white; margin-bottom: 15px;">⚡ Γρήγορες Ενέργειες</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{% url 'admin:accounting_monthlyobligation_add' %}"
+               style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; backdrop-filter: blur(10px); transition: all 0.3s;">
+                ➕ Νέα Υποχρέωση
+            </a>
+            <a href="{% url 'admin:accounting_clientprofile_add' %}"
+               style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; backdrop-filter: blur(10px); transition: all 0.3s;">
+                👤 Νέος Πελάτης
+            </a>
+            <a href="{% url 'admin:accounting_monthlyobligation_changelist' %}?status=pending&deadline__lte={{ today }}"
+               style="background: rgba(239,68,68,0.3); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; backdrop-filter: blur(10px); transition: all 0.3s;">
+                🚨 Λήξη Σήμερα
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+#accounting-dashboard a:hover {
+    background: rgba(255,255,255,0.35) !important;
+    transform: translateY(-2px);
+}
+</style>
+
+<script>
+// Auto-refresh dashboard every 5 minutes
+setTimeout(() => {
+    location.reload();
+}, 5 * 60 * 1000);
+</script>
 {% endblock %}

@@ -2493,3 +2493,379 @@ def door_control(request):
         return open_door(request)
     else:
         return door_status(request)
+
+# ============================================================================
+# QUICK COMPLETE & FILE UPLOAD VIEWS
+# ============================================================================
+
+@require_POST
+@staff_member_required
+def quick_complete_obligation(request, obligation_id):
+    """
+    Quick complete obligation without file upload
+    AJAX endpoint για γρήγορη ολοκλήρωση με προαιρετικό email notification
+    """
+    try:
+        import json
+        obligation = MonthlyObligation.objects.get(id=obligation_id)
+
+        # Parse JSON body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            data = {}
+
+        # Get optional parameters
+        send_email = data.get('send_email', False)
+        time_spent = data.get('time_spent')
+
+        # Update status
+        old_status = obligation.status
+        obligation.status = 'completed'
+        obligation.completed_date = timezone.now().date()  # DateField, not datetime
+        obligation.completed_by = request.user
+
+        # Update time spent if provided
+        if time_spent:
+            try:
+                obligation.time_spent = float(time_spent)
+            except (ValueError, TypeError):
+                pass
+
+        obligation.save()
+
+        # Log to audit trail
+        from common.models import AuditLog
+        changes = {
+            'status': {'old': old_status, 'new': 'completed'}
+        }
+        if time_spent:
+            changes['time_spent'] = {'old': None, 'new': time_spent}
+
+        AuditLog.log(
+            user=request.user,
+            action='update',
+            obj=obligation,
+            changes=changes,
+            description=f'Γρήγορη ολοκλήρωση υποχρέωσης: {obligation}',
+            severity='medium',
+            request=request
+        )
+
+        # Send email notification if requested
+        if send_email:
+            from accounting.services.email_service import trigger_automation_rules
+            emails_created = trigger_automation_rules(obligation, trigger_type='on_complete')
+            logger.info(f'📧 Created {len(emails_created)} email notifications for obligation {obligation_id}')
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Η υποχρέωση ολοκληρώθηκε επιτυχώς!' +
+                      (' (Email στάλθηκε)' if send_email else '')
+        })
+
+    except MonthlyObligation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Η υποχρέωση δεν βρέθηκε'
+        }, status=404)
+    except Exception as e:
+        logger.error(f'Error completing obligation {obligation_id}: {e}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_POST
+@staff_member_required
+def complete_with_file(request, obligation_id):
+    """
+    Complete obligation WITH file upload
+    Handles multipart/form-data για file upload + ολοκλήρωση
+    """
+    try:
+        obligation = MonthlyObligation.objects.get(id=obligation_id)
+
+        # Validate file
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν ανεβάσατε αρχείο'
+            }, status=400)
+
+        uploaded_file = request.FILES['file']
+
+        # ✅ SECURITY: File validation
+        from common.utils.file_validation import validate_file_upload
+        try:
+            validate_file_upload(uploaded_file)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Μη έγκυρο αρχείο: {str(e)}'
+            }, status=400)
+
+        # Create ClientDocument
+        category = request.POST.get('category', 'general')
+        description = request.POST.get('description', '')
+
+        document = ClientDocument.objects.create(
+            client=obligation.client,
+            obligation=obligation,
+            file=uploaded_file,
+            filename=uploaded_file.name,
+            file_type=uploaded_file.content_type,
+            document_category=category,
+            description=description
+        )
+
+        # Update obligation
+        old_status = obligation.status
+        obligation.status = 'completed'
+        obligation.completed_date = timezone.now().date()  # DateField, not datetime
+        obligation.completed_by = request.user
+        obligation.attachment = uploaded_file  # Set primary attachment
+
+        # Update time spent if provided
+        time_spent = request.POST.get('time_spent')
+        if time_spent:
+            try:
+                obligation.time_spent = float(time_spent)
+            except ValueError:
+                pass
+
+        obligation.save()
+
+        # Log to audit trail
+        from common.models import AuditLog
+        AuditLog.log(
+            user=request.user,
+            action='update',
+            obj=obligation,
+            changes={
+                'status': {'old': old_status, 'new': 'completed'},
+                'attachment': {'old': None, 'new': uploaded_file.name}
+            },
+            description=f'Ολοκλήρωση με αρχείο: {obligation}',
+            severity='medium',
+            request=request
+        )
+
+        # Send email notification if requested
+        send_email = request.POST.get('send_email') == '1'
+        if send_email:
+            from accounting.services.email_service import trigger_automation_rules
+            emails_created = trigger_automation_rules(obligation, trigger_type='on_complete')
+            logger.info(f'📧 Created {len(emails_created)} email notifications for obligation {obligation_id}')
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Το αρχείο ανέβηκε και η υποχρέωση ολοκληρώθηκε!' +
+                      (' (Email στάλθηκε)' if send_email else ''),
+            'document_id': document.id,
+            'obligation_id': obligation.id
+        })
+
+    except MonthlyObligation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Η υποχρέωση δεν βρέθηκε'
+        }, status=404)
+    except Exception as e:
+        logger.error(f'Error completing obligation {obligation_id} with file: {e}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_POST
+@staff_member_required
+def bulk_complete_obligations(request):
+    """
+    Bulk complete multiple obligations with optional file upload
+    Handles μαζική ολοκλήρωση με προαιρετικό αρχείο
+    """
+    try:
+        import json
+
+        # Get obligation IDs
+        obligation_ids_str = request.POST.get('obligation_ids')
+        if not obligation_ids_str:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν επιλέξατε υποχρεώσεις'
+            }, status=400)
+
+        obligation_ids = json.loads(obligation_ids_str)
+
+        if not obligation_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν επιλέξατε υποχρεώσεις'
+            }, status=400)
+
+        # Get obligations
+        obligations = MonthlyObligation.objects.filter(
+            id__in=obligation_ids,
+            status__in=['pending', 'overdue']
+        )
+
+        if not obligations.exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν βρέθηκαν έγκυρες υποχρεώσεις προς ολοκλήρωση'
+            }, status=404)
+
+        # Get optional parameters
+        send_email = request.POST.get('send_email') == '1'
+        category = request.POST.get('category', 'general')
+        description = request.POST.get('description', '')
+        uploaded_file = request.FILES.get('file')
+
+        # Validate file if provided
+        if uploaded_file:
+            from common.utils.file_validation import validate_file_upload
+            try:
+                validate_file_upload(uploaded_file)
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Μη έγκυρο αρχείο: {str(e)}'
+                }, status=400)
+
+        completed_count = 0
+        failed_count = 0
+        errors = []
+
+        # Complete each obligation
+        for obligation in obligations:
+            try:
+                old_status = obligation.status
+                obligation.status = 'completed'
+                obligation.completed_date = timezone.now().date()
+                obligation.completed_by = request.user
+
+                # Attach file if provided
+                if uploaded_file:
+                    # Create document for this obligation
+                    ClientDocument.objects.create(
+                        client=obligation.client,
+                        obligation=obligation,
+                        file=uploaded_file,
+                        filename=uploaded_file.name,
+                        file_type=uploaded_file.content_type,
+                        document_category=category,
+                        description=description or f'Μαζική ολοκλήρωση - {timezone.now().date()}'
+                    )
+                    obligation.attachment = uploaded_file
+
+                obligation.save()
+
+                # Audit log
+                from common.models import AuditLog
+                AuditLog.log(
+                    user=request.user,
+                    action='update',
+                    obj=obligation,
+                    changes={
+                        'status': {'old': old_status, 'new': 'completed'},
+                        'bulk_completion': True
+                    },
+                    description=f'Μαζική ολοκλήρωση: {obligation}',
+                    severity='medium',
+                    request=request
+                )
+
+                # Send email if requested
+                if send_email:
+                    from accounting.services.email_service import trigger_automation_rules
+                    trigger_automation_rules(obligation, trigger_type='on_complete')
+
+                completed_count += 1
+
+            except Exception as e:
+                failed_count += 1
+                errors.append(f'{obligation.client.eponimia} - {obligation.obligation_type.name}: {str(e)}')
+                logger.error(f'Error bulk completing obligation {obligation.id}: {e}')
+
+        # Build response message
+        message = f'Ολοκληρώθηκαν {completed_count} υποχρεώσεις επιτυχώς'
+        if failed_count > 0:
+            message += f' ({failed_count} απέτυχαν)'
+
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'completed_count': completed_count,
+            'failed_count': failed_count,
+            'errors': errors if errors else None
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Μη έγκυρα δεδομένα υποχρεώσεων'
+        }, status=400)
+    except Exception as e:
+        logger.error(f'Error in bulk completion: {e}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@staff_member_required
+def obligation_detail_view(request, obligation_id):
+    """
+    Detail view για MonthlyObligation
+    Επιτρέπει προβολή και επεξεργασία όλων των πεδίων + upload εγγράφων
+    """
+    try:
+        obligation = MonthlyObligation.objects.select_related(
+            'client', 'obligation_type', 'completed_by'
+        ).prefetch_related(
+            'client__documents'
+        ).get(id=obligation_id)
+
+        # Get all documents for this obligation
+        documents = ClientDocument.objects.filter(
+            Q(obligation=obligation) | Q(client=obligation.client)
+        ).order_by('-uploaded_at')
+
+        # Handle POST (edit obligation)
+        if request.method == 'POST':
+            # Update obligation fields
+            obligation.notes = request.POST.get('notes', '')
+            
+            time_spent = request.POST.get('time_spent')
+            if time_spent:
+                try:
+                    obligation.time_spent = float(time_spent)
+                except ValueError:
+                    pass
+
+            hourly_rate = request.POST.get('hourly_rate')
+            if hourly_rate:
+                try:
+                    obligation.hourly_rate = float(hourly_rate)
+                except ValueError:
+                    pass
+
+            obligation.save()
+
+            messages.success(request, '✅ Η υποχρέωση ενημερώθηκε επιτυχώς!')
+            return redirect('accounting:obligation_detail', obligation_id=obligation.id)
+
+        context = {
+            'obligation': obligation,
+            'documents': documents,
+            'title': f'Υποχρέωση #{obligation.id} - {obligation.client.eponimia}',
+        }
+
+        return render(request, 'accounting/obligation_detail.html', context)
+
+    except MonthlyObligation.DoesNotExist:
+        messages.error(request, 'Η υποχρέωση δεν βρέθηκε')
+        return redirect('accounting:dashboard')

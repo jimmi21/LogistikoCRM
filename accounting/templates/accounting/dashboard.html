@@ -3,6 +3,157 @@
 
 {% block extrastyle %}
 <link rel="stylesheet" href="{% static 'accounting/css/dashboard.css' %}">
+<script src="{% static 'accounting/js/dashboard.js' %}" defer></script>
+<style>
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #333;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: #999;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-label .icon {
+    margin-right: 5px;
+}
+
+.file-input, .form-select, .form-input, .form-textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.help-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: #666;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Notification Styles */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 15px 20px;
+    min-width: 300px;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.notification-success {
+    border-left: 4px solid #10b981;
+}
+
+.notification-error {
+    border-left: 4px solid #ef4444;
+}
+
+.notification-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    margin-left: 15px;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -208,9 +359,9 @@
             <div class="bulk-section">
                 <h4 class="bulk-section-title">Ενέργειες</h4>
                 <div class="bulk-buttons">
-                    <button type="button" onclick="showAdvancedBulkComplete()" class="btn btn-small btn-success" title="Smart completion with grouping">
+                    <button type="button" onclick="bulkComplete()" class="btn btn-small btn-success" title="Bulk complete with optional file upload">
                         <span class="icon">✓</span>
-                        <span>Έξυπνη Ολοκλήρωση</span>
+                        <span>Μαζική Ολοκλήρωση</span>
                     </button>
                     <button type="button" onclick="bulkEmail()" class="btn btn-small btn-info">
                         <span class="icon">📧</span>
@@ -362,13 +513,21 @@
                             <!-- Actions -->
                             <td class="col-actions center">
                                 {% if obl.status != 'completed' %}
-                                <button type="button"
-                                        onclick="event.stopPropagation(); quickComplete({{ obl.id }});"
-                                        class="btn btn-action btn-success btn-sm"
-                                        title="Mark as completed">
-                                    <span class="icon">✓</span>
-                                    <span class="label">Ολοκλήρωση</span>
-                                </button>
+                                <div class="action-buttons">
+                                    <button type="button"
+                                            onclick="event.stopPropagation(); showCompletionModal({{ obl.id }});"
+                                            class="btn btn-action btn-success btn-sm"
+                                            title="Ολοκλήρωση υποχρέωσης (με προαιρετικό αρχείο και email)">
+                                        <span class="icon">✓</span>
+                                        <span class="label">Ολοκλήρωση</span>
+                                    </button>
+                                    <button type="button"
+                                            onclick="event.stopPropagation(); navigateToObligation({{ obl.id }});"
+                                            class="btn btn-action btn-info btn-sm"
+                                            title="Προβολή λεπτομερειών">
+                                        <span class="icon">👁️</span>
+                                    </button>
+                                </div>
                                 {% else %}
                                 <div class="completed-actions">
                                     <span class="completed-icon" title="Completed">✓</span>
@@ -451,9 +610,45 @@
         });
     }
 
+    // Bulk selection functions
+    function toggleAllCheckboxes(checkbox) {
+        const checkboxes = document.querySelectorAll('.obl-checkbox');
+        checkboxes.forEach(cb => cb.checked = checkbox.checked);
+        updateBulkBar();
+    }
+
+    function updateBulkBar() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        const count = checkboxes.length;
+        const bulkBar = document.getElementById('bulk-actions-bar');
+        const countSpan = document.getElementById('selected-count');
+
+        if (count > 0) {
+            bulkBar.style.display = 'flex';
+            if (countSpan) countSpan.textContent = count;
+        } else {
+            bulkBar.style.display = 'none';
+        }
+    }
+
+    function bulkComplete() {
+        const checkboxes = document.querySelectorAll('.obl-checkbox:checked');
+        const obligationIds = Array.from(checkboxes).map(cb => cb.value);
+
+        if (obligationIds.length === 0) {
+            alert('Δεν έχετε επιλέξει καμία υποχρέωση');
+            return;
+        }
+
+        showBulkCompletionModal(obligationIds);
+    }
+
     // Bulk bar close
     function closeBulkBar() {
         document.getElementById('bulk-actions-bar').style.display = 'none';
+        // Deselect all checkboxes
+        document.querySelectorAll('.obl-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('select-all-header').checked = false;
     }
 
     // Table compact view toggle

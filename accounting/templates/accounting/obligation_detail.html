@@ -1,0 +1,242 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<style>
+.obligation-detail {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.detail-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.detail-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.detail-card h3 {
+    margin-top: 0;
+    color: #667eea;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+}
+
+.detail-field {
+    margin-bottom: 15px;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.detail-value {
+    font-size: 16px;
+    color: #333;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-completed { background: #d1fae5; color: #065f46; }
+.status-overdue { background: #fee2e2; color: #991b1b; }
+
+.documents-list {
+    list-style: none;
+    padding: 0;
+}
+
+.document-item {
+    padding: 15px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="obligation-detail">
+    <div class="detail-header">
+        <h1>Υποχρέωση #{{ obligation.id }}</h1>
+        <p>{{ obligation.client.eponimia }} - {{ obligation.obligation_type.name }}</p>
+    </div>
+
+    <div class="action-buttons">
+        <button onclick="history.back()" class="btn btn-secondary">← Πίσω</button>
+        {% if obligation.status != 'completed' %}
+        <button onclick="quickComplete({{ obligation.id }})" class="btn btn-success">✓ Ολοκλήρωση</button>
+        <button onclick="completeWithFile({{ obligation.id }})" class="btn btn-primary">📎 Ανέβασμα Αρχείου</button>
+        {% endif %}
+    </div>
+
+    <div class="detail-grid">
+        <!-- Βασικά Στοιχεία -->
+        <div class="detail-card">
+            <h3>📋 Βασικά Στοιχεία</h3>
+            
+            <div class="detail-field">
+                <div class="detail-label">Πελάτης</div>
+                <div class="detail-value">{{ obligation.client.eponimia }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">ΑΦΜ</div>
+                <div class="detail-value">{{ obligation.client.afm }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">Τύπος Υποχρέωσης</div>
+                <div class="detail-value">{{ obligation.obligation_type.name }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">Προθεσμία</div>
+                <div class="detail-value">{{ obligation.deadline|date:"d/m/Y" }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">Κατάσταση</div>
+                <div class="detail-value">
+                    <span class="status-badge status-{{ obligation.status }}">
+                        {{ obligation.get_status_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Χρέωση -->
+        <div class="detail-card">
+            <h3>💰 Χρέωση</h3>
+            
+            <div class="detail-field">
+                <div class="detail-label">Χρόνος Εργασίας (ώρες)</div>
+                <div class="detail-value">{{ obligation.time_spent|default:"—" }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">Ωριαία Χρέωση</div>
+                <div class="detail-value">€{{ obligation.hourly_rate|default:"0.00" }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">Συνολικό Κόστος</div>
+                <div class="detail-value"><strong>€{{ obligation.cost|default:"0.00" }}</strong></div>
+            </div>
+        </div>
+
+        <!-- Ολοκλήρωση -->
+        {% if obligation.status == 'completed' %}
+        <div class="detail-card">
+            <h3>✅ Ολοκλήρωση</h3>
+            
+            <div class="detail-field">
+                <div class="detail-label">Ολοκληρώθηκε</div>
+                <div class="detail-value">{{ obligation.completed_date|date:"d/m/Y" }}</div>
+            </div>
+
+            <div class="detail-field">
+                <div class="detail-label">Από</div>
+                <div class="detail-value">{{ obligation.completed_by.get_full_name|default:obligation.completed_by.username }}</div>
+            </div>
+
+            {% if obligation.attachment %}
+            <div class="detail-field">
+                <div class="detail-label">Αρχείο</div>
+                <div class="detail-value">
+                    <a href="{{ obligation.attachment.url }}" target="_blank">📎 Λήψη</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Σημειώσεις -->
+    <div class="detail-card">
+        <h3>📝 Σημειώσεις</h3>
+        <p>{{ obligation.notes|default:"Δεν υπάρχουν σημειώσεις" }}</p>
+    </div>
+
+    <!-- Έγγραφα -->
+    <div class="detail-card">
+        <h3>📎 Συνημμένα Έγγραφα ({{ documents.count }})</h3>
+        
+        {% if documents %}
+        <ul class="documents-list">
+            {% for doc in documents %}
+            <li class="document-item">
+                <div>
+                    <strong>{{ doc.filename }}</strong><br>
+                    <small>{{ doc.get_document_category_display }} • {{ doc.uploaded_at|date:"d/m/Y H:i" }}</small>
+                    {% if doc.description %}
+                    <br><small>{{ doc.description }}</small>
+                    {% endif %}
+                </div>
+                <a href="{{ doc.file.url }}" target="_blank" class="btn btn-primary">Λήψη</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>Δεν υπάρχουν συνημμένα έγγραφα</p>
+        {% endif %}
+    </div>
+</div>
+
+<script src="{% static 'accounting/js/dashboard.js' %}"></script>
+{% endblock %}
