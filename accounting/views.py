@@ -3372,13 +3372,15 @@ def client_report_pdf(request, client_id):
     """
     Generate PDF report for a specific client.
     Includes client info and obligation history.
+    Uses xhtml2pdf for Windows compatibility.
     """
     try:
-        from weasyprint import HTML
+        from xhtml2pdf import pisa
         from django.template.loader import render_to_string
+        from io import BytesIO
     except ImportError:
         return HttpResponse(
-            'WeasyPrint δεν είναι εγκατεστημένο. Εγκαταστήστε το με: pip install weasyprint',
+            'xhtml2pdf δεν είναι εγκατεστημένο. Εγκαταστήστε το με: pip install xhtml2pdf',
             status=500
         )
 
@@ -3409,7 +3411,12 @@ def client_report_pdf(request, client_id):
     })
 
     try:
-        pdf = HTML(string=html_content, base_url=request.build_absolute_uri('/')).write_pdf()
+        result = BytesIO()
+        pdf_status = pisa.CreatePDF(html_content, dest=result, encoding='UTF-8')
+        if pdf_status.err:
+            logger.error(f"PDF generation error for client {client_id}: {pdf_status.err}")
+            return HttpResponse('Σφάλμα δημιουργίας PDF', status=500)
+        pdf = result.getvalue()
         response = HttpResponse(pdf, content_type='application/pdf')
         safe_name = client.afm.replace(' ', '_')
         response['Content-Disposition'] = f'filename="client_{safe_name}.pdf"'
@@ -3425,13 +3432,15 @@ def monthly_report_pdf(request, year, month):
     """
     Generate PDF report for a specific month.
     Includes all obligations for that period.
+    Uses xhtml2pdf for Windows compatibility.
     """
     try:
-        from weasyprint import HTML
+        from xhtml2pdf import pisa
         from django.template.loader import render_to_string
+        from io import BytesIO
     except ImportError:
         return HttpResponse(
-            'WeasyPrint δεν είναι εγκατεστημένο. Εγκαταστήστε το με: pip install weasyprint',
+            'xhtml2pdf δεν είναι εγκατεστημένο. Εγκαταστήστε το με: pip install xhtml2pdf',
             status=500
         )
 
@@ -3481,7 +3490,12 @@ def monthly_report_pdf(request, year, month):
     })
 
     try:
-        pdf = HTML(string=html_content, base_url=request.build_absolute_uri('/')).write_pdf()
+        result = BytesIO()
+        pdf_status = pisa.CreatePDF(html_content, dest=result, encoding='UTF-8')
+        if pdf_status.err:
+            logger.error(f"PDF generation error for {month}/{year}: {pdf_status.err}")
+            return HttpResponse('Σφάλμα δημιουργίας PDF', status=500)
+        pdf = result.getvalue()
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'filename="report_{year}_{month:02d}.pdf"'
         logger.info(f"Monthly PDF report generated for {month}/{year} by {request.user.username}")

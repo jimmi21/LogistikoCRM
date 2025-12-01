@@ -9,39 +9,41 @@
 </div>
 
 <!-- Statistics -->
-<div class="stats-container">
-    <div class="stat-box">
-        <div class="stat-label">Σύνολο</div>
-        <div class="stat-number">{{ stats.total }}</div>
-    </div>
-    <div class="stat-box">
-        <div class="stat-label">Ολοκληρωμένες</div>
-        <div class="stat-number completed">{{ stats.completed }}</div>
-    </div>
-    <div class="stat-box">
-        <div class="stat-label">Εκκρεμείς</div>
-        <div class="stat-number pending">{{ stats.pending }}</div>
-    </div>
-    <div class="stat-box">
-        <div class="stat-label">Καθυστερημένες</div>
-        <div class="stat-number overdue">{{ stats.overdue }}</div>
-    </div>
-</div>
+<table class="stats-table">
+    <tr>
+        <td>
+            <div class="stat-label">Σύνολο</div>
+            <div class="stat-number">{{ stats.total }}</div>
+        </td>
+        <td>
+            <div class="stat-label">Ολοκληρωμένες</div>
+            <div class="stat-number stat-number-completed">{{ stats.completed }}</div>
+        </td>
+        <td>
+            <div class="stat-label">Εκκρεμείς</div>
+            <div class="stat-number stat-number-pending">{{ stats.pending }}</div>
+        </td>
+        <td>
+            <div class="stat-label">Καθυστερημένες</div>
+            <div class="stat-number stat-number-overdue">{{ stats.overdue }}</div>
+        </td>
+    </tr>
+</table>
 
 <!-- Summary Bar -->
-<div class="no-break" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
+<table style="background-color: #f8f9fa; margin-bottom: 20px;">
+    <tr>
+        <td style="padding: 15px; width: 50%;">
             <strong>Περίοδος:</strong> {{ month|stringformat:"02d" }}/{{ year }}
-        </div>
-        <div>
+        </td>
+        <td style="padding: 15px; width: 50%; text-align: right;">
             <strong>Ποσοστό Ολοκλήρωσης:</strong>
-            <span style="color: {% if stats.completion_rate >= 80 %}#28a745{% elif stats.completion_rate >= 50 %}#ffc107{% else %}#dc3545{% endif %}; font-weight: bold;">
+            <span class="font-bold {% if stats.completion_rate >= 80 %}text-success{% elif stats.completion_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
                 {{ stats.completion_rate }}%
             </span>
-        </div>
-    </div>
-</div>
+        </td>
+    </tr>
+</table>
 
 {% if by_status.overdue %}
 <!-- Overdue Section -->
@@ -58,12 +60,12 @@
     </thead>
     <tbody>
         {% for ob in by_status.overdue %}
-        <tr style="background: #fff5f5;">
-            <td><strong>{{ ob.client.eponimia }}</strong></td>
+        <tr class="row-overdue">
+            <td class="font-bold">{{ ob.client.eponimia }}</td>
             <td>{{ ob.client.afm }}</td>
             <td>{{ ob.obligation_type.name }}</td>
             <td>{{ ob.deadline|date:"d/m/Y" }}</td>
-            <td style="color: #dc3545; font-weight: bold;">{{ ob.days_until_deadline }} ημ.</td>
+            <td class="text-danger font-bold">{{ ob.days_until_deadline }} ημ.</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -85,16 +87,16 @@
     </thead>
     <tbody>
         {% for ob in by_status.pending %}
-        <tr>
-            <td><strong>{{ ob.client.eponimia }}</strong></td>
+        <tr class="{% cycle 'row-light' 'row-dark' %}">
+            <td class="font-bold">{{ ob.client.eponimia }}</td>
             <td>{{ ob.client.afm }}</td>
             <td>{{ ob.obligation_type.name }}</td>
             <td>{{ ob.deadline|date:"d/m/Y" }}</td>
             <td>
                 {% if ob.days_until_deadline <= 3 %}
-                <span style="color: #dc3545; font-weight: bold;">{{ ob.days_until_deadline }} ημ.</span>
+                <span class="text-danger font-bold">{{ ob.days_until_deadline }} ημ.</span>
                 {% elif ob.days_until_deadline <= 7 %}
-                <span style="color: #ffc107; font-weight: bold;">{{ ob.days_until_deadline }} ημ.</span>
+                <span class="text-warning font-bold">{{ ob.days_until_deadline }} ημ.</span>
                 {% else %}
                 {{ ob.days_until_deadline }} ημ.
                 {% endif %}
@@ -120,7 +122,7 @@
     </thead>
     <tbody>
         {% for ob in by_status.completed %}
-        <tr style="background: #f8fff8;">
+        <tr class="row-completed">
             <td>{{ ob.client.eponimia }}</td>
             <td>{{ ob.client.afm }}</td>
             <td>{{ ob.obligation_type.name }}</td>
@@ -139,42 +141,41 @@
 {% endif %}
 
 {% if not obligations %}
-<div style="text-align: center; padding: 40px; color: #666;">
-    <p style="font-size: 14pt;">Δεν υπάρχουν υποχρεώσεις για αυτήν την περίοδο.</p>
-</div>
+<p style="text-align: center; padding: 40px; color: #666666; font-size: 14pt;">
+    Δεν υπάρχουν υποχρεώσεις για αυτήν την περίοδο.
+</p>
 {% endif %}
 
 <!-- Summary -->
-<div class="page-break"></div>
 <h2>Συνοπτική Αναφορά</h2>
 <table>
     <thead>
         <tr>
             <th>Κατάσταση</th>
-            <th style="text-align: center;">Πλήθος</th>
-            <th style="text-align: center;">Ποσοστό</th>
+            <th class="text-center">Πλήθος</th>
+            <th class="text-center">Ποσοστό</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td><span class="status-badge status-completed">Ολοκληρωμένες</span></td>
-            <td style="text-align: center;">{{ stats.completed }}</td>
-            <td style="text-align: center;">{% widthratio stats.completed stats.total 100 %}%</td>
+            <td class="text-center">{{ stats.completed }}</td>
+            <td class="text-center">{% widthratio stats.completed stats.total 100 %}%</td>
         </tr>
         <tr>
             <td><span class="status-badge status-pending">Εκκρεμείς</span></td>
-            <td style="text-align: center;">{{ stats.pending }}</td>
-            <td style="text-align: center;">{% widthratio stats.pending stats.total 100 %}%</td>
+            <td class="text-center">{{ stats.pending }}</td>
+            <td class="text-center">{% widthratio stats.pending stats.total 100 %}%</td>
         </tr>
         <tr>
             <td><span class="status-badge status-overdue">Καθυστερημένες</span></td>
-            <td style="text-align: center;">{{ stats.overdue }}</td>
-            <td style="text-align: center;">{% widthratio stats.overdue stats.total 100 %}%</td>
+            <td class="text-center">{{ stats.overdue }}</td>
+            <td class="text-center">{% widthratio stats.overdue stats.total 100 %}%</td>
         </tr>
-        <tr style="font-weight: bold; background: #f5f5f5;">
+        <tr style="font-weight: bold; background-color: #f5f5f5;">
             <td>Σύνολο</td>
-            <td style="text-align: center;">{{ stats.total }}</td>
-            <td style="text-align: center;">100%</td>
+            <td class="text-center">{{ stats.total }}</td>
+            <td class="text-center">100%</td>
         </tr>
     </tbody>
 </table>

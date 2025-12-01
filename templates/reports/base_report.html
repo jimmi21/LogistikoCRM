@@ -5,95 +5,83 @@
     <title>{% block title %}Report{% endblock %}</title>
     <style>
         @page {
+            size: A4;
             margin: 2cm;
-            @bottom-center {
-                content: "Σελίδα " counter(page) " από " counter(pages);
-                font-size: 9pt;
-                color: #666;
-            }
-        }
-
-        * {
-            box-sizing: border-box;
         }
 
         body {
-            font-family: 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif;
+            font-family: Helvetica, Arial, sans-serif;
             font-size: 11pt;
             line-height: 1.4;
-            color: #333;
+            color: #333333;
             margin: 0;
             padding: 0;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #667eea;
             color: white;
-            padding: 25px 30px;
-            margin: -2cm -2cm 25px -2cm;
+            padding: 20px;
+            margin-bottom: 20px;
         }
 
         .header h1 {
             margin: 0 0 5px 0;
-            font-size: 22pt;
-            font-weight: 700;
+            font-size: 20pt;
+            font-weight: bold;
         }
 
         .header p {
             margin: 0;
-            opacity: 0.9;
             font-size: 11pt;
         }
 
         .header .subtitle {
-            font-size: 13pt;
+            font-size: 12pt;
             margin-top: 5px;
         }
 
-        .stats-container {
-            display: flex;
-            justify-content: space-between;
-            margin: 20px 0 30px 0;
-            gap: 15px;
+        .stats-table {
+            width: 100%;
+            margin: 20px 0;
+            border-collapse: collapse;
         }
 
-        .stat-box {
-            flex: 1;
+        .stats-table td {
+            width: 25%;
             text-align: center;
-            padding: 20px 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
+            padding: 15px 10px;
+            background-color: #f8f9fa;
             border: 1px solid #e9ecef;
         }
 
         .stat-number {
-            font-size: 28pt;
+            font-size: 24pt;
             font-weight: bold;
             color: #667eea;
             margin: 5px 0;
         }
 
-        .stat-number.completed { color: #28a745; }
-        .stat-number.pending { color: #ffc107; }
-        .stat-number.overdue { color: #dc3545; }
+        .stat-number-completed { color: #28a745; }
+        .stat-number-pending { color: #ffc107; }
+        .stat-number-overdue { color: #dc3545; }
 
         .stat-label {
-            font-size: 10pt;
-            color: #666;
+            font-size: 9pt;
+            color: #666666;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         h2 {
-            color: #333;
+            color: #333333;
             font-size: 14pt;
-            margin: 30px 0 15px 0;
+            margin: 25px 0 15px 0;
             padding-bottom: 8px;
             border-bottom: 2px solid #667eea;
         }
 
         h3 {
-            color: #444;
+            color: #444444;
             font-size: 12pt;
             margin: 20px 0 10px 0;
         }
@@ -106,73 +94,66 @@
         }
 
         th, td {
-            border: 1px solid #ddd;
-            padding: 10px 8px;
+            border: 1px solid #dddddd;
+            padding: 8px;
             text-align: left;
         }
 
         th {
-            background: #f5f5f5;
-            font-weight: 600;
-            color: #333;
-        }
-
-        tr:nth-child(even) {
-            background: #fafafa;
+            background-color: #f5f5f5;
+            font-weight: bold;
+            color: #333333;
         }
 
         .status-badge {
-            display: inline-block;
             padding: 3px 8px;
-            border-radius: 4px;
             font-size: 9pt;
-            font-weight: 600;
+            font-weight: bold;
         }
 
         .status-pending {
-            background: #fff3cd;
+            background-color: #fff3cd;
             color: #856404;
         }
 
         .status-completed {
-            background: #d4edda;
+            background-color: #d4edda;
             color: #155724;
         }
 
         .status-overdue {
-            background: #f8d7da;
+            background-color: #f8d7da;
             color: #721c24;
         }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px 30px;
+        .info-table {
+            width: 100%;
             margin: 15px 0;
             font-size: 10pt;
         }
 
-        .info-item {
+        .info-table td {
             padding: 8px 0;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #eeeeee;
         }
 
         .info-label {
-            color: #666;
+            color: #666666;
             font-weight: 500;
+            width: 40%;
         }
 
         .info-value {
-            color: #333;
-            font-weight: 600;
+            color: #333333;
+            font-weight: bold;
         }
 
         .footer {
             margin-top: 40px;
             padding-top: 15px;
-            border-top: 1px solid #ddd;
+            border-top: 1px solid #dddddd;
             font-size: 9pt;
-            color: #666;
+            color: #666666;
             text-align: center;
         }
 
@@ -181,12 +162,40 @@
             color: #667eea;
         }
 
-        .page-break {
-            page-break-before: always;
+        .row-light {
+            background-color: #ffffff;
         }
 
-        .no-break {
-            page-break-inside: avoid;
+        .row-dark {
+            background-color: #fafafa;
+        }
+
+        .row-overdue {
+            background-color: #fff5f5;
+        }
+
+        .row-completed {
+            background-color: #f8fff8;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-danger {
+            color: #dc3545;
+        }
+
+        .text-warning {
+            color: #ffc107;
+        }
+
+        .text-success {
+            color: #28a745;
+        }
+
+        .font-bold {
+            font-weight: bold;
         }
     </style>
 </head>
