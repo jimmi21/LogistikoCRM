@@ -203,6 +203,13 @@ STATIC_ROOT = BASE_DIR / 'static'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Archive root for client files - can be configured to network path
+# Examples:
+#   - Local: BASE_DIR / 'media' / 'archive'
+#   - Network (Linux): '/mnt/nas/logistiko/'
+#   - Network (Windows): 'Z:\\Logistiko\\'
+ARCHIVE_ROOT = os.environ.get('ARCHIVE_ROOT', str(BASE_DIR / 'media'))
+
 FIXTURE_DIRS = ['tests/fixtures']
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
