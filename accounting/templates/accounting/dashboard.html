@@ -3,7 +3,6 @@
 
 {% block extrastyle %}
 <link rel="stylesheet" href="{% static 'accounting/css/dashboard.css' %}">
-<script src="{% static 'accounting/js/dashboard.js' %}" defer></script>
 <style>
 /* Modal Styles */
 .modal {
@@ -965,6 +964,78 @@
 <!-- SCRIPTS -->
 <script src="{% static 'accounting/js/dashboard.js' %}"></script>
 <script>
+    // ============================================================================
+    // HELPER FUNCTIONS (defined here to ensure availability in inline script)
+    // ============================================================================
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+
+        if (type === 'success') {
+            notification.style.backgroundColor = '#d1fae5';
+            notification.style.color = '#065f46';
+            notification.style.borderLeft = '4px solid #10b981';
+        } else if (type === 'error') {
+            notification.style.backgroundColor = '#fee2e2';
+            notification.style.color = '#991b1b';
+            notification.style.borderLeft = '4px solid #ef4444';
+        } else {
+            notification.style.backgroundColor = '#dbeafe';
+            notification.style.color = '#1e40af';
+            notification.style.borderLeft = '4px solid #3b82f6';
+        }
+
+        notification.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()"
+                        style="background: none; border: none; font-size: 20px; cursor: pointer; opacity: 0.7;">&times;</button>
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
+            notification.style.transition = 'all 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
+    }
+
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+
     // Initialize dashboard on load
     document.addEventListener('DOMContentLoaded', function () {
         console.log('✅ Dashboard loaded');
