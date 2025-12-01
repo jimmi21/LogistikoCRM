@@ -68,7 +68,14 @@
             {% block userlinks %}
                 {% if user.is_staff %}
                     <a href="{% url 'accounting:dashboard' %}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-weight: 600; margin-right: 8px;">📊 Dashboard</a>
-                    <a href="{% url 'accounting:calendar' %}" style="background: #22c55e; color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-weight: 600; margin-right: 8px;">📅 Calendar</a> /
+                    <a href="{% url 'accounting:calendar' %}" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-weight: 600; margin-right: 8px;">📅 Calendar</a>
+                    <a href="{% url 'accounting:reports' %}" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-weight: 600; margin-right: 8px;">📊 Reports</a>
+                    <!-- Global Search -->
+                    <div id="global-search-container" style="display: inline-block; position: relative; margin-right: 8px; vertical-align: middle;">
+                        <input type="text" id="global-search-input" placeholder="Αναζήτηση... (Ctrl+K)"
+                               style="padding: 5px 12px; border: 1px solid #ccc; border-radius: 4px; width: 200px; font-size: 13px;">
+                        <div id="global-search-results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; max-height: 400px; overflow-y: auto; min-width: 350px;"></div>
+                    </div> /
                 {% endif %}
                 {% if site_url %}
                     <a href="{{ site_url }}">{% translate 'View site' %}</a> /
@@ -152,5 +159,188 @@
   <symbol viewBox="0 0 24 24" width="1rem" height="1rem" id="icon-sun"><path d="M0 0h24v24H0z" fill="currentColor"/><path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121zM23 11v2h-3v-2h3zM4 11v2H1v-2h3z"/></symbol>
 </svg>
 <!-- END SVGs -->
+
+<!-- Global Search JavaScript -->
+<script>
+(function() {
+    'use strict';
+
+    const searchInput = document.getElementById('global-search-input');
+    const resultsContainer = document.getElementById('global-search-results');
+
+    if (!searchInput || !resultsContainer) return;
+
+    let debounceTimer = null;
+    let selectedIndex = -1;
+    let currentResults = [];
+
+    // Debounced search function
+    function performSearch(query) {
+        if (query.length < 2) {
+            hideResults();
+            return;
+        }
+
+        fetch(`/accounting/api/search/?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success || data.clients || data.obligations) {
+                    displayResults(data);
+                }
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+            });
+    }
+
+    // Display search results
+    function displayResults(data) {
+        const clients = data.clients || [];
+        const obligations = data.obligations || [];
+        currentResults = [...clients, ...obligations];
+
+        if (currentResults.length === 0) {
+            resultsContainer.innerHTML = '<div style="padding: 15px; color: #666; text-align: center;">Δεν βρέθηκαν αποτελέσματα</div>';
+            resultsContainer.style.display = 'block';
+            return;
+        }
+
+        let html = '';
+
+        if (clients.length > 0) {
+            html += '<div style="padding: 8px 12px; background: #f5f5f5; font-weight: 600; color: #666; font-size: 11px; text-transform: uppercase;">👤 Πελάτες</div>';
+            clients.forEach((client, index) => {
+                html += `
+                    <a href="${client.url}" class="search-result-item" data-index="${index}"
+                       style="display: block; padding: 10px 12px; border-bottom: 1px solid #eee; text-decoration: none; color: #333; transition: background 0.2s;">
+                        <div style="font-weight: 600;">${escapeHtml(client.name)}</div>
+                        <div style="font-size: 12px; color: #666;">ΑΦΜ: ${escapeHtml(client.afm)}${client.email ? ' | ' + escapeHtml(client.email) : ''}</div>
+                    </a>
+                `;
+            });
+        }
+
+        if (obligations.length > 0) {
+            html += '<div style="padding: 8px 12px; background: #f5f5f5; font-weight: 600; color: #666; font-size: 11px; text-transform: uppercase;">📋 Υποχρεώσεις</div>';
+            obligations.forEach((ob, index) => {
+                const statusColors = {
+                    'pending': '#ffc107',
+                    'completed': '#28a745',
+                    'overdue': '#dc3545'
+                };
+                const statusColor = statusColors[ob.status] || '#666';
+                html += `
+                    <a href="${ob.url}" class="search-result-item" data-index="${clients.length + index}"
+                       style="display: block; padding: 10px 12px; border-bottom: 1px solid #eee; text-decoration: none; color: #333; transition: background 0.2s;">
+                        <div style="font-weight: 600;">${escapeHtml(ob.obligation_type)} <span style="color: ${statusColor}; font-size: 10px;">●</span></div>
+                        <div style="font-size: 12px; color: #666;">${escapeHtml(ob.client)} | ${ob.period}</div>
+                    </a>
+                `;
+            });
+        }
+
+        resultsContainer.innerHTML = html;
+        resultsContainer.style.display = 'block';
+        selectedIndex = -1;
+
+        // Add hover effects
+        resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('mouseenter', function() {
+                this.style.background = '#f0f7ff';
+            });
+            item.addEventListener('mouseleave', function() {
+                this.style.background = 'white';
+            });
+        });
+    }
+
+    function hideResults() {
+        resultsContainer.style.display = 'none';
+        currentResults = [];
+        selectedIndex = -1;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function navigateResults(direction) {
+        const items = resultsContainer.querySelectorAll('.search-result-item');
+        if (items.length === 0) return;
+
+        // Remove previous highlight
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+            items[selectedIndex].style.background = 'white';
+        }
+
+        // Update index
+        selectedIndex += direction;
+        if (selectedIndex < 0) selectedIndex = items.length - 1;
+        if (selectedIndex >= items.length) selectedIndex = 0;
+
+        // Highlight new selection
+        if (items[selectedIndex]) {
+            items[selectedIndex].style.background = '#f0f7ff';
+            items[selectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function selectCurrent() {
+        const items = resultsContainer.querySelectorAll('.search-result-item');
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+            window.location.href = items[selectedIndex].href;
+        }
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            performSearch(this.value.trim());
+        }, 300);
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            navigateResults(1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            navigateResults(-1);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            selectCurrent();
+        } else if (e.key === 'Escape') {
+            hideResults();
+            this.blur();
+        }
+    });
+
+    // Ctrl+K shortcut
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    });
+
+    // Hide results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+            hideResults();
+        }
+    });
+
+    // Show results on focus if there's content
+    searchInput.addEventListener('focus', function() {
+        if (this.value.trim().length >= 2) {
+            performSearch(this.value.trim());
+        }
+    });
+})();
+</script>
 </body>
 </html>
