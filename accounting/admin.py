@@ -1231,7 +1231,19 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
         if obj.status == 'completed' and not obj.completed_by:
             obj.completed_by = request.user
             obj.completed_date = timezone.now().date()
-        super().save_model(request, obj, form, change)
+
+        # Check if a new attachment was uploaded
+        if 'attachment' in form.changed_data and obj.attachment:
+            # Save the model first to get the ID
+            super().save_model(request, obj, form, change)
+            # Then archive the attachment to organized folder structure
+            try:
+                obj.archive_attachment(obj.attachment)
+                self.message_user(request, f'📁 Το αρχείο αρχειοθετήθηκε: {obj.attachment.name}', messages.SUCCESS)
+            except Exception as e:
+                self.message_user(request, f'⚠️ Σφάλμα αρχειοθέτησης: {e}', messages.WARNING)
+        else:
+            super().save_model(request, obj, form, change)
     
     def get_urls(self):
         urls = super().get_urls()

@@ -358,7 +358,7 @@ class MonthlyObligation(models.Model):
     )
     
     attachment = models.FileField(
-        upload_to='temp_uploads/',
+        upload_to=obligation_upload_path,
         blank=True,
         null=True,
         verbose_name='Συνημμένο Αρχείο'
