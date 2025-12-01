@@ -10,6 +10,7 @@ from massmail.views.get_oauth2_tokens import get_refresh_token
 
 # Main URL patterns (no language prefix)
 urlpatterns = [
+    path('admin/', admin.site.urls),  # Standard admin URL
     path('accounting/', include('accounting.urls')),
     path('favicon.ico', FaviconRedirect.as_view()),
     path('voip/', include('voip.urls')),
