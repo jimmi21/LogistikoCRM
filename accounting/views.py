@@ -6,6 +6,7 @@ Description: Comprehensive views for accounting management system with advanced 
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
@@ -2869,3 +2870,284 @@ def obligation_detail_view(request, obligation_id):
     except MonthlyObligation.DoesNotExist:
         messages.error(request, 'Η υποχρέωση δεν βρέθηκε')
         return redirect('accounting:dashboard')
+
+
+# ============================================
+# WIZARD API - Get Obligation Details for Wizard
+# ============================================
+
+@staff_member_required
+@require_GET
+def api_obligations_wizard(request):
+    """
+    API endpoint για το wizard μαζικής ολοκλήρωσης.
+    Επιστρέφει λεπτομέρειες για τις επιλεγμένες υποχρεώσεις.
+    """
+    try:
+        ids_param = request.GET.get('ids', '')
+        if not ids_param:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν παρέχονται IDs υποχρεώσεων'
+            }, status=400)
+
+        # Parse IDs
+        try:
+            ids = [int(id.strip()) for id in ids_param.split(',') if id.strip()]
+        except ValueError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Μη έγκυρα IDs υποχρεώσεων'
+            }, status=400)
+
+        if not ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν παρέχονται IDs υποχρεώσεων'
+            }, status=400)
+
+        # Get obligations with related data
+        obligations = MonthlyObligation.objects.filter(
+            id__in=ids
+        ).select_related(
+            'client', 'obligation_type'
+        ).order_by('deadline', 'client__eponimia')
+
+        # Format data for wizard
+        MONTH_NAMES = {
+            1: 'Ιανουάριος', 2: 'Φεβρουάριος', 3: 'Μάρτιος', 4: 'Απρίλιος',
+            5: 'Μάιος', 6: 'Ιούνιος', 7: 'Ιούλιος', 8: 'Αύγουστος',
+            9: 'Σεπτέμβριος', 10: 'Οκτώβριος', 11: 'Νοέμβριος', 12: 'Δεκέμβριος'
+        }
+
+        obligations_data = []
+        for ob in obligations:
+            # Get existing documents for this obligation
+            existing_docs = ClientDocument.objects.filter(
+                obligation=ob
+            ).values('id', 'filename', 'uploaded_at')
+
+            obligations_data.append({
+                'id': ob.id,
+                'client_id': ob.client.id,
+                'client_name': ob.client.eponimia,
+                'client_afm': ob.client.afm,
+                'client_email': ob.client.email or '',
+                'obligation_type': ob.obligation_type.name,
+                'obligation_code': ob.obligation_type.code,
+                'period_month': ob.month,
+                'period_year': ob.year,
+                'period_display': f"{MONTH_NAMES.get(ob.month, ob.month)} {ob.year}",
+                'due_date': ob.deadline.strftime('%d/%m/%Y') if ob.deadline else '',
+                'due_date_iso': ob.deadline.isoformat() if ob.deadline else '',
+                'status': ob.status,
+                'notes': ob.notes or '',
+                'has_attachment': bool(ob.attachment),
+                'existing_documents': list(existing_docs),
+            })
+
+        return JsonResponse({
+            'success': True,
+            'count': len(obligations_data),
+            'obligations': obligations_data
+        })
+
+    except Exception as e:
+        logger.error(f"Error in api_obligations_wizard: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+# ============================================
+# WIZARD BULK PROCESS - Process Wizard Submissions
+# ============================================
+
+@require_POST
+@staff_member_required
+def wizard_bulk_process(request):
+    """
+    Επεξεργασία υποβολής wizard για μαζική ολοκλήρωση υποχρεώσεων.
+    Κάθε υποχρέωση μπορεί να έχει το δικό της αρχείο.
+    """
+    try:
+        # Parse results JSON
+        results_str = request.POST.get('results', '{}')
+        try:
+            results = json.loads(results_str)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Μη έγκυρα δεδομένα αποτελεσμάτων'
+            }, status=400)
+
+        if not results:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν υπάρχουν υποχρεώσεις προς επεξεργασία'
+            }, status=400)
+
+        global_notes = request.POST.get('notes', '')
+        send_email = request.POST.get('send_email') == '1'
+
+        completed_count = 0
+        skipped_count = 0
+        failed_count = 0
+        errors = []
+        processed_details = []
+
+        # Process each obligation from results
+        for ob_id_str, ob_data in results.items():
+            try:
+                ob_id = int(ob_id_str)
+
+                # Skip if marked to skip
+                if ob_data.get('skip', False):
+                    skipped_count += 1
+                    continue
+
+                # Skip if not marked as complete
+                if not ob_data.get('complete', False):
+                    skipped_count += 1
+                    continue
+
+                obligation = MonthlyObligation.objects.select_related(
+                    'client', 'obligation_type'
+                ).get(id=ob_id)
+
+                # Skip if already completed
+                if obligation.status == 'completed':
+                    skipped_count += 1
+                    processed_details.append({
+                        'id': ob_id,
+                        'status': 'skipped',
+                        'message': f'{obligation.client.eponimia} - {obligation.obligation_type.name}: Ήδη ολοκληρωμένη'
+                    })
+                    continue
+
+                old_status = obligation.status
+
+                # Update obligation
+                obligation.status = 'completed'
+                obligation.completed_date = timezone.now().date()
+                obligation.completed_by = request.user
+
+                # Handle time spent if provided
+                time_spent = ob_data.get('time_spent')
+                if time_spent:
+                    try:
+                        obligation.time_spent = float(time_spent)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Handle notes
+                notes = ob_data.get('notes', '')
+                combined_notes = f"{notes}\n{global_notes}".strip() if notes or global_notes else ''
+                if combined_notes:
+                    timestamp = timezone.now().strftime('%d/%m/%Y %H:%M')
+                    new_note = f"[{timestamp}] [WIZARD] {combined_notes}"
+                    if obligation.notes:
+                        obligation.notes += f"\n{new_note}"
+                    else:
+                        obligation.notes = new_note
+
+                # Handle file upload for this specific obligation
+                file_key = f'file_{ob_id}'
+                if file_key in request.FILES:
+                    uploaded_file = request.FILES[file_key]
+
+                    # Use archive_attachment method for proper file organization
+                    try:
+                        archive_path = obligation.archive_attachment(uploaded_file)
+                        logger.info(f"Wizard: Archived file for obligation {ob_id}: {archive_path}")
+                    except Exception as file_error:
+                        logger.warning(f"Could not archive file for {ob_id}: {file_error}")
+                        # Fallback: create ClientDocument
+                        ClientDocument.objects.create(
+                            client=obligation.client,
+                            obligation=obligation,
+                            file=uploaded_file,
+                            filename=uploaded_file.name,
+                            document_category=ob_data.get('category', 'general'),
+                            description=f"Wizard upload - {timezone.now().strftime('%d/%m/%Y')}"
+                        )
+
+                obligation.save()
+
+                # Audit log
+                try:
+                    from common.models import AuditLog
+                    AuditLog.log(
+                        user=request.user,
+                        action='update',
+                        obj=obligation,
+                        changes={
+                            'status': {'old': old_status, 'new': 'completed'},
+                            'wizard_completion': True
+                        },
+                        description=f'Wizard ολοκλήρωση: {obligation}',
+                        severity='medium',
+                        request=request
+                    )
+                except Exception as audit_error:
+                    logger.warning(f"Could not create audit log: {audit_error}")
+
+                # Send email if requested
+                if send_email and obligation.client.email:
+                    try:
+                        from accounting.services.email_service import trigger_automation_rules
+                        trigger_automation_rules(obligation, trigger_type='on_complete')
+                    except Exception as email_error:
+                        logger.warning(f"Could not send email for {ob_id}: {email_error}")
+
+                completed_count += 1
+                processed_details.append({
+                    'id': ob_id,
+                    'status': 'completed',
+                    'message': f'{obligation.client.eponimia} - {obligation.obligation_type.name}: Ολοκληρώθηκε'
+                })
+
+            except MonthlyObligation.DoesNotExist:
+                failed_count += 1
+                errors.append(f'Υποχρέωση {ob_id_str} δεν βρέθηκε')
+            except Exception as e:
+                failed_count += 1
+                errors.append(f'Σφάλμα με υποχρέωση {ob_id_str}: {str(e)}')
+                logger.error(f"Error processing obligation {ob_id_str} in wizard: {e}", exc_info=True)
+
+        # Build response message
+        if completed_count > 0:
+            message = f'✅ Ολοκληρώθηκαν {completed_count} υποχρεώσεις επιτυχώς!'
+            if skipped_count > 0:
+                message += f' ({skipped_count} παραλείφθηκαν)'
+            if failed_count > 0:
+                message += f' (⚠️ {failed_count} απέτυχαν)'
+            success = True
+        else:
+            if skipped_count > 0:
+                message = f'ℹ️ {skipped_count} υποχρεώσεις παραλείφθηκαν, καμία δεν ολοκληρώθηκε'
+                success = True
+            else:
+                message = '❌ Καμία υποχρέωση δεν ολοκληρώθηκε'
+                success = False
+
+        logger.info(f"Wizard bulk process by {request.user.username}: "
+                   f"completed={completed_count}, skipped={skipped_count}, failed={failed_count}")
+
+        return JsonResponse({
+            'success': success,
+            'message': message,
+            'completed_count': completed_count,
+            'skipped_count': skipped_count,
+            'failed_count': failed_count,
+            'errors': errors[:10] if errors else [],
+            'details': processed_details[:20] if processed_details else []
+        })
+
+    except Exception as e:
+        logger.error(f"Critical error in wizard_bulk_process: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': f'Κρίσιμο σφάλμα: {str(e)}'
+        }, status=500)

@@ -71,6 +71,10 @@ urlpatterns = [
     # OBLIGATION API
     path("api/obligation-check/", views.check_obligation_duplicate, name="check_obligation"),
 
+    # WIZARD API
+    path("api/obligations-wizard/", views.api_obligations_wizard, name="api_obligations_wizard"),
+    path("wizard-bulk-process/", views.wizard_bulk_process, name="wizard_bulk_process"),
+
     # TICKET MANAGEMENT
     path("ticket/<int:ticket_id>/assign/", views.assign_ticket, name="assign_ticket"),
     path("ticket/<int:ticket_id>/update/", views.update_ticket_status, name="update_ticket_status"),
