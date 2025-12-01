@@ -2203,62 +2203,164 @@ def send_ticket_email(request):
             'message': f'❌ Σφάλμα: {str(e)}'
         }, status=500)
 
-        # ============================================
-# CALENDAR VIEW (FIX FOR URL IMPORT)
+# ============================================
+# CALENDAR VIEWS
 # ============================================
 import calendar
-from collections import defaultdict
-from django.utils import timezone
 
 @staff_member_required
+@login_required
 def calendar_view(request):
-    """Προβολή ημερολογίου υποχρεώσεων"""
+    """
+    Προβολή ημερολογίου υποχρεώσεων με FullCalendar
+    Features: Month/Week/List views, filters, color-coded status
+    """
     today = timezone.now().date()
-    year = int(request.GET.get("year", today.year))
-    month = int(request.GET.get("month", today.month))
-    
-    # Δημιουργία πίνακα ημερών
-    cal = calendar.Calendar(firstweekday=0)
-    month_days = cal.monthdayscalendar(year, month)
-    
-    # Υπολογισμός προηγούμενου/επόμενου μήνα
-    prev_month = month - 1 or 12
-    prev_year = year - 1 if month == 1 else year
-    next_month = month + 1 if month < 12 else 1
-    next_year = year + 1 if month == 12 else year
 
-    # Ανάκτηση υποχρεώσεων του μήνα
-    from .models import MonthlyObligation
-    obligations = (
-        MonthlyObligation.objects
-        .filter(year=year, month=month)
-        .select_related("client", "obligation_type")
-        .order_by("deadline")
+    # Get all clients for filter dropdown
+    clients = ClientProfile.objects.filter(is_active=True).order_by('eponimia')
+
+    # Get all obligation types for filter dropdown
+    obligation_types = ObligationType.objects.filter(is_active=True).order_by('name')
+
+    # Calculate statistics for the current month
+    current_month_start = today.replace(day=1)
+    if today.month == 12:
+        next_month_start = today.replace(year=today.year + 1, month=1, day=1)
+    else:
+        next_month_start = today.replace(month=today.month + 1, day=1)
+
+    month_obligations = MonthlyObligation.objects.filter(
+        deadline__gte=current_month_start,
+        deadline__lt=next_month_start
     )
 
-    # Ομαδοποίηση ανά ημέρα
-    obligations_by_day = defaultdict(list)
-    for obl in obligations:
-        if obl.deadline and obl.deadline.month == month:
-            obligations_by_day[obl.deadline.day].append(obl)
+    stats = {
+        'pending_count': month_obligations.filter(status='pending').count(),
+        'overdue_count': MonthlyObligation.objects.filter(
+            status='pending',
+            deadline__lt=today
+        ).count(),
+        'completed_this_month': month_obligations.filter(status='completed').count(),
+    }
 
     context = {
-        "title": "Ημερολόγιο",
-        "year": year,
-        "month": month,
-        "month_name": calendar.month_name[month],
-        "calendar": month_days,
-        "obligations_by_day": obligations_by_day,
+        "title": "Ημερολόγιο Υποχρεώσεων",
+        "clients": clients,
+        "obligation_types": obligation_types,
         "today": today,
-        "prev_month": prev_month,
-        "prev_year": prev_year,
-        "next_month": next_month,
-        "next_year": next_year,
+        "stats": stats,
     }
     return render(request, "accounting/calendar.html", context)
 
 
-    # accounting/views.py - Προσθήκη
+@staff_member_required
+@login_required
+@require_GET
+def calendar_events_api(request):
+    """
+    API endpoint for FullCalendar events
+    Returns JSON with obligations formatted for FullCalendar
+    """
+    # Get date range from FullCalendar
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+
+    # Get filter parameters
+    client_id = request.GET.get('client', '')
+    obligation_type_id = request.GET.get('type', '')
+    status_filter = request.GET.get('status', '')
+
+    # Parse dates
+    try:
+        if start_str:
+            start_date = datetime.strptime(start_str[:10], '%Y-%m-%d').date()
+        else:
+            start_date = timezone.now().date().replace(day=1)
+
+        if end_str:
+            end_date = datetime.strptime(end_str[:10], '%Y-%m-%d').date()
+        else:
+            # Default to end of month
+            if start_date.month == 12:
+                end_date = start_date.replace(year=start_date.year + 1, month=1, day=1)
+            else:
+                end_date = start_date.replace(month=start_date.month + 1, day=1)
+    except ValueError:
+        start_date = timezone.now().date().replace(day=1)
+        end_date = start_date + timedelta(days=31)
+
+    # Build query
+    queryset = MonthlyObligation.objects.filter(
+        deadline__gte=start_date,
+        deadline__lte=end_date
+    ).select_related('client', 'obligation_type')
+
+    # Apply filters
+    if client_id:
+        try:
+            queryset = queryset.filter(client_id=int(client_id))
+        except ValueError:
+            pass
+
+    if obligation_type_id:
+        try:
+            queryset = queryset.filter(obligation_type_id=int(obligation_type_id))
+        except ValueError:
+            pass
+
+    if status_filter:
+        if status_filter == 'overdue':
+            queryset = queryset.filter(status='pending', deadline__lt=timezone.now().date())
+        else:
+            queryset = queryset.filter(status=status_filter)
+
+    # Define colors based on status
+    status_colors = {
+        'pending': '#f59e0b',    # Yellow/amber
+        'completed': '#22c55e',  # Green
+        'overdue': '#ef4444',    # Red
+    }
+
+    today = timezone.now().date()
+
+    # Build events list
+    events = []
+    for obligation in queryset:
+        # Determine actual status (check for overdue)
+        actual_status = obligation.status
+        if actual_status == 'pending' and obligation.deadline and obligation.deadline < today:
+            actual_status = 'overdue'
+
+        color = status_colors.get(actual_status, '#6b7280')
+
+        # Build event title
+        client_name = obligation.client.eponimia if obligation.client else 'Άγνωστος'
+        type_name = obligation.obligation_type.name if obligation.obligation_type else 'Άγνωστος'
+
+        event = {
+            'id': obligation.id,
+            'title': f"{type_name} - {client_name}",
+            'start': obligation.deadline.isoformat() if obligation.deadline else None,
+            'end': obligation.deadline.isoformat() if obligation.deadline else None,
+            'color': color,
+            'backgroundColor': color,
+            'borderColor': color,
+            'extendedProps': {
+                'status': actual_status,
+                'client_id': obligation.client_id,
+                'client_name': client_name,
+                'client_afm': obligation.client.afm if obligation.client else '',
+                'obligation_type': type_name,
+                'obligation_type_id': obligation.obligation_type_id,
+                'period': f"{obligation.month:02d}/{obligation.year}",
+                'notes': obligation.notes or '',
+                'edit_url': f"/admin/accounting/monthlyobligation/{obligation.id}/change/",
+            }
+        }
+        events.append(event)
+
+    return JsonResponse({'events': events})
 
 class ClientDocumentViewSet(viewsets.ModelViewSet):
     queryset = ClientDocument.objects.all()

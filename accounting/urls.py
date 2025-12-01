@@ -28,8 +28,9 @@ urlpatterns = [
     path("reports/", views.reports_view, name="reports"),
     path("client/<int:client_id>/", views.client_detail_view, name="client_detail"),
 
-    # CALENDAR (προαιρετικά)
+    # CALENDAR
     path("calendar/", views.calendar_view, name="calendar"),
+    path("api/calendar-events/", views.calendar_events_api, name="calendar_events_api"),
 
     path('door-status/', views.door_status, name='door_status'),
     path('open-door/', views.open_door, name='open_door'),
