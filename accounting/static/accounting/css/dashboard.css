@@ -1635,6 +1635,11 @@ input[type="radio"] {
     color: white;
 }
 
+.nav-btn-info {
+    background: var(--color-info);
+    color: white;
+}
+
 .nav-breadcrumb .separator {
     color: var(--color-gray-400);
 }

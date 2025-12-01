@@ -440,16 +440,147 @@
 .wizard-summary-item.will-skip {
     background: #fff3cd;
 }
+
+/* ============================================
+   COMPACT DOOR CONTROL STYLES
+   ============================================ */
+.door-control-compact {
+    position: relative;
+}
+
+.nav-btn-door {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    font-size: 1.2rem;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.nav-btn-door:hover {
+    transform: scale(1.1);
+}
+
+.nav-btn-door.door-open {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.nav-btn-door.door-closed {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.nav-btn-door.door-error {
+    background: #6b7280;
+}
+
+.door-popup {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    z-index: 1000;
+}
+
+.door-popup-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    min-width: 250px;
+    overflow: hidden;
+}
+
+.door-popup-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+}
+
+.door-popup-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.door-popup-close:hover {
+    opacity: 1;
+}
+
+.door-popup-body {
+    padding: 16px;
+    text-align: center;
+}
+
+.door-state {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.door-state.open {
+    color: #10b981;
+}
+
+.door-state.closed {
+    color: #ef4444;
+}
+
+.door-time {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 12px;
+}
+
+.btn-door-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-door-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-door-toggle:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   FILTERS COLLAPSE STYLES
+   ============================================ */
+.filters-content.collapsed {
+    display: none;
+}
+
+.filters-toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.filters-toggle-icon.collapsed {
+    transform: rotate(-90deg);
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="dashboard-wrapper">
-
-    <!-- 🚪 DOOR WIDGET - TOP RIGHT -->
-    <div class="door-widget-container">
-        {% include 'accounting/door_widget.html' %}
-    </div>
 
     <!-- QUICK NAVIGATION BAR -->
     <nav class="quick-nav-bar">
@@ -482,6 +613,28 @@
                 <span>➕</span>
                 <span>Νέα Υποχρέωση</span>
             </a>
+            <!-- Compact Door Control -->
+            <div class="door-control-compact">
+                <button type="button" id="door-toggle-btn" class="nav-btn nav-btn-door" onclick="toggleDoorPopup()" title="Έλεγχος Πόρτας">
+                    <span id="door-icon">🚪</span>
+                </button>
+                <div id="door-popup" class="door-popup" style="display: none;">
+                    <div class="door-popup-content">
+                        <div class="door-popup-header">
+                            <span>🚪 Πόρτα Γραφείου</span>
+                            <button type="button" onclick="toggleDoorPopup()" class="door-popup-close">&times;</button>
+                        </div>
+                        <div class="door-popup-body">
+                            <div id="door-state-text" class="door-state">Loading...</div>
+                            <div id="door-last-time" class="door-time">-</div>
+                            <button type="button" id="door-action-btn" onclick="toggleDoorState()" class="btn btn-door-toggle">
+                                <span id="door-action-icon">⏳</span>
+                                <span id="door-action-text">Toggle</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </nav>
 
@@ -1623,6 +1776,208 @@
             return;
         }
         alert('Η λειτουργία μαζικής διαγραφής απαιτεί επιβεβαίωση. Επικοινωνήστε με τον διαχειριστή.');
+    }
+
+    // ============================================================================
+    // COMPACT DOOR CONTROL
+    // ============================================================================
+
+    let doorCurrentState = null;
+    let doorStatusInterval = null;
+
+    // Initialize door control
+    document.addEventListener('DOMContentLoaded', function() {
+        checkDoorStatus();
+        doorStatusInterval = setInterval(checkDoorStatus, 10000); // Check every 10 seconds
+    });
+
+    function toggleDoorPopup() {
+        const popup = document.getElementById('door-popup');
+        if (popup.style.display === 'none') {
+            popup.style.display = 'block';
+            checkDoorStatus(); // Refresh status when opening
+        } else {
+            popup.style.display = 'none';
+        }
+    }
+
+    // Close popup when clicking outside
+    document.addEventListener('click', function(event) {
+        const doorControl = document.querySelector('.door-control-compact');
+        const popup = document.getElementById('door-popup');
+        if (doorControl && popup && !doorControl.contains(event.target)) {
+            popup.style.display = 'none';
+        }
+    });
+
+    function checkDoorStatus() {
+        fetch('/accounting/door-status/')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    updateDoorUI(data.status);
+                } else {
+                    updateDoorUI('error');
+                }
+            })
+            .catch(() => {
+                updateDoorUI('error');
+            });
+    }
+
+    function updateDoorUI(status) {
+        doorCurrentState = status;
+        const toggleBtn = document.getElementById('door-toggle-btn');
+        const doorIcon = document.getElementById('door-icon');
+        const stateText = document.getElementById('door-state-text');
+        const lastTime = document.getElementById('door-last-time');
+        const actionBtn = document.getElementById('door-action-btn');
+        const actionIcon = document.getElementById('door-action-icon');
+        const actionText = document.getElementById('door-action-text');
+
+        if (lastTime) lastTime.textContent = new Date().toLocaleTimeString('el-GR');
+
+        // Remove all state classes
+        toggleBtn.classList.remove('door-open', 'door-closed', 'door-error');
+        if (stateText) stateText.classList.remove('open', 'closed');
+
+        if (status === 'open') {
+            toggleBtn.classList.add('door-open');
+            doorIcon.textContent = '🔓';
+            if (stateText) {
+                stateText.textContent = '🟢 ΑΝΟΙΧΤΗ';
+                stateText.classList.add('open');
+            }
+            if (actionIcon) actionIcon.textContent = '🔒';
+            if (actionText) actionText.textContent = 'Κλείσιμο';
+            if (actionBtn) actionBtn.disabled = false;
+        } else if (status === 'closed') {
+            toggleBtn.classList.add('door-closed');
+            doorIcon.textContent = '🔒';
+            if (stateText) {
+                stateText.textContent = '🔴 ΚΛΕΙΣΤΗ';
+                stateText.classList.add('closed');
+            }
+            if (actionIcon) actionIcon.textContent = '🔓';
+            if (actionText) actionText.textContent = 'Άνοιγμα';
+            if (actionBtn) actionBtn.disabled = false;
+        } else {
+            toggleBtn.classList.add('door-error');
+            doorIcon.textContent = '⚠️';
+            if (stateText) stateText.textContent = '⚠️ OFFLINE';
+            if (actionIcon) actionIcon.textContent = '⚠️';
+            if (actionText) actionText.textContent = 'Μη διαθέσιμο';
+            if (actionBtn) actionBtn.disabled = true;
+        }
+    }
+
+    function toggleDoorState() {
+        const actionBtn = document.getElementById('door-action-btn');
+        const actionIcon = document.getElementById('door-action-icon');
+        const actionText = document.getElementById('door-action-text');
+        const stateText = document.getElementById('door-state-text');
+
+        // Disable button during action
+        actionBtn.disabled = true;
+        actionIcon.textContent = '⏳';
+        actionText.textContent = 'Αλλαγή...';
+        if (stateText) stateText.textContent = '⏳ Αλλαγή κατάστασης...';
+
+        fetch('/accounting/open-door/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                actionIcon.textContent = '✓';
+                actionText.textContent = 'Επιτυχία!';
+                if (stateText) stateText.textContent = '✓ Επιτυχία!';
+                setTimeout(checkDoorStatus, 1000);
+            } else {
+                actionIcon.textContent = '✗';
+                actionText.textContent = 'Σφάλμα';
+                if (stateText) stateText.textContent = '✗ Σφάλμα: ' + (data.error || 'Unknown');
+                setTimeout(() => updateDoorUI(doorCurrentState), 2000);
+            }
+        })
+        .catch(err => {
+            console.error('Door toggle error:', err);
+            actionIcon.textContent = '✗';
+            actionText.textContent = 'Σφάλμα';
+            if (stateText) stateText.textContent = '✗ Σφάλμα σύνδεσης';
+            setTimeout(() => updateDoorUI(doorCurrentState), 2000);
+        });
+    }
+
+    // ============================================================================
+    // FILTERS COLLAPSE FUNCTIONALITY
+    // ============================================================================
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeFiltersCollapse();
+    });
+
+    function initializeFiltersCollapse() {
+        const toggleBtn = document.getElementById('filters-toggle');
+        const filtersContent = document.querySelector('.filters-content');
+        const toggleIcon = toggleBtn ? toggleBtn.querySelector('span') : null;
+
+        if (!toggleBtn || !filtersContent) return;
+
+        // Load saved state from localStorage
+        const isCollapsed = localStorage.getItem('filtersCollapsed') === 'true';
+        if (isCollapsed) {
+            filtersContent.classList.add('collapsed');
+            if (toggleIcon) {
+                toggleIcon.textContent = '▶';
+                toggleIcon.classList.add('collapsed');
+            }
+        }
+
+        // Add click handler
+        toggleBtn.addEventListener('click', function() {
+            const collapsed = filtersContent.classList.toggle('collapsed');
+
+            // Update icon
+            if (toggleIcon) {
+                toggleIcon.textContent = collapsed ? '▶' : '▼';
+                toggleIcon.classList.toggle('collapsed', collapsed);
+            }
+
+            // Save state to localStorage
+            localStorage.setItem('filtersCollapsed', collapsed);
+        });
+
+        // Also make the header clickable
+        const filtersHeader = document.querySelector('.filters-header');
+        if (filtersHeader) {
+            filtersHeader.addEventListener('click', function(e) {
+                // Don't trigger if clicking the toggle button itself
+                if (!e.target.closest('#filters-toggle')) {
+                    toggleBtn.click();
+                }
+            });
+        }
+    }
+
+    // Clear filters function
+    function clearFilters() {
+        document.querySelectorAll('.filter-select').forEach(select => select.value = '');
+        document.querySelectorAll('.date-input').forEach(input => input.value = '');
+        document.getElementById('filter-form').submit();
+    }
+
+    // Navigate to obligation detail
+    function navigateToObligation(id) {
+        window.location.href = `/admin/accounting/monthlyobligation/${id}/change/`;
+    }
+
+    // Show completion modal for single obligation
+    function showCompletionModal(id) {
+        openWizard([id]);
     }
 </script>
 
