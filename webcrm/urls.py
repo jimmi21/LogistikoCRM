@@ -10,7 +10,6 @@ from massmail.views.get_oauth2_tokens import get_refresh_token
 
 # Main URL patterns (no language prefix)
 urlpatterns = [
-    path('admin/', admin.site.urls),  # Standard admin URL
     path('accounting/', include('accounting.urls')),
     path('favicon.ico', FaviconRedirect.as_view()),
     path('voip/', include('voip.urls')),
@@ -37,6 +36,6 @@ urlpatterns += i18n_patterns(
     path(settings.SECRET_CRM_PREFIX, include('chat.urls')),
     path(settings.SECRET_CRM_PREFIX, include('help.urls')),
     path(settings.SECRET_CRM_PREFIX, include('settings.urls')),
-    path(settings.SECRET_ADMIN_PREFIX, admin.site.urls),  # Only ONE admin URL
+    path(settings.SECRET_ADMIN_PREFIX, admin.site.urls),  # Admin URL with secret prefix
     path('contact_form/', contact_form, name='contact_form'),
 )
