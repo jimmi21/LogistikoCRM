@@ -922,7 +922,8 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
     inlines = [ClientDocumentInline]
 
     list_display = [
-        'client_display',  # ✅ Νέο με link
+        'id',  # ✅ Add ID for clickable link
+        'client_display',
         'obligation_type',
         'deadline_with_icon',
         'status_badge',  # Enhanced
@@ -932,8 +933,8 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
         'completed_by_display',  # Enhanced
     ]
 
-    # ✅ CLICKABLE LINKS - Κάνει τις υποχρεώσεις clickable
-    list_display_links = ['client_display', 'obligation_type']
+    # ✅ CLICKABLE LINKS - ID και obligation_type κάνουν click στην υποχρέωση
+    list_display_links = ['id', 'obligation_type']
 
     # ✅ AUTOCOMPLETE ΓΙΑ CLIENT
     autocomplete_fields = ['client', 'obligation_type']
