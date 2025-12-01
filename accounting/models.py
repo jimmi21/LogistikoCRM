@@ -240,11 +240,35 @@ class ClientObligation(models.Model):
         return list(obligations)
 
 
+def get_safe_client_name(client):
+    """Generate safe folder name from client: {afm}_{name}"""
+    import re
+    safe_name = re.sub(r'[^\w\s-]', '', client.eponimia)[:20]
+    safe_name = safe_name.replace(' ', '_')
+    return f"{client.afm}_{safe_name}"
+
+
 def obligation_upload_path(instance, filename):
-    """Generate organized upload path: obligations/AFM/YEAR/MONTH/filename"""
-    ext = os.path.splitext(filename)[1]
-    clean_name = f"{slugify(instance.obligation_type.name)}_{instance.deadline.strftime('%Y%m%d')}{ext}"
-    return f"obligations/{instance.client.id}/{instance.year}/{instance.month:02d}/{clean_name}"
+    """
+    Generate organized upload path matching ArchiveConfiguration structure:
+    clients/{afm}_{name}/{year}/{month}/{type_code}/{filename}
+
+    This ensures ALL obligation files go to the same folder structure,
+    whether uploaded via admin, wizard, or API.
+    """
+    ext = os.path.splitext(filename)[1].lower()
+
+    # Build path components
+    client_folder = get_safe_client_name(instance.client)
+    year = str(instance.year)
+    month = f"{instance.month:02d}"
+    type_code = instance.obligation_type.code if instance.obligation_type else 'general'
+
+    # Clean filename: {type}_{month}_{year}{ext}
+    clean_name = f"{type_code}_{month}_{year}{ext}"
+
+    # Final path: clients/{afm}_{name}/{year}/{month}/{type}/{filename}
+    return os.path.join('clients', client_folder, year, month, type_code, clean_name)
 
 
 class ArchiveConfiguration(models.Model):
@@ -282,21 +306,23 @@ class ArchiveConfiguration(models.Model):
         return f"Archive Config: {self.obligation_type.name}"
     
     def get_archive_path(self, obligation, filename=None):
-        """Δημιουργεί το πλήρες path βάσει pattern"""
-        
-        # Safe client name
-        client_name_safe = re.sub(r'[^\w\s-]', '', obligation.client.eponimia)[:20]
-        client_name_safe = client_name_safe.replace(' ', '_')
-        
+        """
+        Δημιουργεί το πλήρες path βάσει pattern.
+        Default: clients/{afm}_{name}/{year}/{month}/{type_code}/{filename}
+        """
+        # Use shared helper for consistent client folder naming
+        client_folder = get_safe_client_name(obligation.client)
+
         vars = {
-            'year': obligation.year,
+            'year': str(obligation.year),
             'month': f'{obligation.month:02d}',
             'day': f'{obligation.deadline.day:02d}',
             'client_afm': obligation.client.afm,
-            'client_name': client_name_safe,
+            'client_name': client_folder.split('_', 1)[1] if '_' in client_folder else client_folder,
+            'client_folder': client_folder,  # Full folder name: {afm}_{name}
             'type_code': obligation.obligation_type.code,
         }
-        
+
         # Fix the patterns
         fixed_folder = self.folder_pattern.replace(':02d', '')
         fixed_filename = self.filename_pattern.replace(':02d', '')
@@ -427,46 +453,49 @@ class MonthlyObligation(models.Model):
         super().save(*args, **kwargs)
     
     def archive_attachment(self, uploaded_file, subfolder=None):
-        """Archive with debug prints"""
-        print(f"[ARCHIVE] Starting archive for: {self}")
-        print(f"[ARCHIVE] File: {uploaded_file.name if hasattr(uploaded_file, 'name') else 'No name'}")
-        
+        """
+        Archive file to organized folder structure.
+        Path: clients/{afm}_{name}/{year}/{month}/{type_code}/{filename}
+
+        Uses ARCHIVE_ROOT setting for base path (can be network drive).
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"[ARCHIVE] Starting archive for: {self}")
+
         try:
-            # Get config
+            # Get or create config with consistent default pattern
             config, created = ArchiveConfiguration.objects.get_or_create(
                 obligation_type=self.obligation_type,
                 defaults={
                     'filename_pattern': '{type_code}_{month}_{year}.pdf',
-                    'folder_pattern': 'clients/{client_afm}_{client_name}/{year}/{month}/',
+                    'folder_pattern': 'clients/{client_afm}_{client_name}/{year}/{month}/{type_code}/',
                 }
             )
-            print(f"[ARCHIVE] Config: {config.folder_pattern}")
-            
-            # Get path
+
+            # Get archive path from config
             archive_path = config.get_archive_path(self, uploaded_file.name)
-            print(f"[ARCHIVE] Target path: {archive_path}")
-            
-            # Save file
+            logger.info(f"[ARCHIVE] Target path: {archive_path}")
+
+            # Save file using Django's storage system
             from django.core.files.storage import default_storage
             from django.core.files.base import ContentFile
-            
+
             file_content = uploaded_file.read()
             uploaded_file.seek(0)
-            
+
             saved_path = default_storage.save(archive_path, ContentFile(file_content))
-            print(f"[ARCHIVE] Saved to: {saved_path}")
-            
-            # Update model
+            logger.info(f"[ARCHIVE] Saved to: {saved_path}")
+
+            # Update model attachment field
             self.attachment.name = saved_path
             self.save(update_fields=['attachment'])
-            print(f"[ARCHIVE] Model updated")
-            
+
             return saved_path
-            
+
         except Exception as e:
-            print(f"[ARCHIVE] ERROR: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"[ARCHIVE] ERROR: {e}", exc_info=True)
             raise
 
 
