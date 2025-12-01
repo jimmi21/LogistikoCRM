@@ -19,7 +19,7 @@ function quickComplete(obligationId) {
     btn.innerHTML = '<span class="icon">⏳</span><span class="label">Επεξεργασία...</span>';
 
     // AJAX request
-    fetch(`/accounting/obligation/${obligationId}/complete/`, {
+    fetch('/accounting/obligation/' + obligationId + '/complete/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -210,7 +210,7 @@ function handleCompletion(event) {
         // Complete WITH file upload
         const formData = new FormData(form);
 
-        fetch(`/accounting/obligation/${obligationId}/complete-with-file/`, {
+        fetch('/accounting/obligation/' + obligationId + '/complete-with-file/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')
@@ -238,7 +238,7 @@ function handleCompletion(event) {
         const sendEmail = form.querySelector('#send-email').checked;
         const timeSpent = form.querySelector('#time-spent').value;
 
-        fetch(`/accounting/obligation/${obligationId}/complete/`, {
+        fetch('/accounting/obligation/' + obligationId + '/complete/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -418,7 +418,7 @@ function handleBulkCompletion(event) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showNotification(\`✅ Ολοκληρώθηκαν \${data.completed_count} υποχρεώσεις επιτυχώς!\`, 'success');
+            showNotification('Ολοκληρωθηκαν ' + data.completed_count + ' υποχρεωσεις επιτυχως!', 'success');
             closeBulkCompletionModal();
             setTimeout(() => window.location.reload(), 1000);
         } else {
@@ -453,16 +453,12 @@ function getCookie(name) {
     return cookieValue;
 }
 
-function showNotification(message, type = 'info') {
+function showNotification(message, type) {
+    type = type || 'info';
     // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            <span class="notification-message">${message}</span>
-            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
-        </div>
-    `;
+    var notification = document.createElement('div');
+    notification.className = 'notification notification-' + type;
+    notification.innerHTML = '<div class="notification-content"><span class="notification-message">' + message + '</span><button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button></div>';
 
     // Add to page
     document.body.appendChild(notification);
@@ -500,5 +496,5 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================================================
 
 function navigateToObligation(obligationId) {
-    window.location.href = `/accounting/obligation/${obligationId}/`;
+    window.location.href = '/accounting/obligation/' + obligationId + '/';
 }
