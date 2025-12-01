@@ -3,7 +3,7 @@ Context processor για admin dashboard statistics
 Παρέχει real-time stats για την accounting dashboard
 """
 from django.utils import timezone
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, F
 from datetime import datetime, timedelta
 from accounting.models import MonthlyObligation
 
@@ -43,11 +43,12 @@ def dashboard_stats(request):
     ).count()
 
     # Συνολικά έσοδα μήνα (completed obligations)
+    # Note: cost is a property, so we calculate from hourly_rate * time_spent
     revenue_data = MonthlyObligation.objects.filter(
         status='completed',
         completed_date__gte=first_of_month
     ).aggregate(
-        total=Sum('cost')
+        total=Sum(F('hourly_rate') * F('time_spent'))
     )
     total_revenue = revenue_data['total'] or 0
 
