@@ -670,10 +670,17 @@ def reports_view(request):
     
     # Current month summary
     current_stats = _calculate_current_month_stats(now)
-    
+
     # Format data for charts
     chart_data = _format_chart_data(monthly_stats)
-    
+
+    # Get clients for PDF export dropdown
+    clients = ClientProfile.objects.filter(is_active=True).order_by('eponimia')
+
+    # Year choices for monthly report
+    current_year = now.year
+    year_choices = list(range(current_year - 2, current_year + 2))
+
     context = {
         'title': 'Reports & Analytics',
         'months_back': months_back,
@@ -683,8 +690,13 @@ def reports_view(request):
         'total_revenue': revenue_data['total'],
         'type_stats': type_stats,
         'current_stats': current_stats,
+        # PDF Export context
+        'clients': clients,
+        'current_month': now.month,
+        'current_year': current_year,
+        'year_choices': year_choices,
     }
-    
+
     return render(request, 'accounting/reports.html', context)
 
 
@@ -3275,3 +3287,205 @@ def wizard_bulk_process(request):
             'success': False,
             'error': f'Κρίσιμο σφάλμα: {str(e)}'
         }, status=500)
+
+
+# ============================================
+# GLOBAL SEARCH API
+# ============================================
+
+@require_GET
+@staff_member_required
+def global_search_api(request):
+    """
+    Global search API for clients and obligations.
+    Searches by client name (eponimia), AFM, email, and obligation type.
+    Returns max 5 results per category.
+    """
+    query = request.GET.get('q', '').strip()
+
+    if len(query) < 2:
+        return JsonResponse({'results': [], 'clients': [], 'obligations': []})
+
+    try:
+        # Search clients by eponimia, afm, email, or phone
+        clients = ClientProfile.objects.filter(
+            Q(eponimia__icontains=query) |
+            Q(afm__icontains=query) |
+            Q(email__icontains=query) |
+            Q(kinito_tilefono__icontains=query) |
+            Q(tilefono_epixeirisis_1__icontains=query)
+        ).filter(is_active=True)[:5]
+
+        # Search obligations by client name or obligation type name
+        obligations = MonthlyObligation.objects.filter(
+            Q(client__eponimia__icontains=query) |
+            Q(obligation_type__name__icontains=query) |
+            Q(client__afm__icontains=query)
+        ).select_related('client', 'obligation_type').order_by('-deadline')[:5]
+
+        # Format results
+        clients_data = [{
+            'id': c.id,
+            'name': c.eponimia,
+            'afm': c.afm,
+            'email': c.email or '',
+            'url': f'/admin/accounting/clientprofile/{c.id}/change/',
+            'type': 'client'
+        } for c in clients]
+
+        obligations_data = [{
+            'id': o.id,
+            'name': str(o),
+            'client': o.client.eponimia,
+            'client_afm': o.client.afm,
+            'obligation_type': o.obligation_type.name,
+            'period': f'{o.month:02d}/{o.year}',
+            'status': o.status,
+            'url': f'/admin/accounting/monthlyobligation/{o.id}/change/',
+            'type': 'obligation'
+        } for o in obligations]
+
+        return JsonResponse({
+            'success': True,
+            'query': query,
+            'clients': clients_data,
+            'obligations': obligations_data,
+            'total': len(clients_data) + len(obligations_data)
+        })
+
+    except Exception as e:
+        logger.error(f"Error in global_search_api: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'clients': [],
+            'obligations': []
+        }, status=500)
+
+
+# ============================================
+# PDF REPORT GENERATION
+# ============================================
+
+@staff_member_required
+def client_report_pdf(request, client_id):
+    """
+    Generate PDF report for a specific client.
+    Includes client info and obligation history.
+    """
+    try:
+        from weasyprint import HTML
+        from django.template.loader import render_to_string
+    except ImportError:
+        return HttpResponse(
+            'WeasyPrint δεν είναι εγκατεστημένο. Εγκαταστήστε το με: pip install weasyprint',
+            status=500
+        )
+
+    client = get_object_or_404(ClientProfile, id=client_id)
+    obligations = MonthlyObligation.objects.filter(
+        client=client
+    ).select_related('obligation_type').order_by('-deadline')[:50]
+
+    # Calculate statistics
+    stats = {
+        'total': obligations.count(),
+        'completed': obligations.filter(status='completed').count(),
+        'pending': obligations.filter(status='pending').count(),
+        'overdue': obligations.filter(status='overdue').count(),
+    }
+
+    # Completion rate
+    if stats['total'] > 0:
+        stats['completion_rate'] = round((stats['completed'] / stats['total']) * 100, 1)
+    else:
+        stats['completion_rate'] = 0
+
+    html_content = render_to_string('reports/client_report.html', {
+        'client': client,
+        'obligations': obligations,
+        'stats': stats,
+        'generated_at': timezone.now()
+    })
+
+    try:
+        pdf = HTML(string=html_content, base_url=request.build_absolute_uri('/')).write_pdf()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        safe_name = client.afm.replace(' ', '_')
+        response['Content-Disposition'] = f'filename="client_{safe_name}.pdf"'
+        logger.info(f"PDF report generated for client {client.afm} by {request.user.username}")
+        return response
+    except Exception as e:
+        logger.error(f"Error generating PDF for client {client_id}: {e}", exc_info=True)
+        return HttpResponse(f'Σφάλμα δημιουργίας PDF: {str(e)}', status=500)
+
+
+@staff_member_required
+def monthly_report_pdf(request, year, month):
+    """
+    Generate PDF report for a specific month.
+    Includes all obligations for that period.
+    """
+    try:
+        from weasyprint import HTML
+        from django.template.loader import render_to_string
+    except ImportError:
+        return HttpResponse(
+            'WeasyPrint δεν είναι εγκατεστημένο. Εγκαταστήστε το με: pip install weasyprint',
+            status=500
+        )
+
+    obligations = MonthlyObligation.objects.filter(
+        year=year,
+        month=month
+    ).select_related('client', 'obligation_type').order_by('deadline', 'client__eponimia')
+
+    # Calculate statistics
+    stats = {
+        'total': obligations.count(),
+        'completed': obligations.filter(status='completed').count(),
+        'pending': obligations.filter(status='pending').count(),
+        'overdue': obligations.filter(status='overdue').count(),
+    }
+
+    # Completion rate
+    if stats['total'] > 0:
+        stats['completion_rate'] = round((stats['completed'] / stats['total']) * 100, 1)
+    else:
+        stats['completion_rate'] = 0
+
+    # Group by status
+    by_status = {
+        'pending': obligations.filter(status='pending'),
+        'completed': obligations.filter(status='completed'),
+        'overdue': obligations.filter(status='overdue'),
+    }
+
+    # Month names in Greek
+    month_names = {
+        1: 'Ιανουάριος', 2: 'Φεβρουάριος', 3: 'Μάρτιος',
+        4: 'Απρίλιος', 5: 'Μάιος', 6: 'Ιούνιος',
+        7: 'Ιούλιος', 8: 'Αύγουστος', 9: 'Σεπτέμβριος',
+        10: 'Οκτώβριος', 11: 'Νοέμβριος', 12: 'Δεκέμβριος'
+    }
+    month_name = month_names.get(month, str(month))
+
+    html_content = render_to_string('reports/monthly_report.html', {
+        'year': year,
+        'month': month,
+        'month_name': month_name,
+        'obligations': obligations,
+        'stats': stats,
+        'by_status': by_status,
+        'generated_at': timezone.now()
+    })
+
+    try:
+        pdf = HTML(string=html_content, base_url=request.build_absolute_uri('/')).write_pdf()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'filename="report_{year}_{month:02d}.pdf"'
+        logger.info(f"Monthly PDF report generated for {month}/{year} by {request.user.username}")
+        return response
+    except Exception as e:
+        logger.error(f"Error generating monthly PDF for {month}/{year}: {e}", exc_info=True)
+        return HttpResponse(f'Σφάλμα δημιουργίας PDF: {str(e)}', status=500)

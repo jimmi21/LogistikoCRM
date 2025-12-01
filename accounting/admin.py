@@ -336,8 +336,20 @@ class ClientProfileAdmin(admin.ModelAdmin):  # ✅ ΔΙΟΡΘΩΣΗ: Προστ�
         'eidos_ipoxreou',
         'katigoria_vivlion',
         'is_active',
-        'created_at'
+        'created_at',
+        'pdf_report_link',
     ]
+
+    @admin.display(description='PDF')
+    def pdf_report_link(self, obj):
+        """Link to download PDF report for client"""
+        url = reverse('accounting:client_report_pdf', args=[obj.id])
+        return format_html(
+            '<a href="{}" target="_blank" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); '
+            'color: white; padding: 3px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; '
+            'font-weight: 600;">📥 PDF</a>',
+            url
+        )
     
     list_filter = [
         'eidos_ipoxreou',

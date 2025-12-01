@@ -1,0 +1,138 @@
+{% extends "reports/base_report.html" %}
+
+{% block title %}Αναφορά Πελάτη - {{ client.eponimia }}{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>{{ client.eponimia }}</h1>
+    <p class="subtitle">ΑΦΜ: {{ client.afm }}{% if client.doy %} | ΔΟΥ: {{ client.doy }}{% endif %}</p>
+</div>
+
+<!-- Statistics -->
+<div class="stats-container">
+    <div class="stat-box">
+        <div class="stat-label">Σύνολο</div>
+        <div class="stat-number">{{ stats.total }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-label">Ολοκληρωμένες</div>
+        <div class="stat-number completed">{{ stats.completed }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-label">Εκκρεμείς</div>
+        <div class="stat-number pending">{{ stats.pending }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-label">Καθυστερημένες</div>
+        <div class="stat-number overdue">{{ stats.overdue }}</div>
+    </div>
+</div>
+
+<!-- Client Info -->
+<h2>Στοιχεία Πελάτη</h2>
+<div class="info-grid no-break">
+    <div class="info-item">
+        <span class="info-label">Επωνυμία:</span>
+        <span class="info-value">{{ client.eponimia }}</span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">ΑΦΜ:</span>
+        <span class="info-value">{{ client.afm }}</span>
+    </div>
+    {% if client.doy %}
+    <div class="info-item">
+        <span class="info-label">ΔΟΥ:</span>
+        <span class="info-value">{{ client.doy }}</span>
+    </div>
+    {% endif %}
+    {% if client.email %}
+    <div class="info-item">
+        <span class="info-label">Email:</span>
+        <span class="info-value">{{ client.email }}</span>
+    </div>
+    {% endif %}
+    {% if client.kinito_tilefono %}
+    <div class="info-item">
+        <span class="info-label">Κινητό:</span>
+        <span class="info-value">{{ client.kinito_tilefono }}</span>
+    </div>
+    {% endif %}
+    {% if client.tilefono_epixeirisis_1 %}
+    <div class="info-item">
+        <span class="info-label">Τηλέφωνο Επιχ.:</span>
+        <span class="info-value">{{ client.tilefono_epixeirisis_1 }}</span>
+    </div>
+    {% endif %}
+    {% if client.eidos_ipoxreou %}
+    <div class="info-item">
+        <span class="info-label">Είδος Υπόχρεου:</span>
+        <span class="info-value">{{ client.get_eidos_ipoxreou_display }}</span>
+    </div>
+    {% endif %}
+    {% if client.katigoria_vivlion %}
+    <div class="info-item">
+        <span class="info-label">Κατηγορία Βιβλίων:</span>
+        <span class="info-value">{{ client.get_katigoria_vivlion_display }}</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Obligations Table -->
+<h2>Υποχρεώσεις ({{ stats.total }})</h2>
+{% if obligations %}
+<table>
+    <thead>
+        <tr>
+            <th style="width: 25%;">Τύπος</th>
+            <th style="width: 15%;">Περίοδος</th>
+            <th style="width: 18%;">Προθεσμία</th>
+            <th style="width: 15%;">Κατάσταση</th>
+            <th style="width: 18%;">Ολοκλήρωση</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ob in obligations %}
+        <tr>
+            <td>{{ ob.obligation_type.name }}</td>
+            <td>{{ ob.month|stringformat:"02d" }}/{{ ob.year }}</td>
+            <td>{{ ob.deadline|date:"d/m/Y" }}</td>
+            <td>
+                {% if ob.status == 'completed' %}
+                <span class="status-badge status-completed">Ολοκληρώθηκε</span>
+                {% elif ob.status == 'overdue' %}
+                <span class="status-badge status-overdue">Καθυστερεί</span>
+                {% else %}
+                <span class="status-badge status-pending">Εκκρεμεί</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if ob.completed_date %}
+                {{ ob.completed_date|date:"d/m/Y" }}
+                {% else %}
+                —
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color: #666; text-align: center; padding: 20px;">Δεν υπάρχουν υποχρεώσεις για αυτόν τον πελάτη.</p>
+{% endif %}
+
+<!-- Summary -->
+<div class="no-break" style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+    <h3 style="margin-top: 0;">Συνοπτικά Στοιχεία</h3>
+    <p style="margin: 5px 0;">
+        <strong>Ποσοστό Ολοκλήρωσης:</strong> {{ stats.completion_rate }}%
+    </p>
+    <p style="margin: 5px 0;">
+        <strong>Κατάσταση Πελάτη:</strong>
+        {% if client.is_active %}
+        <span style="color: #28a745;">Ενεργός</span>
+        {% else %}
+        <span style="color: #dc3545;">Ανενεργός</span>
+        {% endif %}
+    </p>
+</div>
+{% endblock %}

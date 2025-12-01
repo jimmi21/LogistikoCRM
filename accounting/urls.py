@@ -76,6 +76,13 @@ urlpatterns = [
     path("api/obligations-wizard/", views.api_obligations_wizard, name="api_obligations_wizard"),
     path("wizard-bulk-process/", views.wizard_bulk_process, name="wizard_bulk_process"),
 
+    # GLOBAL SEARCH API
+    path("api/search/", views.global_search_api, name="global_search_api"),
+
+    # PDF REPORTS
+    path("reports/client/<int:client_id>/pdf/", views.client_report_pdf, name="client_report_pdf"),
+    path("reports/monthly/<int:year>/<int:month>/pdf/", views.monthly_report_pdf, name="monthly_report_pdf"),
+
     # TICKET MANAGEMENT
     path("ticket/<int:ticket_id>/assign/", views.assign_ticket, name="assign_ticket"),
     path("ticket/<int:ticket_id>/update/", views.update_ticket_status, name="update_ticket_status"),
