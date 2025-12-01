@@ -1,287 +1,148 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
-{% load calendar_tags %}
+
+{% block title %}{{ title }} | LogistikoCRM{% endblock %}
 
 {% block extrastyle %}
-<style>
-    .calendar-container {
-        max-width: 1400px;
-        margin: 20px auto;
-        padding: 0 20px;
-    }
-    
-    .calendar-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 30px;
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .calendar-header h1 {
-        margin: 0;
-        color: #333;
-    }
-    
-    .calendar-nav {
-        display: flex;
-        gap: 10px;
-    }
-    
-    .nav-btn {
-        padding: 10px 20px;
-        background: #417690;
-        color: white;
-        text-decoration: none;
-        border-radius: 5px;
-        font-weight: bold;
-        transition: background 0.2s;
-    }
-    
-    .nav-btn:hover {
-        background: #356178;
-        text-decoration: none;
-        color: white;
-    }
-    
-    .calendar-grid {
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        overflow: hidden;
-    }
-    
-    .calendar-weekdays {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        background: #417690;
-        color: white;
-    }
-    
-    .weekday {
-        padding: 15px;
-        text-align: center;
-        font-weight: bold;
-        font-size: 14px;
-        text-transform: uppercase;
-    }
-    
-    .calendar-days {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 1px;
-        background: #e9ecef;
-    }
-    
-    .day-cell {
-        background: white;
-        min-height: 120px;
-        padding: 10px;
-        position: relative;
-    }
-    
-    .day-cell.empty {
-        background: #f8f9fa;
-    }
-    
-    .day-cell.today {
-        background: #fff9e6;
-        border: 2px solid #ffc107;
-    }
-    
-    .day-number {
-        font-weight: bold;
-        font-size: 16px;
-        color: #333;
-        margin-bottom: 8px;
-    }
-    
-    .day-cell.today .day-number {
-        color: #ffc107;
-    }
-    
-    .obligations-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    
-    .obligation-item {
-        font-size: 11px;
-        padding: 4px 6px;
-        margin-bottom: 3px;
-        border-radius: 3px;
-        cursor: pointer;
-        transition: transform 0.1s;
-    }
-    
-    .obligation-item:hover {
-        transform: translateX(2px);
-    }
-    
-    .obligation-item.pending {
-        background: #fff3cd;
-        border-left: 3px solid #ffc107;
-        color: #856404;
-    }
-    
-    .obligation-item.completed {
-        background: #d4edda;
-        border-left: 3px solid #28a745;
-        color: #155724;
-    }
-    
-    .obligation-item.overdue {
-        background: #f8d7da;
-        border-left: 3px solid #dc3545;
-        color: #721c24;
-    }
-    
-    .obligation-client {
-        font-weight: bold;
-        display: block;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .obligation-type {
-        font-size: 10px;
-        opacity: 0.8;
-        display: block;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .legend {
-        display: flex;
-        justify-content: center;
-        gap: 30px;
-        margin-top: 20px;
-        padding: 15px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-    }
-    
-    .legend-color {
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-    }
-    
-    .legend-color.pending {
-        background: #ffc107;
-    }
-    
-    .legend-color.completed {
-        background: #28a745;
-    }
-    
-    .legend-color.overdue {
-        background: #dc3545;
-    }
-    
-    .actions {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-    }
-    
-    .action-btn {
-        padding: 12px 24px;
-        background: white;
-        color: #417690;
-        text-decoration: none;
-        border-radius: 5px;
-        border: 2px solid #417690;
-        font-weight: bold;
-        transition: all 0.2s;
-    }
-    
-    .action-btn:hover {
-        background: #417690;
-        color: white;
-        text-decoration: none;
-    }
-</style>
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<link href="{% static 'accounting/css/calendar.css' %}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
 <div class="calendar-container">
-    <div class="actions">
-        <a href="/accounting/dashboard/" class="action-btn">← Επιστροφή στο Dashboard</a>
+    <!-- Quick Navigation Bar -->
+    <nav class="quick-nav-bar">
+        <a href="{% url 'admin:index' %}">🏠 Admin</a>
+        <span class="nav-separator">›</span>
+        <a href="{% url 'accounting:dashboard' %}">📊 Dashboard</a>
+        <span class="nav-separator">›</span>
+        <span class="nav-current">📅 Ημερολόγιο</span>
+    </nav>
+
+    <!-- Statistics Box -->
+    <div class="calendar-stats">
+        <div class="stat-box pending">
+            <span class="stat-number">{{ stats.pending_count }}</span>
+            <span class="stat-label">Εκκρεμείς</span>
+        </div>
+        <div class="stat-box overdue">
+            <span class="stat-number">{{ stats.overdue_count }}</span>
+            <span class="stat-label">Εκπρόθεσμες</span>
+        </div>
+        <div class="stat-box completed">
+            <span class="stat-number">{{ stats.completed_this_month }}</span>
+            <span class="stat-label">Ολοκληρώθηκαν</span>
+        </div>
     </div>
-    
+
+    <!-- Header with filters -->
     <div class="calendar-header">
-        <h1>📅 {{ month_name }} {{ year }}</h1>
-        <div class="calendar-nav">
-            <a href="?year={{ prev_year }}&month={{ prev_month }}" class="nav-btn">◄ Προηγούμενος</a>
-            <a href="?year={{ today.year }}&month={{ today.month }}" class="nav-btn">Σήμερα</a>
-            <a href="?year={{ next_year }}&month={{ next_month }}" class="nav-btn">Επόμενος ►</a>
-        </div>
-    </div>
-    
-    <div class="calendar-grid">
-        <div class="calendar-weekdays">
-            <div class="weekday">Δευτέρα</div>
-            <div class="weekday">Τρίτη</div>
-            <div class="weekday">Τετάρτη</div>
-            <div class="weekday">Πέμπτη</div>
-            <div class="weekday">Παρασκευή</div>
-            <div class="weekday">Σάββατο</div>
-            <div class="weekday">Κυριακή</div>
-        </div>
-        
-        <div class="calendar-days">
-            {% for week in calendar %}
-                {% for day in week %}
-                    {% if day == 0 %}
-                        <div class="day-cell empty"></div>
-                    {% else %}
-                        <div class="day-cell {% if year == today.year and month == today.month and day == today.day %}today{% endif %}">
-                            <div class="day-number">{{ day }}</div>
-                            {% if day in obligations_by_day %}
-                                <ul class="obligations-list">
-                                    {% for obl in obligations_by_day|get_item:day %}
-                                        <li class="obligation-item {{ obl.status }}" title="{{ obl.client.eponimia }} - {{ obl.obligation_type.name }}">
-                                            <span class="obligation-client">{{ obl.client.eponimia }}</span>
-                                            <span class="obligation-type">{{ obl.obligation_type.name }}</span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            {% endif %}
-                        </div>
-                    {% endif %}
+        <h1>📅 Ημερολόγιο Υποχρεώσεων</h1>
+
+        <!-- Filters -->
+        <div class="calendar-filters">
+            <select id="filter-client" class="filter-select">
+                <option value="">Όλοι οι πελάτες</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}">{{ client.eponimia }}</option>
                 {% endfor %}
-            {% endfor %}
+            </select>
+
+            <select id="filter-type" class="filter-select">
+                <option value="">Όλοι οι τύποι</option>
+                {% for type in obligation_types %}
+                <option value="{{ type.id }}">{{ type.name }}</option>
+                {% endfor %}
+            </select>
+
+            <select id="filter-status" class="filter-select">
+                <option value="">Όλες οι καταστάσεις</option>
+                <option value="pending">Εκκρεμείς</option>
+                <option value="completed">Ολοκληρωμένες</option>
+                <option value="overdue">Εκπρόθεσμες</option>
+            </select>
+
+            <button id="clear-filters" class="btn-clear-filters" title="Καθαρισμός φίλτρων">
+                ✕ Καθαρισμός
+            </button>
         </div>
     </div>
-    
-    <div class="legend">
-        <div class="legend-item">
-            <div class="legend-color pending"></div>
-            <span>Εκκρεμεί</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color completed"></div>
-            <span>Ολοκληρώθηκε</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color overdue"></div>
-            <span>Καθυστερεί</span>
+
+    <!-- Legend -->
+    <div class="calendar-legend">
+        <span class="legend-item">
+            <span class="dot pending"></span>
+            Εκκρεμείς
+        </span>
+        <span class="legend-item">
+            <span class="dot overdue"></span>
+            Εκπρόθεσμες
+        </span>
+        <span class="legend-item">
+            <span class="dot completed"></span>
+            Ολοκληρωμένες
+        </span>
+        <span class="legend-item">
+            <span class="dot today"></span>
+            Σήμερα
+        </span>
+    </div>
+
+    <!-- Calendar Container -->
+    <div id="calendar"></div>
+
+    <!-- Event Detail Modal -->
+    <div id="event-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2 id="modal-title"></h2>
+            <div id="modal-body">
+                <div class="modal-row">
+                    <span class="modal-label">Πελάτης:</span>
+                    <span id="modal-client" class="modal-value"></span>
+                </div>
+                <div class="modal-row">
+                    <span class="modal-label">ΑΦΜ:</span>
+                    <span id="modal-afm" class="modal-value"></span>
+                </div>
+                <div class="modal-row">
+                    <span class="modal-label">Τύπος:</span>
+                    <span id="modal-type" class="modal-value"></span>
+                </div>
+                <div class="modal-row">
+                    <span class="modal-label">Περίοδος:</span>
+                    <span id="modal-period" class="modal-value"></span>
+                </div>
+                <div class="modal-row">
+                    <span class="modal-label">Προθεσμία:</span>
+                    <span id="modal-deadline" class="modal-value"></span>
+                </div>
+                <div class="modal-row">
+                    <span class="modal-label">Κατάσταση:</span>
+                    <span id="modal-status" class="modal-value"></span>
+                </div>
+                <div class="modal-row notes-row" id="modal-notes-row">
+                    <span class="modal-label">Σημειώσεις:</span>
+                    <span id="modal-notes" class="modal-value modal-notes"></span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <a id="modal-edit-btn" href="#" class="btn btn-primary">
+                    ✏️ Επεξεργασία
+                </a>
+                <button id="modal-complete-btn" class="btn btn-success">
+                    ✅ Ολοκλήρωση
+                </button>
+                <a id="modal-client-btn" href="#" class="btn btn-secondary">
+                    👤 Προφίλ Πελάτη
+                </a>
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extrajs %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script src="{% static 'accounting/js/calendar.js' %}"></script>
 {% endblock %}
