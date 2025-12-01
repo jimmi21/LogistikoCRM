@@ -959,6 +959,12 @@
                         <span class="icon">✅</span>
                         <span>Ολοκλήρωση υποχρέωσης</span>
                     </label>
+                    <label class="wizard-checkbox-label" id="email-label">
+                        <input type="checkbox" class="wizard-checkbox" id="wizard-email-checkbox"
+                               onchange="updateWizardCheckboxState()">
+                        <span class="icon">📧</span>
+                        <span>Αποστολή email στον πελάτη</span>
+                    </label>
                     <label class="wizard-checkbox-label" id="skip-label">
                         <input type="checkbox" class="wizard-checkbox" id="wizard-skip-checkbox"
                                onchange="updateWizardCheckboxState()">
@@ -1192,6 +1198,7 @@
                         wizardState.results[ob.id] = {
                             complete: true,
                             skip: false,
+                            send_email: false,
                             notes: ''
                         };
                     });
@@ -1271,6 +1278,12 @@
                                onchange="updateWizardCheckboxState()" checked>
                         <span class="icon">✅</span>
                         <span>Ολοκλήρωση υποχρέωσης</span>
+                    </label>
+                    <label class="wizard-checkbox-label" id="email-label">
+                        <input type="checkbox" class="wizard-checkbox" id="wizard-email-checkbox"
+                               onchange="updateWizardCheckboxState()">
+                        <span class="icon">📧</span>
+                        <span>Αποστολή email στον πελάτη</span>
                     </label>
                     <label class="wizard-checkbox-label" id="skip-label">
                         <input type="checkbox" class="wizard-checkbox" id="wizard-skip-checkbox"
@@ -1352,7 +1365,7 @@
     // Render current obligation in wizard
     function renderCurrentObligation() {
         const ob = wizardState.obligations[wizardState.currentIndex];
-        const result = wizardState.results[ob.id] || { complete: true, skip: false };
+        const result = wizardState.results[ob.id] || { complete: true, skip: false, send_email: false };
 
         // Update info fields
         document.getElementById('wizard-client-name').textContent = ob.client_name;
@@ -1368,6 +1381,7 @@
         // Update checkboxes
         document.getElementById('wizard-complete-checkbox').checked = result.complete;
         document.getElementById('wizard-skip-checkbox').checked = result.skip;
+        document.getElementById('wizard-email-checkbox').checked = result.send_email || false;
         updateWizardCheckboxState();
 
         // Show/hide file if previously selected
@@ -1412,6 +1426,7 @@
         wizardState.results[ob.id] = {
             complete: document.getElementById('wizard-complete-checkbox').checked,
             skip: document.getElementById('wizard-skip-checkbox').checked,
+            send_email: document.getElementById('wizard-email-checkbox').checked,
             notes: ''
         };
 
@@ -1466,17 +1481,24 @@
     function updateWizardCheckboxState() {
         const completeCheck = document.getElementById('wizard-complete-checkbox');
         const skipCheck = document.getElementById('wizard-skip-checkbox');
+        const emailCheck = document.getElementById('wizard-email-checkbox');
         const completeLabel = document.getElementById('complete-label');
         const skipLabel = document.getElementById('skip-label');
+        const emailLabel = document.getElementById('email-label');
 
-        // Mutual exclusion
+        // Mutual exclusion: skip cancels complete
         if (skipCheck.checked) {
             completeCheck.checked = false;
+            emailCheck.checked = false;
+            emailCheck.disabled = true;
+        } else {
+            emailCheck.disabled = false;
         }
 
         // Update visual state
         completeLabel.classList.toggle('checked', completeCheck.checked);
         skipLabel.classList.toggle('skip-checked', skipCheck.checked);
+        emailLabel.classList.toggle('email-checked', emailCheck.checked);
     }
 
     // Finish wizard and submit all

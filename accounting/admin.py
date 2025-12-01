@@ -18,15 +18,16 @@ from django.http import HttpResponse
 import logging
 
 from .models import (
-    ClientProfile, 
-    ObligationGroup, 
-    ObligationProfile, 
+    ClientProfile,
+    ObligationGroup,
+    ObligationProfile,
     ObligationType,
     ClientObligation,
     MonthlyObligation,
     EmailTemplate,
     EmailAutomationRule,
     ScheduledEmail,
+    EmailLog,
     VoIPCall,
     VoIPCallLog,
     Ticket,
@@ -182,15 +183,16 @@ from django.http import HttpResponse
 import logging
 
 from .models import (
-    ClientProfile, 
-    ObligationGroup, 
-    ObligationProfile, 
+    ClientProfile,
+    ObligationGroup,
+    ObligationProfile,
     ObligationType,
     ClientObligation,
     MonthlyObligation,
     EmailTemplate,
     EmailAutomationRule,
     ScheduledEmail,
+    EmailLog,
     VoIPCall,
     VoIPCallLog,
     Ticket,
@@ -919,7 +921,11 @@ class ClientDocumentInline(admin.TabularInline):
 @admin.register(MonthlyObligation)
 class MonthlyObligationAdmin(admin.ModelAdmin):
     # ✅ INLINE DOCUMENTS - Detail view με συνημμένα
+    # Note: EmailLogInline defined later - added dynamically
     inlines = [ClientDocumentInline]
+
+    # Add email action
+    actions = ['mark_as_completed', 'mark_as_pending', 'export_obligations_csv', 'send_completion_email']
 
     list_display = [
         'id',  # ✅ Add ID for clickable link
@@ -976,8 +982,7 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
     ]
     date_hierarchy = 'deadline'
     list_per_page = 50
-    actions = ['mark_as_completed', 'mark_as_pending', 'export_obligations_csv']
-    
+
     fieldsets = (
         ('Βασικά', {
             'fields': ('client', 'obligation_type', 'year', 'month', 'deadline')
@@ -1226,7 +1231,46 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
         
         self.message_user(request, f'✅ Εξήχθησαν {queryset.count()} υποχρεώσεις', messages.SUCCESS)
         return response
-    
+
+    @admin.action(description='📧 Αποστολή email ολοκλήρωσης')
+    def send_completion_email(self, request, queryset):
+        """Send completion email for selected obligations"""
+        from accounting.services.email_service import EmailService
+
+        sent = 0
+        failed = 0
+        skipped = 0
+
+        for obligation in queryset.select_related('client', 'obligation_type'):
+            # Only send for completed obligations
+            if obligation.status != 'completed':
+                skipped += 1
+                continue
+
+            # Skip if no client email
+            if not obligation.client.email:
+                skipped += 1
+                continue
+
+            success, result = EmailService.send_obligation_completion_email(
+                obligation=obligation,
+                user=request.user,
+                include_attachment=True
+            )
+
+            if success:
+                sent += 1
+            else:
+                failed += 1
+
+        # Report results
+        if sent > 0:
+            self.message_user(request, f'📧 Στάλθηκαν {sent} email επιτυχώς!', messages.SUCCESS)
+        if skipped > 0:
+            self.message_user(request, f'⏭️ Παραλείφθηκαν {skipped} (μη ολοκληρωμένες ή χωρίς email)', messages.WARNING)
+        if failed > 0:
+            self.message_user(request, f'❌ Απέτυχαν {failed} email', messages.ERROR)
+
     def save_model(self, request, obj, form, change):
         if obj.status == 'completed' and not obj.completed_by:
             obj.completed_by = request.user
@@ -1332,30 +1376,43 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
 
 @admin.register(EmailTemplate)
 class EmailTemplateAdmin(admin.ModelAdmin):
-    list_display = ['name', 'subject', 'is_active', 'created_at', 'preview_button']
-    list_filter = ['is_active', 'created_at']
+    list_display = ['name', 'subject', 'obligation_type', 'is_active', 'created_at', 'preview_button']
+    list_filter = ['is_active', 'obligation_type', 'created_at']
     search_fields = ['name', 'subject', 'body_html']
-    
+    autocomplete_fields = ['obligation_type']
+
     fieldsets = (
         ('Βασικά Στοιχεία', {
             'fields': ('name', 'description', 'is_active')
         }),
-        ('Email Content', {
+        ('Αυτόματη Επιλογή', {
+            'fields': ('obligation_type',),
+            'description': 'Αν οριστεί τύπος υποχρέωσης, αυτό το template θα επιλέγεται αυτόματα για εκείνον τον τύπο.'
+        }),
+        ('Περιεχόμενο Email', {
             'fields': ('subject', 'body_html'),
             'description': '''
-            <strong>Διαθέσιμες Μεταβλητές:</strong><br>
-            • <code>{{client.eponimia}}</code> - Επωνυμία πελάτη<br>
-            • <code>{{client.afm}}</code> - ΑΦΜ<br>
-            • <code>{{client.email}}</code> - Email<br>
-            • <code>{{obligation.name}}</code> - Όνομα υποχρέωσης<br>
-            • <code>{{obligation.deadline}}</code> - Προθεσμία<br>
-            • <code>{{user.name}}</code> - Το όνομά σας<br>
-            • <code>{{company_name}}</code> - Όνομα εταιρείας<br>
-            • <code>{{completed_date}}</code> - Ημερομηνία ολοκλήρωσης
+            <strong style="color: #667eea;">Διαθέσιμες Μεταβλητές (χρήση: {variable}):</strong><br><br>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;">
+            <strong>Πελάτης:</strong><br>
+            • <code>{client_name}</code> - Επωνυμία πελάτη<br>
+            • <code>{client_afm}</code> - ΑΦΜ<br>
+            • <code>{client_email}</code> - Email<br><br>
+            <strong>Υποχρέωση:</strong><br>
+            • <code>{obligation_type}</code> - Τύπος υποχρέωσης<br>
+            • <code>{period_month}</code> - Μήνας περιόδου (01-12)<br>
+            • <code>{period_year}</code> - Έτος περιόδου<br>
+            • <code>{period_display}</code> - Περίοδος (π.χ. 01/2025)<br>
+            • <code>{deadline}</code> - Προθεσμία (ημ/νία)<br>
+            • <code>{completed_date}</code> - Ημερομηνία ολοκλήρωσης<br><br>
+            <strong>Εταιρεία:</strong><br>
+            • <code>{accountant_name}</code> - Το όνομά σας<br>
+            • <code>{company_name}</code> - Όνομα εταιρείας
+            </div>
             '''
         }),
     )
-    
+
     def preview_button(self, obj):
         return format_html(
             '<a class="button" href="{}">👁️ Preview</a>',
@@ -1980,6 +2037,168 @@ class TicketAdmin(admin.ModelAdmin):
         if not change and not obj.assigned_to:
             obj.assigned_to = request.user
         super().save_model(request, obj, form, change)
+
+
+# ============================================================================
+# EMAIL LOG ADMIN
+# ============================================================================
+
+class EmailLogInline(admin.TabularInline):
+    """Inline view of sent emails for obligations"""
+    model = EmailLog
+    fk_name = 'obligation'
+    extra = 0
+    max_num = 10
+    readonly_fields = ['sent_at', 'recipient_email', 'subject', 'status_badge', 'sent_by', 'view_body_link']
+    fields = ['sent_at', 'recipient_email', 'subject', 'status_badge', 'sent_by', 'view_body_link']
+    ordering = ['-sent_at']
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def status_badge(self, obj):
+        colors = {
+            'sent': '#10b981',
+            'failed': '#ef4444',
+            'pending': '#f59e0b'
+        }
+        icons = {
+            'sent': '✅',
+            'failed': '❌',
+            'pending': '⏳'
+        }
+        color = colors.get(obj.status, '#666')
+        icon = icons.get(obj.status, '?')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 4px 8px; border-radius: 4px;">{} {}</span>',
+            color, icon, obj.get_status_display()
+        )
+    status_badge.short_description = 'Κατάσταση'
+
+    def view_body_link(self, obj):
+        return format_html(
+            '<a href="{}">👁️ View</a>',
+            reverse('admin:accounting_emaillog_change', args=[obj.pk])
+        )
+    view_body_link.short_description = 'Περιεχόμενο'
+
+
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    """Admin for viewing sent email history"""
+    list_display = [
+        'sent_at_formatted',
+        'recipient_info',
+        'subject_preview',
+        'status_badge',
+        'template_used',
+        'sent_by',
+        'client_link'
+    ]
+    list_filter = ['status', 'sent_at', 'template_used', 'sent_by']
+    search_fields = [
+        'recipient_email',
+        'recipient_name',
+        'subject',
+        'client__eponimia',
+        'client__afm'
+    ]
+    readonly_fields = [
+        'recipient_email',
+        'recipient_name',
+        'client',
+        'obligation',
+        'template_used',
+        'subject',
+        'body',
+        'status',
+        'error_message',
+        'sent_at',
+        'sent_by'
+    ]
+    ordering = ['-sent_at']
+    list_per_page = 50
+    date_hierarchy = 'sent_at'
+
+    fieldsets = (
+        ('Παραλήπτης', {
+            'fields': ('recipient_name', 'recipient_email', 'client')
+        }),
+        ('Περιεχόμενο Email', {
+            'fields': ('subject', 'body'),
+            'classes': ('wide',)
+        }),
+        ('Μεταδεδομένα', {
+            'fields': ('template_used', 'obligation', 'sent_by', 'sent_at')
+        }),
+        ('Κατάσταση', {
+            'fields': ('status', 'error_message'),
+            'classes': ('collapse',) if True else ()
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # Email logs are created by the system, not manually
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # Logs should be read-only
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Allow superusers to delete old logs
+        return request.user.is_superuser
+
+    def sent_at_formatted(self, obj):
+        return obj.sent_at.strftime('%d/%m/%Y %H:%M')
+    sent_at_formatted.short_description = 'Αποστολή'
+    sent_at_formatted.admin_order_field = 'sent_at'
+
+    def recipient_info(self, obj):
+        return format_html(
+            '<strong>{}</strong><br><small>{}</small>',
+            escape(obj.recipient_name),
+            obj.recipient_email
+        )
+    recipient_info.short_description = 'Παραλήπτης'
+
+    def subject_preview(self, obj):
+        subject = escape(obj.subject)
+        if len(obj.subject) > 50:
+            return subject[:50] + '...'
+        return subject
+    subject_preview.short_description = 'Θέμα'
+
+    def status_badge(self, obj):
+        colors = {
+            'sent': '#10b981',
+            'failed': '#ef4444',
+            'pending': '#f59e0b'
+        }
+        icons = {
+            'sent': '✅',
+            'failed': '❌',
+            'pending': '⏳'
+        }
+        color = colors.get(obj.status, '#666')
+        icon = icons.get(obj.status, '?')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600;">{} {}</span>',
+            color, icon, obj.get_status_display()
+        )
+    status_badge.short_description = 'Κατάσταση'
+    status_badge.admin_order_field = 'status'
+
+    def client_link(self, obj):
+        if obj.client:
+            url = reverse('admin:accounting_clientprofile_change', args=[obj.client.id])
+            return format_html(
+                '<a href="{}">{}</a>',
+                url, escape(obj.client.eponimia)
+            )
+        return '—'
+    client_link.short_description = 'Πελάτης'
 
 
 # ============================================================================

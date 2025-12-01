@@ -1,0 +1,27 @@
+{% extends "emails/base_email.html" %}
+
+{% block title %}Ενημέρωση - {{ company_name }}{% endblock %}
+
+{% block header %}
+<div class="email-header" style="background: #2196F3;">
+    <h1>{% block header_title %}Ενημέρωση{% endblock %}</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+<p style="font-size: 16px; color: #333;">Αγαπητέ/ή <strong>{{ client_name }}</strong>,</p>
+
+<p style="color: #555; line-height: 1.6;">
+    Σας ενημερώνουμε για τα εξής:
+</p>
+
+<div class="info-box info">
+    <p>
+        {{ message_content }}
+    </p>
+</div>
+
+<p style="color: #555;">
+    Για οποιαδήποτε απορία, μη διστάσετε να επικοινωνήσετε μαζί μας.
+</p>
+{% endblock %}

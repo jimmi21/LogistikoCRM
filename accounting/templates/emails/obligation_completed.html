@@ -1,0 +1,29 @@
+{% extends "emails/base_email.html" %}
+
+{% block title %}Ολοκλήρωση Υποχρέωσης - {{ obligation_type }}{% endblock %}
+
+{% block header_title %}Ολοκλήρωση Υποχρέωσης{% endblock %}
+{% block header_subtitle %}<p class="subtitle">{{ obligation_type }} - {{ period_display }}</p>{% endblock %}
+
+{% block content %}
+<p style="font-size: 16px; color: #333;">Αγαπητέ/ή <strong>{{ client_name }}</strong>,</p>
+
+<p style="color: #555; line-height: 1.6;">
+    Σας ενημερώνουμε ότι η υποχρέωση <strong style="color: #667eea;">{{ obligation_type }}</strong>
+    για την περίοδο <strong>{{ period_display }}</strong> ολοκληρώθηκε επιτυχώς στις <strong>{{ completed_date }}</strong>.
+</p>
+
+<div class="info-box">
+    <strong>Στοιχεία Υποχρέωσης:</strong>
+    <p>
+        Τύπος: {{ obligation_type }}<br>
+        Περίοδος: {{ period_display }}<br>
+        Προθεσμία: {{ deadline }}<br>
+        Ημ/νία Ολοκλήρωσης: {{ completed_date }}
+    </p>
+</div>
+
+<p style="color: #555;">
+    Παραμένουμε στη διάθεσή σας για οποιαδήποτε διευκρίνιση.
+</p>
+{% endblock %}
