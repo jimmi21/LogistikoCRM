@@ -932,6 +932,9 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
         'completed_by_display',  # Enhanced
     ]
 
+    # ✅ CLICKABLE LINKS - Κάνει τις υποχρεώσεις clickable
+    list_display_links = ['client_display', 'obligation_type']
+
     # ✅ AUTOCOMPLETE ΓΙΑ CLIENT
     autocomplete_fields = ['client', 'obligation_type']
     
