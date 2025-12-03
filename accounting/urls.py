@@ -70,7 +70,9 @@ urlpatterns = [
 
     # EMAIL AUTOMATION API
     path("api/email-templates/", views.api_email_templates, name="api_email_templates"),
+    path("api/email-template/<int:template_id>/", views.api_email_template_detail, name="api_email_template_detail"),
     path("api/send-bulk-email/", views.api_send_bulk_email, name="api_send_bulk_email"),
+    path("api/send-bulk-email-direct/", views.api_send_bulk_email_direct, name="api_send_bulk_email_direct"),
 
     # OBLIGATION API
     path("api/obligation-check/", views.check_obligation_duplicate, name="check_obligation"),
