@@ -1,13 +1,21 @@
 ﻿"""
 Accounting URLs Configuration
 Author: ddiplas
-Version: 2.2
+Version: 2.3
 Description: Unified and optimized URL routing for the Accounting app.
 """
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from .api_clients import ClientViewSet
+from .api_obligations import ObligationViewSet
+from .api_dashboard import (
+    dashboard_stats,
+    dashboard_calendar,
+    dashboard_recent_activity,
+    dashboard_client_stats
+)
 
 
 app_name = "accounting"
@@ -19,6 +27,8 @@ router = DefaultRouter()
 router.register(r"voip-calls", views.VoIPCallViewSet, basename="voip-call")
 router.register(r"voip-call-logs", views.VoIPCallLogViewSet, basename="voip-call-log")
 router.register(r'documents', views.ClientDocumentViewSet)
+router.register(r'clients', ClientViewSet, basename='client')
+router.register(r'obligations', ObligationViewSet, basename='obligation')
 # ============================================
 # URL PATTERNS
 # ============================================
@@ -92,6 +102,12 @@ urlpatterns = [
     path("ticket/<int:ticket_id>/assign/", views.assign_ticket, name="assign_ticket"),
     path("ticket/<int:ticket_id>/update/", views.update_ticket_status, name="update_ticket_status"),
     path("ticket/send-email/", views.send_ticket_email, name="send_ticket_email"),
+
+    # DASHBOARD API
+    path("api/dashboard/stats/", dashboard_stats, name="api_dashboard_stats"),
+    path("api/dashboard/calendar/", dashboard_calendar, name="api_dashboard_calendar"),
+    path("api/dashboard/recent-activity/", dashboard_recent_activity, name="api_dashboard_recent_activity"),
+    path("api/dashboard/client-stats/", dashboard_client_stats, name="api_dashboard_client_stats"),
 
     # REST ROUTER
     path("api/", include(router.urls)),

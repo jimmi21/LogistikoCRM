@@ -1,0 +1,292 @@
+# -*- coding: utf-8 -*-
+"""
+accounting/api_dashboard.py
+Author: Claude
+Description: REST API views for Dashboard statistics and calendar
+"""
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+from django.db.models import Count, Q
+from datetime import timedelta
+from calendar import monthrange
+from collections import defaultdict
+
+from .models import ClientProfile, MonthlyObligation
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_stats(request):
+    """
+    GET /api/dashboard/stats/
+
+    Returns dashboard statistics:
+    - total_clients (active)
+    - total_obligations_pending
+    - total_obligations_completed_this_month
+    - overdue_count
+    - upcoming_deadlines (next 7 days)
+    """
+    today = timezone.now().date()
+    current_month = today.month
+    current_year = today.year
+    next_week = today + timedelta(days=7)
+
+    # Active clients count
+    total_clients = ClientProfile.objects.filter(is_active=True).count()
+
+    # Pending obligations
+    total_obligations_pending = MonthlyObligation.objects.filter(
+        status='pending'
+    ).count()
+
+    # Completed this month
+    total_obligations_completed_this_month = MonthlyObligation.objects.filter(
+        status='completed',
+        completed_date__year=current_year,
+        completed_date__month=current_month
+    ).count()
+
+    # Overdue count
+    overdue_count = MonthlyObligation.objects.filter(
+        Q(status='overdue') | Q(status='pending', deadline__lt=today)
+    ).count()
+
+    # Update overdue status for those that are pending but past deadline
+    MonthlyObligation.objects.filter(
+        status='pending',
+        deadline__lt=today
+    ).update(status='overdue')
+
+    # Upcoming deadlines (next 7 days)
+    upcoming_obligations = MonthlyObligation.objects.filter(
+        status='pending',
+        deadline__gte=today,
+        deadline__lte=next_week
+    ).select_related('client', 'obligation_type').order_by('deadline')[:10]
+
+    upcoming_deadlines = [
+        {
+            'id': obl.id,
+            'client_name': obl.client.eponimia,
+            'client_afm': obl.client.afm,
+            'type': obl.obligation_type.name,
+            'type_code': obl.obligation_type.code,
+            'deadline': obl.deadline.isoformat(),
+            'days_until': (obl.deadline - today).days
+        }
+        for obl in upcoming_obligations
+    ]
+
+    # Additional stats
+    stats_by_status = MonthlyObligation.objects.values('status').annotate(
+        count=Count('id')
+    )
+    status_breakdown = {item['status']: item['count'] for item in stats_by_status}
+
+    # Top obligation types this month
+    top_types = MonthlyObligation.objects.filter(
+        year=current_year,
+        month=current_month
+    ).values('obligation_type__name').annotate(
+        count=Count('id')
+    ).order_by('-count')[:5]
+
+    return Response({
+        'total_clients': total_clients,
+        'total_obligations_pending': total_obligations_pending,
+        'total_obligations_completed_this_month': total_obligations_completed_this_month,
+        'overdue_count': overdue_count,
+        'upcoming_deadlines': upcoming_deadlines,
+        'upcoming_count': len(upcoming_deadlines),
+        'status_breakdown': status_breakdown,
+        'top_obligation_types': list(top_types),
+        'current_period': {
+            'month': current_month,
+            'year': current_year
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_calendar(request):
+    """
+    GET /api/dashboard/calendar/
+
+    Returns obligations for calendar view.
+    Parameters:
+    - month: 1-12 (default: current month)
+    - year: YYYY (default: current year)
+
+    Returns: [{date, count, obligations: [{id, client_name, type}]}]
+    """
+    today = timezone.now().date()
+
+    # Get parameters
+    try:
+        month = int(request.query_params.get('month', today.month))
+        year = int(request.query_params.get('year', today.year))
+    except (ValueError, TypeError):
+        month = today.month
+        year = today.year
+
+    # Validate month
+    if month < 1 or month > 12:
+        month = today.month
+
+    # Get first and last day of month
+    first_day = timezone.datetime(year, month, 1).date()
+    last_day_num = monthrange(year, month)[1]
+    last_day = timezone.datetime(year, month, last_day_num).date()
+
+    # Get all obligations for this month range
+    obligations = MonthlyObligation.objects.filter(
+        deadline__gte=first_day,
+        deadline__lte=last_day
+    ).select_related('client', 'obligation_type').order_by('deadline')
+
+    # Group by date
+    calendar_data = defaultdict(lambda: {'count': 0, 'obligations': []})
+
+    for obl in obligations:
+        date_str = obl.deadline.isoformat()
+        calendar_data[date_str]['count'] += 1
+        calendar_data[date_str]['obligations'].append({
+            'id': obl.id,
+            'client_name': obl.client.eponimia,
+            'client_afm': obl.client.afm,
+            'type': obl.obligation_type.name,
+            'type_code': obl.obligation_type.code,
+            'status': obl.status,
+        })
+
+    # Convert to list format
+    events = [
+        {
+            'date': date_str,
+            'count': data['count'],
+            'obligations': data['obligations']
+        }
+        for date_str, data in sorted(calendar_data.items())
+    ]
+
+    # Summary stats for the month
+    total_for_month = obligations.count()
+    pending_for_month = obligations.filter(status='pending').count()
+    completed_for_month = obligations.filter(status='completed').count()
+    overdue_for_month = obligations.filter(
+        Q(status='overdue') | Q(status='pending', deadline__lt=today)
+    ).count()
+
+    return Response({
+        'month': month,
+        'year': year,
+        'first_day': first_day.isoformat(),
+        'last_day': last_day.isoformat(),
+        'total_obligations': total_for_month,
+        'pending': pending_for_month,
+        'completed': completed_for_month,
+        'overdue': overdue_for_month,
+        'events': events
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_recent_activity(request):
+    """
+    GET /api/dashboard/recent-activity/
+
+    Returns recent activity for dashboard
+    """
+    limit = int(request.query_params.get('limit', 10))
+
+    # Recent completed obligations
+    recent_completed = MonthlyObligation.objects.filter(
+        status='completed'
+    ).select_related(
+        'client', 'obligation_type', 'completed_by'
+    ).order_by('-completed_date', '-updated_at')[:limit]
+
+    completed_activity = [
+        {
+            'id': obl.id,
+            'type': 'completion',
+            'client_name': obl.client.eponimia,
+            'obligation_type': obl.obligation_type.name,
+            'completed_date': obl.completed_date.isoformat() if obl.completed_date else None,
+            'completed_by': obl.completed_by.username if obl.completed_by else None,
+            'period': f"{obl.month:02d}/{obl.year}"
+        }
+        for obl in recent_completed
+    ]
+
+    # Recently created clients
+    recent_clients = ClientProfile.objects.order_by('-created_at')[:5]
+    new_clients = [
+        {
+            'id': client.id,
+            'type': 'new_client',
+            'eponimia': client.eponimia,
+            'afm': client.afm,
+            'created_at': client.created_at.isoformat()
+        }
+        for client in recent_clients
+    ]
+
+    return Response({
+        'recent_completions': completed_activity,
+        'new_clients': new_clients
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_client_stats(request):
+    """
+    GET /api/dashboard/client-stats/
+
+    Returns client-related statistics
+    """
+    # Client counts by type
+    client_by_type = ClientProfile.objects.values('eidos_ipoxreou').annotate(
+        count=Count('id')
+    )
+
+    # Clients with most pending obligations
+    clients_with_pending = ClientProfile.objects.filter(
+        is_active=True,
+        monthly_obligations__status='pending'
+    ).annotate(
+        pending_count=Count('monthly_obligations', filter=Q(monthly_obligations__status='pending'))
+    ).order_by('-pending_count')[:10]
+
+    top_clients_pending = [
+        {
+            'id': client.id,
+            'eponimia': client.eponimia,
+            'afm': client.afm,
+            'pending_count': client.pending_count
+        }
+        for client in clients_with_pending
+    ]
+
+    # Client creation trend (last 6 months)
+    from django.db.models.functions import TruncMonth
+    creation_trend = ClientProfile.objects.filter(
+        created_at__gte=timezone.now() - timedelta(days=180)
+    ).annotate(
+        month=TruncMonth('created_at')
+    ).values('month').annotate(
+        count=Count('id')
+    ).order_by('month')
+
+    return Response({
+        'by_type': list(client_by_type),
+        'top_pending': top_clients_pending,
+        'creation_trend': list(creation_trend)
+    })
