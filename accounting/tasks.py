@@ -506,12 +506,15 @@ def process_scheduled_emails():
 
     Runs: Every 5 minutes via Celery Beat
     Action: Finds all ScheduledEmail with status='pending' and send_at <= now()
-            Sends each email and updates status to 'sent' or 'failed'
+            Sends each email using BCC for multiple recipients and updates status
+
+    Supports:
+        - Single recipient: sends directly to recipient
+        - Multiple recipients: sends to DEFAULT_FROM_EMAIL with all recipients in BCC
 
     Returns:
         str: Summary of processed emails
     """
-    from accounting.services.email_service import EmailService
     from django.core.mail import EmailMessage
 
     now = timezone.now()
@@ -528,18 +531,43 @@ def process_scheduled_emails():
 
     sent_count = 0
     failed_count = 0
+    total_recipients = 0
 
     for scheduled_email in pending_emails:
         try:
-            logger.info(f"Processing scheduled email #{scheduled_email.id} to {scheduled_email.recipient_email}")
+            # Get list of recipient emails (supports comma/newline separated)
+            recipients = scheduled_email.get_recipients_list()
+            recipient_count = len(recipients)
+
+            if not recipients:
+                logger.warning(f"Scheduled email #{scheduled_email.id} has no valid recipients")
+                scheduled_email.mark_as_failed("Δεν βρέθηκαν έγκυρες διευθύνσεις email")
+                failed_count += 1
+                continue
+
+            logger.info(f"Processing scheduled email #{scheduled_email.id} to {recipient_count} recipient(s)")
 
             # Create email message
-            email = EmailMessage(
-                subject=scheduled_email.subject,
-                body=scheduled_email.body_html,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[scheduled_email.recipient_email],
-            )
+            # For multiple recipients: send to self with BCC to all recipients
+            # For single recipient: send directly
+            if recipient_count > 1:
+                # BCC mode: send to self, BCC to all recipients
+                email = EmailMessage(
+                    subject=scheduled_email.subject,
+                    body=scheduled_email.body_html,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[settings.DEFAULT_FROM_EMAIL],  # Send to self
+                    bcc=recipients,  # All recipients in BCC
+                )
+            else:
+                # Single recipient mode: send directly
+                email = EmailMessage(
+                    subject=scheduled_email.subject,
+                    body=scheduled_email.body_html,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=recipients,
+                )
+
             email.content_subtype = 'html'
 
             # Attach files from obligations
@@ -557,8 +585,12 @@ def process_scheduled_emails():
             # Mark as sent
             scheduled_email.mark_as_sent()
             sent_count += 1
+            total_recipients += recipient_count
 
-            logger.info(f"✅ Scheduled email #{scheduled_email.id} sent to {scheduled_email.recipient_email}")
+            if recipient_count > 1:
+                logger.info(f"✅ Scheduled email #{scheduled_email.id} sent via BCC to {recipient_count} recipients")
+            else:
+                logger.info(f"✅ Scheduled email #{scheduled_email.id} sent to {recipients[0]}")
 
             # Create EmailLog entry for tracking
             from accounting.models import EmailLog
@@ -594,6 +626,6 @@ def process_scheduled_emails():
                 sent_by=scheduled_email.created_by
             )
 
-    result = f"Processed scheduled emails: {sent_count} sent, {failed_count} failed"
+    result = f"Processed scheduled emails: {sent_count} sent ({total_recipients} recipients), {failed_count} failed"
     logger.info(f"✅ {result}")
     return result

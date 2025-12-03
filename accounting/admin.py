@@ -1496,7 +1496,8 @@ class EmailAutomationRuleAdmin(admin.ModelAdmin):
 @admin.register(ScheduledEmail)
 class ScheduledEmailAdmin(admin.ModelAdmin):
     list_display = [
-        'recipient_name',
+        'recipients_display',
+        'recipient_count_display',
         'subject_preview',
         'send_at',
         'status',
@@ -1506,11 +1507,13 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
     list_filter = ['status', 'send_at', 'created_at']
     search_fields = ['recipient_email', 'recipient_name', 'subject']
     filter_horizontal = ['obligations']
-    readonly_fields = ['sent_at', 'error_message', 'created_by', 'created_at']
-    
+    readonly_fields = ['sent_at', 'error_message', 'created_by', 'created_at', 'recipient_count_readonly']
+
     fieldsets = (
-        ('Παραλήπτης', {
-            'fields': ('recipient_name', 'recipient_email', 'client')
+        ('Παραλήπτες', {
+            'fields': ('recipient_email', 'recipient_name', 'recipient_count_readonly', 'client'),
+            'description': '📧 Πολλαπλά emails χωρισμένα με κόμμα ή νέα γραμμή. '
+                           'Για bulk emails, όλοι οι παραλήπτες θα λάβουν το email μέσω BCC.'
         }),
         ('Email Content', {
             'fields': ('subject', 'body_html', 'template', 'automation_rule')
@@ -1527,9 +1530,57 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     actions = ['send_now', 'cancel_emails']
-    
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Override to use textarea widget for recipient_email field"""
+        form = super().get_form(request, obj, **kwargs)
+        if 'recipient_email' in form.base_fields:
+            form.base_fields['recipient_email'].widget = forms.Textarea(attrs={
+                'rows': 4,
+                'cols': 60,
+                'placeholder': 'email1@example.com, email2@example.com\nή ένα email ανά γραμμή'
+            })
+            form.base_fields['recipient_email'].help_text = (
+                'Πολλαπλά emails χωρισμένα με κόμμα (,) ή νέα γραμμή. '
+                'Για bulk αποστολή, όλοι λαμβάνουν μέσω BCC.'
+            )
+        if 'recipient_name' in form.base_fields:
+            form.base_fields['recipient_name'].widget = forms.Textarea(attrs={
+                'rows': 2,
+                'cols': 60,
+                'placeholder': 'Όνομα 1, Όνομα 2 (προαιρετικό)'
+            })
+        return form
+
+    def recipients_display(self, obj):
+        """Display recipients summary"""
+        return obj.get_recipients_display()
+    recipients_display.short_description = 'Παραλήπτες'
+
+    def recipient_count_display(self, obj):
+        """Display recipient count with icon"""
+        count = obj.recipient_count
+        if count == 1:
+            return format_html('👤 1')
+        elif count > 1:
+            return format_html('👥 {} (BCC)', count)
+        return format_html('<span style="color: #dc2626;">⚠️ 0</span>')
+    recipient_count_display.short_description = 'Αριθμός'
+
+    def recipient_count_readonly(self, obj):
+        """Readonly field showing recipient count"""
+        count = obj.recipient_count
+        recipients = obj.get_recipients_list()
+        if count == 0:
+            return format_html('<span style="color: #dc2626;">⚠️ Δεν βρέθηκαν έγκυρα emails</span>')
+        elif count == 1:
+            return format_html('👤 1 παραλήπτης: {}', recipients[0])
+        else:
+            return format_html('👥 {} παραλήπτες (θα σταλούν μέσω BCC)', count)
+    recipient_count_readonly.short_description = 'Πλήθος Παραληπτών'
+
     def subject_preview(self, obj):
         # ✅ SECURITY FIX: Escape subject to prevent XSS
         preview = escape(obj.subject[:50])
@@ -1537,7 +1588,7 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
             preview += '...'
         return preview
     subject_preview.short_description = 'Θέμα'
-    
+
     def obligations_count(self, obj):
         count = obj.obligations.count()
         attachments = obj.get_attachments()
@@ -1547,7 +1598,7 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
             len(attachments)
         )
     obligations_count.short_description = 'Περιεχόμενο'
-    
+
     def actions_column(self, obj):
         if obj.status == 'pending':
             return format_html(
