@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('contenttypes', '0002_remove_content_type_name'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('common', '__latest__'),  # Replace with actual latest migration
+        ('common', '0004_alter_reminder_subject'),
     ]
 
     operations = [
