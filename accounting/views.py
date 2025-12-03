@@ -762,6 +762,141 @@ def voip_dashboard(request):
     return render(request, 'admin/voip_dashboard.html', context)
 
 
+# ============================================
+# FRITZ WEBHOOK - Token-authenticated endpoint
+# ============================================
+
+def _match_client_by_phone_standalone(phone_number):
+    """Match phone number to client (standalone function for webhook)"""
+    clean_number = phone_number.replace(" ", "").replace("-", "")
+
+    return ClientProfile.objects.filter(
+        Q(tilefono_oikias_1__icontains=clean_number) |
+        Q(tilefono_oikias_2__icontains=clean_number) |
+        Q(kinito_tilefono__icontains=clean_number) |
+        Q(tilefono_epixeirisis_1__icontains=clean_number) |
+        Q(tilefono_epixeirisis_2__icontains=clean_number)
+    ).first()
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def fritz_webhook(request):
+    """
+    Secure webhook endpoint for Fritz!Box monitor.
+    Uses token authentication instead of session/admin auth.
+    """
+    # Verify token
+    auth_header = request.headers.get('Authorization', '')
+    expected_token = getattr(settings, 'FRITZ_API_TOKEN', '')
+
+    if not expected_token:
+        logger.error("FRITZ_API_TOKEN not configured in settings")
+        return JsonResponse({'error': 'Server misconfigured'}, status=500)
+
+    if auth_header != f'Bearer {expected_token}':
+        logger.warning(f"Fritz webhook: Invalid token attempt")
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'create':
+            # Create new call record
+            call = VoIPCall.objects.create(
+                call_id=data.get('call_id'),
+                phone_number=data.get('phone_number', ''),
+                direction=data.get('direction', 'incoming'),
+                status='active',
+                started_at=data.get('started_at'),
+            )
+
+            # Auto-match client by phone
+            client = _match_client_by_phone_standalone(call.phone_number)
+            if client:
+                call.client = client
+                call.client_email = client.email
+                call.save()
+                logger.info(f"VoIP: Matched call {call.call_id} to client {client.eponimia}")
+
+            # Create log entry
+            VoIPCallLog.objects.create(
+                call=call,
+                action='started',
+                description=f"Εισερχόμενη κλήση από {call.phone_number}" +
+                           (f" - {client.eponimia}" if client else " - Άγνωστος")
+            )
+
+            logger.info(f"VoIP: Created call {call.call_id} from {call.phone_number}")
+
+            return JsonResponse({
+                'success': True,
+                'id': call.id,
+                'call_id': call.call_id,
+                'client_id': client.id if client else None,
+                'client_name': client.eponimia if client else None,
+                'is_known': client is not None
+            })
+
+        elif action == 'update':
+            call_id = data.get('id')
+            call = VoIPCall.objects.filter(id=call_id).first()
+
+            if not call:
+                return JsonResponse({'error': 'Call not found'}, status=404)
+
+            # Update fields
+            old_status = call.status
+            call.status = data.get('status', call.status)
+
+            if data.get('ended_at'):
+                ended_at_str = data.get('ended_at')
+                if isinstance(ended_at_str, str):
+                    call.ended_at = timezone.now()
+                else:
+                    call.ended_at = ended_at_str
+
+                # Calculate duration
+                if call.started_at:
+                    delta = call.ended_at - call.started_at
+                    call.duration_seconds = max(0, int(delta.total_seconds()))
+
+            call.save()
+
+            # Log status change
+            if old_status != call.status:
+                VoIPCallLog.objects.create(
+                    call=call,
+                    action='status_changed',
+                    description=f"Κατάσταση: {old_status} → {call.status}"
+                )
+
+            # CRITICAL: Trigger Celery task for missed calls
+            if call.status == 'missed':
+                from accounting.tasks import create_or_update_ticket_for_missed_call
+                create_or_update_ticket_for_missed_call.delay(call.id)
+                logger.info(f"VoIP: Triggered ticket creation for missed call {call.id}")
+
+            logger.info(f"VoIP: Updated call {call.id} to status {call.status}")
+
+            return JsonResponse({
+                'success': True,
+                'id': call.id,
+                'status': call.status,
+                'duration': call.duration_seconds
+            })
+
+        else:
+            return JsonResponse({'error': f'Invalid action: {action}'}, status=400)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Fritz webhook error: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 @staff_member_required
 @require_http_methods(["GET"])
 @cache_page(5)  # Cache for 5 seconds
@@ -951,16 +1086,24 @@ class VoIPCallViewSet(viewsets.ModelViewSet):
         try:
             voip_call.ticket_created = True
             voip_call.save()
-            
+
             VoIPCallLog.objects.create(
                 call=voip_call,
                 action='ticket_created',
                 description=f'Missed call ticket for {voip_call.phone_number}'
             )
-            
+
             if voip_call.client_email:
                 self._send_missed_call_email(voip_call)
-                
+
+            # Trigger Celery task for smart ticket creation
+            try:
+                from accounting.tasks import create_or_update_ticket_for_missed_call
+                create_or_update_ticket_for_missed_call.delay(voip_call.id)
+                logger.info(f"Triggered ticket task for call {voip_call.id}")
+            except Exception as e:
+                logger.error(f"Failed to trigger ticket task: {e}")
+
         except Exception as e:
             logger.error(f"Error handling missed call: {e}")
     

@@ -672,6 +672,20 @@ let currentCallId = null;
 const refreshInterval = 10000;
 let selectedCalls = new Set();
 
+// CSRF Token helper
+function getCSRFToken() {
+    const tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (tokenElement) return tokenElement.value;
+
+    // Fallback: get from cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') return value;
+    }
+    return '';
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     loadCalls();
@@ -760,7 +774,13 @@ function saveCall(e) {
         notes: document.getElementById('notes-input').value,
     };
 
-    fetch(`/accounting/voip/api/update/${currentCallId}/`, {        body: JSON.stringify(data)
+    fetch(`/accounting/voip/api/update/${currentCallId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify(data)
     })
     .then(r => r.json())
     .then(result => {
