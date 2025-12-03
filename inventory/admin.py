@@ -190,7 +190,7 @@ class InvoiceAdmin(admin.ModelAdmin):
                 issue_date_str = inv_data.get('issue_date', '')
                 try:
                     issue_date = datetime.strptime(issue_date_str, '%Y-%m-%d').date()
-                except:
+                except Exception:
                     issue_date = timezone.now().date()
                 
                 # Create invoice

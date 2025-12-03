@@ -11,11 +11,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Tasmota Configuration
+# SECURITY FIX: Tasmota Configuration loaded from Django settings
 TASMOTA_CONFIG = {
     'door': {
-        'ip': '192.168.178.27',  # ΑΛΛΑΞέ ΤΟ με το IP του Tasmota
-        'name': 'Πόρτα Γραφείου',
+        'ip': settings.TASMOTA_IP,  # Loaded from environment variables via settings
+        'name': settings.TASMOTA_DEVICE_NAME,
         'relay': 'POWER',  # ή POWER αν έχει 1 relay
         'pulse_time': 1,  # 1 δευτερόλεπτο pulse για ηλεκτρική κλειδαριά
     }

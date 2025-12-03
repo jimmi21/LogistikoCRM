@@ -86,11 +86,12 @@ class ClientProfile(models.Model):
     afm_sizigou = models.CharField('Α.Φ.Μ Συζύγου', max_length=20, blank=True, null=True, default='')
     afm_foreas = models.CharField('Α.Φ.Μ. Φορέας', max_length=20, blank=True, null=True, default='')
     am_klidi = models.CharField('ΑΜ ΚΛΕΙΔΙ', max_length=50, blank=True, null=True, default='')
-    
-    is_active = models.BooleanField('Ενεργός', default=True)
+
+    # PERFORMANCE: Add index for frequently filtered fields
+    is_active = models.BooleanField('Ενεργός', default=True, db_index=True)
     created_at = models.DateTimeField('Δημιουργήθηκε', auto_now_add=True)
     updated_at = models.DateTimeField('Ενημερώθηκε', auto_now=True)
-    
+
     class Meta:
         verbose_name = 'Προφίλ Πελάτη'
         verbose_name_plural = 'Προφίλ Πελατών'

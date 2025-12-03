@@ -45,6 +45,10 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 import csv
 
+# SECURITY: File upload validation
+from common.utils.file_validation import validate_file_upload
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 # ============================================
 # LOGGER CONFIGURATION
 # ============================================
@@ -272,12 +276,22 @@ def quick_complete_obligation(request, obligation_id):
             else:
                 obligation.notes = new_note
         
-        # Handle file attachment
+        # Handle file attachment with SECURITY validation
         if 'attachment' in request.FILES:
             uploaded_file = request.FILES['attachment']
-            # ΜΗΝ αποθηκεύσεις απευθείας! Άσε την archive_attachment να το χειριστεί
+
+            # SECURITY FIX: Validate uploaded file before processing
+            try:
+                validate_file_upload(uploaded_file)
+            except DjangoValidationError as e:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'❌ Μη έγκυρο αρχείο: {str(e)}'
+                }, status=400)
+
+            # File is validated, proceed with archiving
             archive_path = obligation.archive_attachment(uploaded_file)
-            logger.info(f'✅ Αρχειοθετήθηκε: {archive_path}')        
+            logger.info(f'✅ Αρχειοθετήθηκε: {archive_path}')
         obligation.save()
         
         # Success response
@@ -324,17 +338,17 @@ def archive_attachment(self, uploaded_file, subfolder=None):
     
     # Get the correct archive path
     archive_path = config.get_archive_path(self, uploaded_file.name)
-    
-    print(f"[ARCHIVE] Will save to: {archive_path}")
-    
+
+    logger.debug(f"[ARCHIVE] Will save to: {archive_path}")
+
     # Delete old file if exists
     if self.attachment:
         try:
             if default_storage.exists(self.attachment.name):
                 default_storage.delete(self.attachment.name)
-                print(f"[ARCHIVE] Deleted old file: {self.attachment.name}")
+                logger.debug(f"[ARCHIVE] Deleted old file: {self.attachment.name}")
         except Exception as e:
-            print(f"[ARCHIVE] Could not delete old file: {e}")
+            logger.debug(f"[ARCHIVE] Could not delete old file: {e}")
     
     # Read file content
     if hasattr(uploaded_file, 'read'):
@@ -345,7 +359,7 @@ def archive_attachment(self, uploaded_file, subfolder=None):
     
     # Save to storage with correct path
     saved_path = default_storage.save(archive_path, ContentFile(file_content))
-    print(f"[ARCHIVE] Saved to: {saved_path}")
+    logger.debug(f"[ARCHIVE] Saved to: {saved_path}")
     
     # Update model field
     self.attachment.name = saved_path
@@ -376,24 +390,34 @@ def bulk_complete_view(request):
         time_spent = request.POST.get('time_spent', '0')
         notes = request.POST.get('notes', '')
         attachments = request.FILES.getlist('attachments')
-        
+
+        # SECURITY FIX: Validate all uploaded files before processing
+        for attachment in attachments:
+            try:
+                validate_file_upload(attachment)
+            except DjangoValidationError as e:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'❌ Μη έγκυρο αρχείο "{attachment.name}": {str(e)}'
+                }, status=400)
+
         if not obligation_ids:
             return JsonResponse({
-                'success': False, 
+                'success': False,
                 'message': '❌ Δεν επιλέχθηκαν υποχρεώσεις'
             })
-        
+
         obligations = MonthlyObligation.objects.filter(id__in=obligation_ids)
         completed_count = 0
-        
+
         for idx, obl in enumerate(obligations):
             obl.status = 'completed'
             obl.completed_date = timezone.now().date()
             obl.completed_by = request.user
-            
+
             if time_spent:
                 obl.time_spent = float(time_spent)
-            
+
             if notes:
                 timestamp = timezone.now().strftime('%d/%m/%Y %H:%M')
                 new_note = f"[{timestamp}] [BULK] {notes}"
@@ -401,24 +425,24 @@ def bulk_complete_view(request):
                     obl.notes += f"\n{new_note}"
                 else:
                     obl.notes = new_note
-            
-            # Attach file if available
+
+            # Attach file if available (already validated above)
             if idx < len(attachments):
                 obl.attachment = attachments[idx]
-            
+
             obl.save()
             completed_count += 1
-        
+
         return JsonResponse({
             'success': True,
             'completed_count': completed_count,
             'message': f'✅ Ολοκληρώθηκαν {completed_count} υποχρεώσεις!'
         })
-        
+
     except Exception as e:
         logger.error(f"Error in bulk_complete: {str(e)}", exc_info=True)
         return JsonResponse({
-            'success': False, 
+            'success': False,
             'message': f'❌ Σφάλμα: {str(e)}'
         }, status=500)
 
@@ -838,7 +862,7 @@ class VoIPCallViewSet(viewsets.ModelViewSet):
     """
     queryset = VoIPCall.objects.all()
     serializer_class = VoIPCallSerializer
-    permission_classes = [permissions.AllowAny]  # Adjust as needed
+    permission_classes = [permissions.IsAdminUser]  # SECURITY: Restrict to admin users only
     filterset_fields = ['direction', 'status', 'client', 'phone_number']
     search_fields = ['phone_number', 'client__eponimia', 'notes']
     ordering_fields = ['started_at', 'duration_seconds']
@@ -1033,7 +1057,7 @@ class VoIPCallLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = VoIPCallLog.objects.all()
     serializer_class = VoIPCallLogSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAdminUser]  # SECURITY: Restrict to admin users only
     filterset_fields = ['call', 'action']
     ordering = ['-created_at']
 
@@ -1587,7 +1611,7 @@ def _auto_adjust_excel_columns(ws):
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except Exception:
                 pass
         
         adjusted_width = min(max_length + 2, 50)
@@ -2391,78 +2415,77 @@ class ClientDocumentViewSet(viewsets.ModelViewSet):
 @require_POST
 @staff_member_required
 def advanced_bulk_complete(request):
-    """SIMPLIFIED VERSION με prints"""
-    
-    print("\n" + "="*60)
-    print("ADVANCED BULK COMPLETE - START")
-    
+    """SIMPLIFIED VERSION with logging"""
+
+    logger.debug("=" * 60)
+    logger.debug("ADVANCED BULK COMPLETE - START")
+
     try:
         # Parse data
         completion_data = json.loads(request.POST.get('completion_data', '[]'))
-        print(f"Got {len(completion_data)} groups to process")
-        
+        logger.debug(f"Got {len(completion_data)} groups to process")
+
         completed_count = 0
         errors = []
-        
+
         for group_data in completion_data:
             client_afm = group_data.get('client_afm')
             group_num = group_data.get('group', '0')
             obligation_ids = group_data.get('obligations', [])
-            
-            print(f"\n--- Processing AFM: {client_afm}, Group: {group_num} ---")
-            print(f"    Obligations to process: {obligation_ids}")
-            
+
+            logger.debug(f"--- Processing AFM: {client_afm}, Group: {group_num} ---")
+            logger.debug(f"    Obligations to process: {obligation_ids}")
+
             # Get files
             files_key = f"file_{client_afm}_{group_num}"
             files = request.FILES.getlist(files_key)
-            print(f"    Files found with key '{files_key}': {len(files)}")
-            
+            logger.debug(f"    Files found with key '{files_key}': {len(files)}")
+
             # Process each obligation
             for idx, obl_id in enumerate(obligation_ids):
-                print(f"\n    Processing obligation {obl_id}...")
-                
+                logger.debug(f"    Processing obligation {obl_id}...")
+
                 try:
                     obligation = MonthlyObligation.objects.get(id=obl_id)
-                    print(f"      Found: {obligation}")
-                    
+                    logger.debug(f"      Found: {obligation}")
+
                     # Update status
                     obligation.status = 'completed'
                     obligation.completed_date = timezone.now().date()
                     obligation.completed_by = request.user
-                    
+
                     # Try to attach file if available
                     if idx < len(files) and group_num == '0':
                         # Individual file
                         file_to_use = files[idx]
-                        print(f"      Attaching file: {file_to_use.name}")
-                        
+                        logger.debug(f"      Attaching file: {file_to_use.name}")
+
                         try:
                             archive_path = obligation.archive_attachment(file_to_use)
-                            print(f"      ✅ Archived to: {archive_path}")
+                            logger.debug(f"      ✅ Archived to: {archive_path}")
                         except Exception as e:
-                            print(f"      ❌ Archive failed: {e}")
+                            logger.debug(f"      ❌ Archive failed: {e}")
                             obligation.save()  # Save without file
                     else:
                         # No file or group mode
                         obligation.save()
-                        print(f"      Saved without file")
-                    
+                        logger.debug(f"      Saved without file")
+
                     completed_count += 1
-                    print(f"      ✅ Completed successfully")
-                    
+                    logger.debug(f"      ✅ Completed successfully")
+
                 except MonthlyObligation.DoesNotExist:
-                    print(f"      ❌ Obligation {obl_id} not found!")
+                    logger.debug(f"      ❌ Obligation {obl_id} not found!")
                     errors.append(f"Not found: {obl_id}")
                 except Exception as e:
-                    print(f"      ❌ Error: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.debug(f"      ❌ Error: {e}")
+                    logger.debug(traceback.format_exc())
                     errors.append(str(e))
-        
-        print(f"\n=== FINAL RESULTS ===")
-        print(f"Completed: {completed_count}")
-        print(f"Errors: {len(errors)}")
-        print("="*60 + "\n")
+
+        logger.debug(f"=== FINAL RESULTS ===")
+        logger.debug(f"Completed: {completed_count}")
+        logger.debug(f"Errors: {len(errors)}")
+        logger.debug("=" * 60)
         
         return JsonResponse({
             'success': completed_count > 0,
@@ -2472,10 +2495,9 @@ def advanced_bulk_complete(request):
         })
         
     except Exception as e:
-        print(f"CRITICAL ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        
+        logger.error(f"CRITICAL ERROR: {e}")
+        logger.error(traceback.format_exc())
+
         return JsonResponse({
             'success': False,
             'message': str(e),
@@ -2483,8 +2505,8 @@ def advanced_bulk_complete(request):
         })
 
 
-# accounting/views.py - READY FOR 192.168.178.27
-# Αντικατέστησε τις door functions (door_status, open_door, door_control)
+# accounting/views.py - Door control using Tasmota
+# SECURITY: IP addresses loaded from Django settings
 
 import requests
 from django.http import JsonResponse
@@ -2494,9 +2516,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ✅ YOUR TASMOTA IP
-TASMOTA_IP = "192.168.178.27"
-TASMOTA_PORT = 80
+# SECURITY FIX: Load IP from settings instead of hardcoding
+TASMOTA_IP = settings.TASMOTA_IP
+TASMOTA_PORT = settings.TASMOTA_PORT
 TIMEOUT = 2  # 2 seconds
 
 

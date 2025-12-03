@@ -476,3 +476,9 @@ CELERY_BEAT_SCHEDULE = {
 
 # Used for emails and external links
 SITE_URL = 'http://127.0.0.1:8000'  # Change for production!
+
+# ==================== IoT DEVICE CONFIGURATION ====================
+# SECURITY: IP addresses moved from hardcoded values to environment variables
+TASMOTA_IP = os.environ.get('TASMOTA_IP', '192.168.178.27')
+TASMOTA_PORT = int(os.environ.get('TASMOTA_PORT', '80'))
+TASMOTA_DEVICE_NAME = os.environ.get('TASMOTA_DEVICE_NAME', 'Πόρτα Γραφείου')
