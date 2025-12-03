@@ -39,7 +39,7 @@ class NotifEmailSender(threading.Thread):
                 except SMTPServerDisconnected:
                     try:
                         eml.send()
-                    except:     # NOQA
+                    except Exception:
                         pass
-                except:         # NOQA
+                except Exception:
                     pass

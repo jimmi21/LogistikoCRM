@@ -156,7 +156,7 @@ def export_clients_to_excel(queryset=None):
             try:
                 if cell.value:
                     max_length = max(max_length, len(str(cell.value)))
-            except:
+            except Exception:
                 pass
         
         adjusted_width = min(max_length + 2, 40)
@@ -278,7 +278,7 @@ def export_clients_summary_to_excel(queryset=None):
             try:
                 if cell.value:
                     max_length = max(max_length, len(str(cell.value)))
-            except:
+            except Exception:
                 pass
         
         adjusted_width = min(max_length + 2, 40)

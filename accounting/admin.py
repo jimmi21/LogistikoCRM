@@ -1075,7 +1075,7 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
             filename = os.path.basename(obj.attachment.name)
             try:
                 file_size = round(obj.attachment.size / 1024, 1)
-            except:
+            except Exception:
                 file_size = '—'
 
             # ✅ SECURITY FIX: Escape filename to prevent XSS
