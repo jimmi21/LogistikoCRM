@@ -1298,6 +1298,189 @@ def api_send_bulk_email(request):
         })
 
 
+@staff_member_required
+def api_email_template_detail(request, template_id):
+    """
+    API endpoint to get a single email template's full content
+    """
+    try:
+        template = EmailTemplate.objects.get(id=template_id, is_active=True)
+
+        return JsonResponse({
+            'success': True,
+            'id': template.id,
+            'name': template.name,
+            'description': template.description or '',
+            'subject': template.subject,
+            'body': template.body_html,
+            'obligation_type': template.obligation_type.name if template.obligation_type else None,
+        })
+
+    except EmailTemplate.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Template not found'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in api_email_template_detail: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_POST
+@staff_member_required
+def api_send_bulk_email_direct(request):
+    """
+    Send bulk emails directly (immediately) with custom subject and body.
+    Supports template variable substitution and optional attachments.
+    """
+    from accounting.services.email_service import EmailService
+
+    try:
+        data = json.loads(request.body)
+        obligation_ids = data.get('obligation_ids', [])
+        subject_template = data.get('subject', '')
+        body_template = data.get('body', '')
+        template_id = data.get('template_id')
+        include_attachments = data.get('include_attachments', True)
+
+        # Validate input
+        if not obligation_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν επιλέχθηκαν υποχρεώσεις'
+            })
+
+        if not subject_template or not body_template:
+            return JsonResponse({
+                'success': False,
+                'error': 'Απαιτείται θέμα και κείμενο email'
+            })
+
+        # Get obligations
+        obligations = MonthlyObligation.objects.filter(
+            id__in=obligation_ids
+        ).select_related('client', 'obligation_type')
+
+        if not obligations.exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'Δεν βρέθηκαν υποχρεώσεις'
+            })
+
+        # Get template if specified (for logging purposes)
+        email_template = None
+        if template_id:
+            try:
+                email_template = EmailTemplate.objects.get(id=template_id)
+            except EmailTemplate.DoesNotExist:
+                pass
+
+        # Send emails
+        results = {
+            'sent': 0,
+            'failed': 0,
+            'skipped': 0,
+            'details': []
+        }
+
+        for obligation in obligations:
+            client = obligation.client
+
+            # Skip if client has no email
+            if not client.email:
+                results['skipped'] += 1
+                results['details'].append({
+                    'obligation_id': obligation.id,
+                    'client': client.eponimia,
+                    'status': 'skipped',
+                    'message': 'Ο πελάτης δεν έχει email'
+                })
+                continue
+
+            # Build context for variable substitution
+            context = EmailService.get_context_for_obligation(obligation, request.user)
+
+            # Replace variables in subject and body
+            subject = subject_template
+            body = body_template
+
+            for key, value in context.items():
+                placeholder = '{' + key + '}'
+                subject = subject.replace(placeholder, str(value) if value else '')
+                body = body.replace(placeholder, str(value) if value else '')
+
+            # Prepare attachments
+            attachments = []
+            if include_attachments and obligation.attachment:
+                try:
+                    attachments.append(obligation.attachment)
+                except Exception as e:
+                    logger.warning(f"Could not add attachment for obligation {obligation.id}: {e}")
+
+            # Send email
+            success, result = EmailService.send_email(
+                recipient_email=client.email,
+                subject=subject,
+                body=body,
+                client=client,
+                obligation=obligation,
+                template=email_template,
+                user=request.user,
+                attachments=attachments
+            )
+
+            if success:
+                results['sent'] += 1
+                results['details'].append({
+                    'obligation_id': obligation.id,
+                    'client': client.eponimia,
+                    'status': 'sent',
+                    'message': f'Στάλθηκε στο {client.email}'
+                })
+            else:
+                results['failed'] += 1
+                results['details'].append({
+                    'obligation_id': obligation.id,
+                    'client': client.eponimia,
+                    'status': 'failed',
+                    'message': str(result)
+                })
+
+        # Build response message
+        total = results['sent'] + results['failed'] + results['skipped']
+        message = f"Στάλθηκαν {results['sent']}/{total} emails"
+        if results['failed'] > 0:
+            message += f" ({results['failed']} απέτυχαν)"
+        if results['skipped'] > 0:
+            message += f" ({results['skipped']} παραλείφθηκαν)"
+
+        logger.info(f"Bulk email sent: {results['sent']} sent, {results['failed']} failed, {results['skipped']} skipped")
+
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'sent': results['sent'],
+            'failed': results['failed'],
+            'skipped': results['skipped'],
+            'details': results['details']
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_send_bulk_email_direct: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
 # ============================================
 # NOTIFICATION SYSTEM
 # ============================================
