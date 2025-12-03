@@ -470,6 +470,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'accounting.tasks.send_daily_summary',
         'schedule': crontab(hour=17, minute=0, day_of_week='1-5'),  # 17:00 Mon-Fri
     },
+    'process-scheduled-emails': {
+        'task': 'accounting.tasks.process_scheduled_emails',
+        'schedule': crontab(minute='*/5'),  # Every 5 minutes
+    },
 }
 
 # ==================== SITE CONFIGURATION ====================
