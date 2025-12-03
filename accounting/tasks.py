@@ -493,3 +493,107 @@ def trigger_answered_call_ticket(call, user=None):
     user_id = user.id if user else None
     create_ticket_for_answered_call.delay(call.id, user_id)
     logger.info(f"Triggered answered call ticket task for call #{call.id}")
+
+
+# ============================================
+# TASK 6: PROCESS SCHEDULED EMAILS
+# ============================================
+
+@shared_task
+def process_scheduled_emails():
+    """
+    Process and send scheduled emails that are due.
+
+    Runs: Every 5 minutes via Celery Beat
+    Action: Finds all ScheduledEmail with status='pending' and send_at <= now()
+            Sends each email and updates status to 'sent' or 'failed'
+
+    Returns:
+        str: Summary of processed emails
+    """
+    from accounting.services.email_service import EmailService
+    from django.core.mail import EmailMessage
+
+    now = timezone.now()
+
+    # Find all pending emails that are due
+    pending_emails = ScheduledEmail.objects.filter(
+        status='pending',
+        send_at__lte=now
+    ).select_related('client', 'template').prefetch_related('obligations')
+
+    if not pending_emails.exists():
+        logger.debug("No scheduled emails to process")
+        return "No scheduled emails to process"
+
+    sent_count = 0
+    failed_count = 0
+
+    for scheduled_email in pending_emails:
+        try:
+            logger.info(f"Processing scheduled email #{scheduled_email.id} to {scheduled_email.recipient_email}")
+
+            # Create email message
+            email = EmailMessage(
+                subject=scheduled_email.subject,
+                body=scheduled_email.body_html,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[scheduled_email.recipient_email],
+            )
+            email.content_subtype = 'html'
+
+            # Attach files from obligations
+            attachments = scheduled_email.get_attachments()
+            for attachment in attachments:
+                try:
+                    if hasattr(attachment, 'path'):
+                        email.attach_file(attachment.path)
+                except Exception as attach_err:
+                    logger.warning(f"Could not attach file for email #{scheduled_email.id}: {attach_err}")
+
+            # Send email
+            email.send(fail_silently=False)
+
+            # Mark as sent
+            scheduled_email.mark_as_sent()
+            sent_count += 1
+
+            logger.info(f"✅ Scheduled email #{scheduled_email.id} sent to {scheduled_email.recipient_email}")
+
+            # Create EmailLog entry for tracking
+            from accounting.models import EmailLog
+            EmailLog.objects.create(
+                recipient_email=scheduled_email.recipient_email,
+                recipient_name=scheduled_email.recipient_name,
+                client=scheduled_email.client,
+                template_used=scheduled_email.template,
+                subject=scheduled_email.subject,
+                body=scheduled_email.body_html,
+                status='sent',
+                sent_by=scheduled_email.created_by
+            )
+
+        except Exception as e:
+            # Mark as failed
+            scheduled_email.mark_as_failed(str(e))
+            failed_count += 1
+
+            logger.error(f"❌ Failed to send scheduled email #{scheduled_email.id}: {e}")
+
+            # Create EmailLog entry for tracking the failure
+            from accounting.models import EmailLog
+            EmailLog.objects.create(
+                recipient_email=scheduled_email.recipient_email,
+                recipient_name=scheduled_email.recipient_name,
+                client=scheduled_email.client,
+                template_used=scheduled_email.template,
+                subject=scheduled_email.subject,
+                body=scheduled_email.body_html,
+                status='failed',
+                error_message=str(e),
+                sent_by=scheduled_email.created_by
+            )
+
+    result = f"Processed scheduled emails: {sent_count} sent, {failed_count} failed"
+    logger.info(f"✅ {result}")
+    return result
