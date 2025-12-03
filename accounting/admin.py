@@ -325,11 +325,41 @@ class ObligationProfileForm(forms.ModelForm):
 
 
 # ============================================================================
+# INLINES - VoIP Call History for ClientProfile
+# ============================================================================
+
+class VoIPCallInline(admin.TabularInline):
+    """Inline για εμφάνιση ιστορικού κλήσεων στην καρτέλα πελάτη"""
+    model = VoIPCall
+    extra = 0
+    max_num = 0  # No adding from here
+    can_delete = False
+    fields = ['started_at', 'direction', 'status', 'duration_display', 'resolution', 'notes']
+    readonly_fields = ['started_at', 'direction', 'status', 'duration_display', 'resolution']
+    ordering = ['-started_at']
+    verbose_name = 'Κλήση'
+    verbose_name_plural = '📞 Ιστορικό Κλήσεων'
+
+    def duration_display(self, obj):
+        if obj.duration_seconds:
+            mins, secs = divmod(obj.duration_seconds, 60)
+            return f"{mins}:{secs:02d}"
+        return "-"
+    duration_display.short_description = 'Διάρκεια'
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+# ============================================================================
 # ADMIN CLASSES - CLIENT PROFILE (ENHANCED)
 # ============================================================================
 
 @admin.register(ClientProfile)
 class ClientProfileAdmin(admin.ModelAdmin):  # ✅ ΔΙΟΡΘΩΣΗ: Προστέθηκε το όνομα της κλάσης!
+    # VoIP Call History Inline
+    inlines = [VoIPCallInline]
+
     list_display = [
         'afm',
         'eponimia',

@@ -482,3 +482,7 @@ SITE_URL = 'http://127.0.0.1:8000'  # Change for production!
 TASMOTA_IP = os.environ.get('TASMOTA_IP', '192.168.178.27')
 TASMOTA_PORT = int(os.environ.get('TASMOTA_PORT', '80'))
 TASMOTA_DEVICE_NAME = os.environ.get('TASMOTA_DEVICE_NAME', 'Πόρτα Γραφείου')
+
+# ==================== Fritz!Box VoIP Monitor Authentication ====================
+# SECURITY: Token for Fritz!Box monitor webhook authentication
+FRITZ_API_TOKEN = os.environ.get('FRITZ_API_TOKEN', 'change-this-token-in-production')

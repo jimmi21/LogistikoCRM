@@ -56,6 +56,9 @@ urlpatterns = [
     path("voip/dashboard/", views.voip_dashboard, name="voip_dashboard"),
     path("voip/list/", views.VoIPCallsListView.as_view(), name="voip_list"),
 
+    # Fritz!Box Webhook (Token authenticated, no session required)
+    path("api/fritz-webhook/", views.fritz_webhook, name="fritz_webhook"),
+
     # AJAX / API Endpoints
     path("voip/api/calls/", views.voip_calls_api, name="voip_calls_api"),
     path("voip/api/update/<int:call_id>/", views.voip_call_update, name="voip_call_update"),
