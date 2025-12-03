@@ -37,7 +37,7 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/token/refresh/`, {
+          const response = await axios.post(`${API_BASE_URL}/api/auth/refresh/`, {
             refresh: refreshToken,
           });
 
@@ -66,17 +66,17 @@ apiClient.interceptors.response.use(
 // Auth API functions
 export const authApi = {
   login: async (username: string, password: string) => {
-    const response = await apiClient.post('/token/', { username, password });
+    const response = await apiClient.post('/api/auth/login/', { username, password });
     return response.data;
   },
 
   refreshToken: async (refresh: string) => {
-    const response = await apiClient.post('/token/refresh/', { refresh });
+    const response = await apiClient.post('/api/auth/refresh/', { refresh });
     return response.data;
   },
 
   verifyToken: async (token: string) => {
-    const response = await apiClient.post('/token/verify/', { token });
+    const response = await apiClient.post('/api/auth/verify/', { token });
     return response.data;
   },
 };
