@@ -1,12 +1,15 @@
+# Zadarma VoIP Configuration
+# Override these values via environment variables or settings_local.py
+import os
 
+SECRET_ZADARMA_KEY = os.environ.get('ZADARMA_KEY', '')
+SECRET_ZADARMA = os.environ.get('ZADARMA_SECRET', '')
 
-SECRET_ZADARMA_KEY = '123'
-SECRET_ZADARMA = 'secret'
 VOIP = [
     {
         'BACKEND': 'voip.backends.zadarmabackend.ZadarmaAPI',
         'PROVIDER': 'Zadarma',
-        'IP': '185.45.152.42',
+        'IP': '185.45.152.42',  # Zadarma webhook source IP
         'OPTIONS': {
             'key': SECRET_ZADARMA_KEY,
             'secret': SECRET_ZADARMA
@@ -14,25 +17,7 @@ VOIP = [
     }
 ]
 
+# Forward unmatched calls to another CRM instance (e.g., subsidiary)
 VOIP_FORWARD_DATA = False
-VOIP_FORWARDING_IP = ''
-
-
-VOIP_FORWARD_URL = 'Url to forward'
-
-
-
-
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your-email@gmail.com'
-EMAIL_HOST_PASSWORD = 'your-app-password'
-DEFAULT_FROM_EMAIL = 'your-email@gmail.com'
-
-# Django-Q Configuration (NEW)
-Q_CLUSTER = {
-    'name': 'LogistikoCRM',
-    # ... etc
-}
+VOIP_FORWARDING_IP = os.environ.get('VOIP_FORWARDING_IP', '')
+VOIP_FORWARD_URL = os.environ.get('VOIP_FORWARD_URL', '')
