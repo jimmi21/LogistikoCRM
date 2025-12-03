@@ -163,3 +163,9 @@ project_structure.txt
 export_import_accounting.txt
 urls_main.txt
 tasmota_accounting.txt
+
+# Frontend (React/Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
