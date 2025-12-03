@@ -774,17 +774,26 @@ class EmailAutomationRule(models.Model):
 
 
 class ScheduledEmail(models.Model):
-    """Προγραμματισμένα Email"""
-    
+    """Προγραμματισμένα Email - Υποστηρίζει πολλαπλούς παραλήπτες μέσω BCC"""
+
     STATUS_CHOICES = (
         ('pending', '⏳ Εκκρεμεί'),
         ('sent', '✅ Στάλθηκε'),
         ('failed', '❌ Απέτυχε'),
         ('cancelled', '🚫 Ακυρώθηκε'),
     )
-    
-    recipient_email = models.EmailField('Email Παραλήπτη')
-    recipient_name = models.CharField('Όνομα Παραλήπτη', max_length=200)
+
+    # Υποστηρίζει πολλαπλά emails (χωρισμένα με κόμμα ή νέα γραμμή)
+    recipient_email = models.TextField(
+        'Email Παραλήπτη/ών',
+        help_text='Πολλαπλά emails χωρισμένα με κόμμα ή νέα γραμμή'
+    )
+    recipient_name = models.TextField(
+        'Όνομα Παραλήπτη/ών',
+        help_text='Πολλαπλά ονόματα χωρισμένα με κόμμα ή νέα γραμμή',
+        blank=True,
+        default=''
+    )
     
     client = models.ForeignKey(
         ClientProfile,
@@ -841,7 +850,12 @@ class ScheduledEmail(models.Model):
         ordering = ['send_at']
     
     def __str__(self):
-        return f"{self.recipient_name} - {self.subject} ({self.send_at.strftime('%d/%m/%Y %H:%M')})"
+        count = self.recipient_count
+        if count == 1:
+            display = self.recipient_name or self.recipient_email
+        else:
+            display = f"{count} παραλήπτες"
+        return f"{display} - {self.subject} ({self.send_at.strftime('%d/%m/%Y %H:%M')})"
     
     def get_attachments(self):
         """Get all attachments from obligations"""
@@ -862,6 +876,48 @@ class ScheduledEmail(models.Model):
         self.status = 'failed'
         self.error_message = str(error)
         self.save()
+
+    def get_recipients_list(self):
+        """
+        Επιστρέφει λίστα έγκυρων email διευθύνσεων.
+        Αναλύει το recipient_email πεδίο που μπορεί να περιέχει
+        πολλαπλά emails χωρισμένα με κόμμα ή νέα γραμμή.
+        """
+        import re
+        if not self.recipient_email:
+            return []
+
+        # Χώρισμα με κόμμα ή νέα γραμμή
+        raw_emails = re.split(r'[,\n\r]+', self.recipient_email)
+
+        # Καθαρισμός και επικύρωση
+        valid_emails = []
+        email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+        for email in raw_emails:
+            email = email.strip()
+            if email and email_pattern.match(email):
+                valid_emails.append(email)
+
+        return valid_emails
+
+    @property
+    def recipient_count(self):
+        """Επιστρέφει τον αριθμό των παραληπτών"""
+        return len(self.get_recipients_list())
+
+    def get_recipients_display(self):
+        """Επιστρέφει περιληπτική εμφάνιση παραληπτών για admin"""
+        recipients = self.get_recipients_list()
+        count = len(recipients)
+        if count == 0:
+            return "Κανένας παραλήπτης"
+        elif count == 1:
+            return recipients[0]
+        elif count <= 3:
+            return ", ".join(recipients)
+        else:
+            return f"{recipients[0]}, {recipients[1]} (+{count - 2} ακόμα)"
 
 
 class VoIPCall(models.Model):

@@ -1333,10 +1333,16 @@ def api_email_template_detail(request, template_id):
 @staff_member_required
 def api_send_bulk_email_direct(request):
     """
-    Send bulk emails directly (immediately) with custom subject and body.
+    Send bulk emails directly (immediately) or schedule for later.
     Supports template variable substitution and optional attachments.
+
+    If send_at is provided and in the future:
+        - Creates a single ScheduledEmail with all recipients in BCC
+    Otherwise:
+        - Sends emails immediately to each recipient
     """
     from accounting.services.email_service import EmailService
+    from datetime import datetime
 
     try:
         data = json.loads(request.body)
@@ -1345,6 +1351,7 @@ def api_send_bulk_email_direct(request):
         body_template = data.get('body', '')
         template_id = data.get('template_id')
         include_attachments = data.get('include_attachments', True)
+        send_at_str = data.get('send_at')  # ISO format datetime string
 
         # Validate input
         if not obligation_ids:
@@ -1378,7 +1385,84 @@ def api_send_bulk_email_direct(request):
             except EmailTemplate.DoesNotExist:
                 pass
 
-        # Send emails
+        # Check if this is a scheduled email
+        send_at = None
+        if send_at_str:
+            try:
+                # Parse ISO format datetime
+                send_at = datetime.fromisoformat(send_at_str.replace('Z', '+00:00'))
+                # Make timezone aware if naive
+                if send_at.tzinfo is None:
+                    send_at = timezone.make_aware(send_at)
+                # Check if in future
+                if send_at <= timezone.now():
+                    send_at = None  # Send immediately if not in future
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid send_at format: {send_at_str}, error: {e}")
+                send_at = None
+
+        # ============================================================
+        # SCHEDULED EMAIL (BCC to all recipients)
+        # ============================================================
+        if send_at:
+            # Collect all valid recipient emails and names
+            recipient_emails = []
+            recipient_names = []
+            skipped_count = 0
+
+            for obligation in obligations:
+                client = obligation.client
+                if client.email:
+                    if client.email not in recipient_emails:  # Deduplicate
+                        recipient_emails.append(client.email)
+                        recipient_names.append(client.eponimia or client.email)
+                else:
+                    skipped_count += 1
+
+            if not recipient_emails:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Κανένας πελάτης δεν έχει email'
+                })
+
+            # Create ScheduledEmail record
+            scheduled_email = ScheduledEmail.objects.create(
+                recipient_email=', '.join(recipient_emails),
+                recipient_name=', '.join(recipient_names),
+                subject=subject_template,
+                body_html=body_template,
+                send_at=send_at,
+                template=email_template,
+                created_by=request.user,
+                status='pending'
+            )
+
+            # Add obligations to the scheduled email
+            scheduled_email.obligations.set(obligations)
+
+            # Format datetime for display
+            send_at_display = send_at.strftime('%d/%m/%Y %H:%M')
+            recipient_count = len(recipient_emails)
+
+            message = f"📅 Προγραμματίστηκε email για {recipient_count} παραλήπτες στις {send_at_display}"
+            if skipped_count > 0:
+                message += f" ({skipped_count} παραλείφθηκαν - χωρίς email)"
+
+            logger.info(f"Scheduled bulk email #{scheduled_email.id} for {recipient_count} recipients at {send_at}")
+
+            return JsonResponse({
+                'success': True,
+                'message': message,
+                'scheduled': True,
+                'scheduled_email_id': scheduled_email.id,
+                'recipient_count': recipient_count,
+                'skipped': skipped_count,
+                'send_at': send_at.isoformat()
+            })
+
+        # ============================================================
+        # IMMEDIATE SEND (individual emails)
+        # ============================================================
         results = {
             'sent': 0,
             'failed': 0,
@@ -1462,6 +1546,7 @@ def api_send_bulk_email_direct(request):
         return JsonResponse({
             'success': True,
             'message': message,
+            'scheduled': False,
             'sent': results['sent'],
             'failed': results['failed'],
             'skipped': results['skipped'],
