@@ -8,12 +8,26 @@ from common.views.favicon import FaviconRedirect
 from crm.views.contact_form import contact_form
 from massmail.views.get_oauth2_tokens import get_refresh_token
 
+# OpenAPI/Swagger documentation
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
+
 # Main URL patterns (no language prefix)
 urlpatterns = [
     path('accounting/', include('accounting.urls')),
     path('favicon.ico', FaviconRedirect.as_view()),
     path('voip/', include('voip.urls')),
     path('OAuth-2/authorize/', staff_member_required(get_refresh_token), name='get_refresh_token'),
+
+    # ==================================================
+    # API DOCUMENTATION (OpenAPI/Swagger)
+    # ==================================================
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
 
 # Media files (development only)
