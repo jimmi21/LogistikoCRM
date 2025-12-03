@@ -3,6 +3,7 @@ Accounting URLs Configuration
 Author: ddiplas
 Version: 2.3
 Description: Unified and optimized URL routing for the Accounting app.
+             Includes JWT auth endpoints and API documentation.
 """
 
 from django.urls import path, include
@@ -111,4 +112,18 @@ urlpatterns = [
 
     # REST ROUTER
     path("api/", include(router.urls)),
+
+    # ==================================================
+    # JWT AUTHENTICATION ENDPOINTS
+    # ==================================================
+    path("api/auth/login/", api_auth.CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/auth/refresh/", api_auth.CustomTokenRefreshView.as_view(), name="token_refresh"),
+    path("api/auth/logout/", api_auth.logout_view, name="auth_logout"),
+    path("api/auth/me/", api_auth.current_user_view, name="auth_me"),
+
+    # ==================================================
+    # UTILITY ENDPOINTS
+    # ==================================================
+    path("api/health/", api_auth.health_check, name="api_health"),
+    path("api/test/", api_auth.api_test, name="api_test"),
 ]
