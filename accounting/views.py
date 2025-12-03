@@ -2510,6 +2510,7 @@ TASMOTA_PORT = settings.TASMOTA_PORT
 TIMEOUT = 2  # 2 seconds
 
 
+@login_required
 @require_http_methods(["GET"])
 def door_status(request):
     """Check door status - ON or OFF"""
@@ -2559,11 +2560,12 @@ def door_status(request):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["POST"])
 def open_door(request):
     """
     Toggle door - ON ↔ OFF
-    ✅ SECURITY FIX: CSRF protection enabled to prevent unauthorized door control
+    ✅ SECURITY FIX: Authentication and CSRF protection enabled to prevent unauthorized door control
     """
     try:
         # TOGGLE command
@@ -2612,9 +2614,10 @@ def open_door(request):
         }, status=500)
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def door_control(request):
-    """Unified door control endpoint"""
+    """Unified door control endpoint - requires authentication"""
     if request.method == "POST":
         return open_door(request)
     else:
