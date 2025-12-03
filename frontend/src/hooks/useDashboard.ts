@@ -32,7 +32,7 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: [DASHBOARD_KEY, 'stats'],
     queryFn: async () => {
-      const response = await apiClient.get<DashboardStats>('/dashboard/stats/');
+      const response = await apiClient.get<DashboardStats>('/api/dashboard/stats/');
       return response.data;
     },
     staleTime: 30000, // 30 seconds
@@ -74,8 +74,8 @@ export function useDashboardCalendar(month?: number, year?: number) {
       if (year) params.append('year', year.toString());
 
       const url = params.toString()
-        ? `/dashboard/calendar/?${params.toString()}`
-        : '/dashboard/calendar/';
+        ? `/api/dashboard/calendar/?${params.toString()}`
+        : '/api/dashboard/calendar/';
 
       const response = await apiClient.get<CalendarData>(url);
       return response.data;
@@ -107,7 +107,7 @@ export function useDashboardRecentActivity(limit = 10) {
   return useQuery({
     queryKey: [DASHBOARD_KEY, 'recent-activity', limit],
     queryFn: async () => {
-      const response = await apiClient.get<RecentActivity>(`/dashboard/recent-activity/?limit=${limit}`);
+      const response = await apiClient.get<RecentActivity>(`/api/dashboard/recent-activity/?limit=${limit}`);
       return response.data;
     },
     staleTime: 30000,
