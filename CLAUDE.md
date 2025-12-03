@@ -332,16 +332,32 @@ CORS_ALLOWED_ORIGINS = [
 
 ## 📞 Ενσωματώσεις
 
-### Fritz!Box VoIP
+### VoIP Systems (δύο ξεχωριστά συστήματα)
+
+| Σύστημα | App | Σκοπός |
+|---------|-----|--------|
+| **Zadarma** | `/voip/` | Cloud PBX, click-to-call, webhook notifications |
+| **Fritz!Box** | `/accounting/` + `fritz_monitor.py` | Παρακολούθηση τηλεφώνου γραφείου |
+
+**Zadarma VoIP** (`voip/` app):
 ```python
-# Παρακολούθηση κλήσεων μέσω TR-064
-# Αυτόματη δημιουργία ticket για αναπάντητες
-# Αντιστοίχιση caller ID με πελάτη
+# Cloud PBX με click-to-call
+# Webhook notifications για κλήσεις
+# Auto-match με Contacts/Leads/Deals
 
 # Ρυθμίσεις στο .env
-FRITZBOX_HOST=192.168.178.1
-FRITZBOX_USER=admin
-FRITZBOX_PASSWORD=xxx
+ZADARMA_KEY=your-api-key
+ZADARMA_SECRET=your-api-secret
+```
+
+**Fritz!Box VoIP** (`accounting/` app + `fritz_monitor.py`):
+```python
+# Παρακολούθηση κλήσεων μέσω CallMonitor port 1012
+# Αυτόματη δημιουργία ticket για αναπάντητες (Celery)
+# Αντιστοίχιση caller ID με ClientProfile
+
+# Ρυθμίσεις στο .env
+FRITZ_API_TOKEN=your-secure-token
 ```
 
 ### Tasmota IoT
