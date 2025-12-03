@@ -3384,17 +3384,20 @@ def client_report_pdf(request, client_id):
         )
 
     client = get_object_or_404(ClientProfile, id=client_id)
-    obligations = MonthlyObligation.objects.filter(
-        client=client
-    ).select_related('obligation_type').order_by('-deadline')[:50]
 
-    # Calculate statistics
+    # Get all obligations for stats calculation (before slicing)
+    all_obligations = MonthlyObligation.objects.filter(client=client)
+
+    # Calculate statistics from unsliced queryset
     stats = {
-        'total': obligations.count(),
-        'completed': obligations.filter(status='completed').count(),
-        'pending': obligations.filter(status='pending').count(),
-        'overdue': obligations.filter(status='overdue').count(),
+        'total': all_obligations.count(),
+        'completed': all_obligations.filter(status='completed').count(),
+        'pending': all_obligations.filter(status='pending').count(),
+        'overdue': all_obligations.filter(status='overdue').count(),
     }
+
+    # Get limited obligations for the table (after stats calculation)
+    obligations = all_obligations.select_related('obligation_type').order_by('-deadline')[:50]
 
     # Completion rate
     if stats['total'] > 0:
@@ -3441,17 +3444,18 @@ def monthly_report_pdf(request, year, month):
             status=500
         )
 
-    obligations = MonthlyObligation.objects.filter(
+    # Get all obligations for stats calculation (before any slicing)
+    all_obligations = MonthlyObligation.objects.filter(
         year=year,
         month=month
-    ).select_related('client', 'obligation_type').order_by('deadline', 'client__eponimia')
+    )
 
-    # Calculate statistics
+    # Calculate statistics from base queryset
     stats = {
-        'total': obligations.count(),
-        'completed': obligations.filter(status='completed').count(),
-        'pending': obligations.filter(status='pending').count(),
-        'overdue': obligations.filter(status='overdue').count(),
+        'total': all_obligations.count(),
+        'completed': all_obligations.filter(status='completed').count(),
+        'pending': all_obligations.filter(status='pending').count(),
+        'overdue': all_obligations.filter(status='overdue').count(),
     }
 
     # Completion rate
@@ -3460,12 +3464,15 @@ def monthly_report_pdf(request, year, month):
     else:
         stats['completion_rate'] = 0
 
-    # Group by status
+    # Group by status (from base queryset)
     by_status = {
-        'pending': obligations.filter(status='pending'),
-        'completed': obligations.filter(status='completed'),
-        'overdue': obligations.filter(status='overdue'),
+        'pending': all_obligations.filter(status='pending').select_related('client', 'obligation_type'),
+        'completed': all_obligations.filter(status='completed').select_related('client', 'obligation_type'),
+        'overdue': all_obligations.filter(status='overdue').select_related('client', 'obligation_type'),
     }
+
+    # Get obligations for the table
+    obligations = all_obligations.select_related('client', 'obligation_type').order_by('deadline', 'client__eponimia')
 
     # Month names in Greek
     month_names = {
