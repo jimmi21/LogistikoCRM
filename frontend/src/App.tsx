@@ -8,6 +8,7 @@ import {
   Dashboard,
   Login,
   Clients,
+  ClientDetails,
   Obligations,
   Files,
   Calls,
@@ -67,6 +68,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Clients />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clients/:id"
+            element={
+              <ProtectedRoute>
+                <ClientDetails />
               </ProtectedRoute>
             }
           />
