@@ -6,6 +6,7 @@ const OBLIGATIONS_KEY = 'obligations';
 
 interface ObligationParams {
   page?: number;
+  page_size?: number;
   search?: string;
   status?: ObligationStatus;
   client?: number;

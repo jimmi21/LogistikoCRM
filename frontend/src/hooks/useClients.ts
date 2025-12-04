@@ -4,7 +4,13 @@ import type { Client, ClientFormData, PaginatedResponse } from '../types';
 
 const CLIENTS_KEY = 'clients';
 
-export function useClients(params?: { page?: number; search?: string }) {
+interface ClientParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+}
+
+export function useClients(params?: ClientParams) {
   return useQuery({
     queryKey: [CLIENTS_KEY, params],
     queryFn: async () => {
