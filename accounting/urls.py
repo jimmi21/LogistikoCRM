@@ -11,7 +11,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from . import api_auth
 from .api_clients import ClientViewSet
-from .api_obligations import ObligationViewSet
+from .api_obligations import ObligationViewSet, ObligationTypeViewSet
 from .api_dashboard import (
     dashboard_stats,
     dashboard_calendar,
@@ -31,6 +31,7 @@ router.register(r"voip-call-logs", views.VoIPCallLogViewSet, basename="voip-call
 router.register(r'documents', views.ClientDocumentViewSet)
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'obligations', ObligationViewSet, basename='obligation')
+router.register(r'obligation-types', ObligationTypeViewSet, basename='obligation-type')
 # ============================================
 # URL PATTERNS
 # ============================================

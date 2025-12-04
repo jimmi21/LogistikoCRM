@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Button } from './Button';
+import { useObligationTypes } from '../hooks/useObligations';
 import type { Client, Obligation, ObligationFormData, ObligationStatus } from '../types';
 
 interface ObligationFormProps {
@@ -9,15 +10,6 @@ interface ObligationFormProps {
   onCancel: () => void;
   isLoading?: boolean;
 }
-
-const OBLIGATION_TYPES = [
-  { value: 1, label: 'ΦΠΑ - Φόρος Προστιθέμενης Αξίας' },
-  { value: 2, label: 'ΑΠΔ - Αναλυτική Περιοδική Δήλωση' },
-  { value: 3, label: 'ΕΝΦΙΑ - Ενιαίος Φόρος Ιδιοκτησίας' },
-  { value: 4, label: 'Ε1 - Δήλωση Φορολογίας Εισοδήματος' },
-  { value: 5, label: 'Ε3 - Κατάσταση Οικονομικών Στοιχείων' },
-  { value: 6, label: 'ΜΥΦ - Συγκεντρωτικές Καταστάσεις' },
-];
 
 const STATUS_OPTIONS: { value: ObligationStatus; label: string }[] = [
   { value: 'pending', label: 'Εκκρεμεί' },
@@ -52,15 +44,25 @@ export function ObligationForm({
   onCancel,
   isLoading = false,
 }: ObligationFormProps) {
+  // Fetch obligation types dynamically from API
+  const { data: obligationTypes, isLoading: typesLoading } = useObligationTypes();
+
   const [formData, setFormData] = useState<ObligationFormData>({
     client: 0,
-    obligation_type: 1,
+    obligation_type: 0,
     month: new Date().getMonth() + 1,
     year: currentYear,
     deadline: '',
     status: 'pending',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ObligationFormData, string>>>({});
+
+  // Set default obligation type when types are loaded
+  useEffect(() => {
+    if (obligationTypes && obligationTypes.length > 0 && formData.obligation_type === 0) {
+      setFormData((prev) => ({ ...prev, obligation_type: obligationTypes[0].id }));
+    }
+  }, [obligationTypes, formData.obligation_type]);
 
   // Populate form when editing
   useEffect(() => {
@@ -134,7 +136,7 @@ export function ObligationForm({
         {errors.client && <p className="mt-1 text-sm text-red-500">{errors.client}</p>}
       </div>
 
-      {/* Τύπος Υποχρέωσης */}
+      {/* Τύπος Υποχρέωσης - Dynamic from API */}
       <div>
         <label htmlFor="obligation_type" className="block text-sm font-medium text-gray-700 mb-1">
           Τύπος Υποχρέωσης *
@@ -143,15 +145,23 @@ export function ObligationForm({
           id="obligation_type"
           value={formData.obligation_type}
           onChange={(e) => handleChange('obligation_type', Number(e.target.value))}
+          disabled={typesLoading}
           className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
             errors.obligation_type ? 'border-red-500' : 'border-gray-300'
-          }`}
+          } ${typesLoading ? 'bg-gray-100' : ''}`}
         >
-          {OBLIGATION_TYPES.map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
+          {typesLoading ? (
+            <option value={0}>Φόρτωση τύπων...</option>
+          ) : (
+            <>
+              <option value={0}>-- Επιλέξτε τύπο --</option>
+              {obligationTypes?.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.code} - {type.name}
+                </option>
+              ))}
+            </>
+          )}
         </select>
         {errors.obligation_type && (
           <p className="mt-1 text-sm text-red-500">{errors.obligation_type}</p>

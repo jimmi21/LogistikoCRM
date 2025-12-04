@@ -1,8 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
-import type { Obligation, ObligationFormData, ObligationStatus, PaginatedResponse } from '../types';
+import type {
+  Obligation,
+  ObligationFormData,
+  ObligationStatus,
+  PaginatedResponse,
+  ObligationTypeData,
+  BulkObligationFormData,
+  BulkUpdateFormData
+} from '../types';
 
 const OBLIGATIONS_KEY = 'obligations';
+const OBLIGATION_TYPES_KEY = 'obligation-types';
 
 interface ObligationParams {
   page?: number;
@@ -10,6 +19,11 @@ interface ObligationParams {
   search?: string;
   status?: ObligationStatus;
   client?: number;
+  type?: string;
+  month?: number;
+  year?: number;
+  deadline_from?: string;
+  deadline_to?: string;
 }
 
 export function useObligations(params?: ObligationParams) {
@@ -74,4 +88,99 @@ export function useDeleteObligation() {
       queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
     },
   });
+}
+
+// ============================================
+// OBLIGATION TYPES HOOKS
+// ============================================
+
+export function useObligationTypes() {
+  return useQuery({
+    queryKey: [OBLIGATION_TYPES_KEY],
+    queryFn: async () => {
+      const response = await apiClient.get<ObligationTypeData[]>('/api/v1/obligation-types/');
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+// ============================================
+// BULK OPERATIONS HOOKS
+// ============================================
+
+export function useBulkCreateObligations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: BulkObligationFormData) => {
+      const response = await apiClient.post('/api/v1/obligations/bulk_create/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
+    },
+  });
+}
+
+export function useBulkUpdateObligations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: BulkUpdateFormData) => {
+      const response = await apiClient.post('/api/v1/obligations/bulk_update/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
+    },
+  });
+}
+
+export function useBulkDeleteObligations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (obligationIds: number[]) => {
+      const response = await apiClient.post('/api/v1/obligations/bulk_delete/', {
+        obligation_ids: obligationIds,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
+    },
+  });
+}
+
+// ============================================
+// EXPORT FUNCTION
+// ============================================
+
+export async function exportObligationsToExcel(params?: ObligationParams): Promise<void> {
+  const response = await apiClient.get('/api/v1/obligations/export/', {
+    params,
+    responseType: 'blob',
+  });
+
+  // Create download link
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  link.href = url;
+
+  // Get filename from Content-Disposition header or use default
+  const contentDisposition = response.headers['content-disposition'];
+  let filename = `υποχρεώσεις_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?(.+)"?/);
+    if (match) {
+      filename = match[1];
+    }
+  }
+
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }

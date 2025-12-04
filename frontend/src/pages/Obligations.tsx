@@ -1,12 +1,24 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useObligations, useCreateObligation, useDeleteObligation } from '../hooks/useObligations';
+import {
+  useObligations,
+  useCreateObligation,
+  useDeleteObligation,
+  useObligationTypes,
+  useBulkCreateObligations,
+  useBulkUpdateObligations,
+  useBulkDeleteObligations,
+  exportObligationsToExcel
+} from '../hooks/useObligations';
 import { useClients } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
-import { ArrowLeft, FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2 } from 'lucide-react';
-import type { Obligation, ObligationFormData, ObligationStatus } from '../types';
+import {
+  ArrowLeft, FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
+  Download, CheckSquare, Square, Users, Calendar
+} from 'lucide-react';
+import type { Obligation, ObligationFormData, ObligationStatus, BulkObligationFormData } from '../types';
 
 // Greek labels for obligation statuses
 const STATUS_LABELS: Record<ObligationStatus, string> = {
@@ -26,23 +38,91 @@ const STATUS_COLORS: Record<ObligationStatus, string> = {
   cancelled: 'bg-gray-100 text-gray-800',
 };
 
-type StatusFilter = 'all' | 'pending' | 'completed';
+const MONTHS = [
+  { value: 1, label: 'Ιανουάριος' },
+  { value: 2, label: 'Φεβρουάριος' },
+  { value: 3, label: 'Μάρτιος' },
+  { value: 4, label: 'Απρίλιος' },
+  { value: 5, label: 'Μάιος' },
+  { value: 6, label: 'Ιούνιος' },
+  { value: 7, label: 'Ιούλιος' },
+  { value: 8, label: 'Αύγουστος' },
+  { value: 9, label: 'Σεπτέμβριος' },
+  { value: 10, label: 'Οκτώβριος' },
+  { value: 11, label: 'Νοέμβριος' },
+  { value: 12, label: 'Δεκέμβριος' },
+];
+
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+
+interface Filters {
+  status: string;
+  client: number | null;
+  type: string;
+  month: number | null;
+  year: number | null;
+  deadline_from: string;
+  deadline_to: string;
+}
 
 export default function Obligations() {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [page, setPage] = useState(1);
-  const pageSize = 100; // Increased page size
+  const pageSize = 100;
+
+  // Filters state
+  const [filters, setFilters] = useState<Filters>({
+    status: 'all',
+    client: null,
+    type: '',
+    month: null,
+    year: null,
+    deadline_from: '',
+    deadline_to: '',
+  });
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Selection state for bulk operations
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isBulkCreateModalOpen, setIsBulkCreateModalOpen] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   const [selectedObligation, setSelectedObligation] = useState<Obligation | null>(null);
 
-  const { data, isLoading, isError, error, refetch } = useObligations({ page, page_size: pageSize });
-  const { data: clientsData } = useClients({ page_size: 1000 }); // Fetch all clients for dropdown
+  // Bulk create form state
+  const [bulkCreateForm, setBulkCreateForm] = useState<BulkObligationFormData>({
+    client_ids: [],
+    obligation_type: 0,
+    month: new Date().getMonth() + 1,
+    year: currentYear,
+  });
+
+  // Build query params
+  const queryParams = useMemo(() => {
+    const params: Record<string, string | number> = { page, page_size: pageSize };
+    if (filters.status !== 'all') params.status = filters.status;
+    if (filters.client) params.client = filters.client;
+    if (filters.type) params.type = filters.type;
+    if (filters.month) params.month = filters.month;
+    if (filters.year) params.year = filters.year;
+    if (filters.deadline_from) params.deadline_from = filters.deadline_from;
+    if (filters.deadline_to) params.deadline_to = filters.deadline_to;
+    return params;
+  }, [page, pageSize, filters]);
+
+  const { data, isLoading, isError, error, refetch } = useObligations(queryParams);
+  const { data: clientsData } = useClients({ page_size: 1000 });
+  const { data: obligationTypes } = useObligationTypes();
   const createMutation = useCreateObligation();
   const deleteMutation = useDeleteObligation();
+  const bulkCreateMutation = useBulkCreateObligations();
+  const bulkUpdateMutation = useBulkUpdateObligations();
+  const bulkDeleteMutation = useBulkDeleteObligations();
   const queryClient = useQueryClient();
 
   // Update obligation mutation
@@ -56,15 +136,10 @@ export default function Obligations() {
     },
   });
 
-  // Filter obligations by status
-  const filteredObligations = useMemo(() => {
-    if (!data?.results) return [];
-    if (statusFilter === 'all') return data.results;
+  const obligations = data?.results || [];
+  const clients = clientsData?.results || [];
 
-    return data.results.filter((obligation) => obligation.status === statusFilter);
-  }, [data?.results, statusFilter]);
-
-  // Format date for display (handles null/undefined/invalid dates)
+  // Format date for display
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
@@ -76,7 +151,28 @@ export default function Obligations() {
     });
   };
 
-  // Handlers
+  // Selection handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(obligations.map((o) => o.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectOne = (id: number) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+    setSelectAll(newSelected.size === obligations.length);
+  };
+
+  // CRUD handlers
   const handleCreate = (formData: ObligationFormData) => {
     createMutation.mutate(formData, {
       onSuccess: () => {
@@ -121,14 +217,107 @@ export default function Obligations() {
     });
   };
 
-  const handleLoadMore = () => {
-    setPage((prev) => prev + 1);
+  // Bulk operations handlers
+  const handleBulkCreate = () => {
+    if (bulkCreateForm.client_ids.length === 0 || !bulkCreateForm.obligation_type) return;
+
+    bulkCreateMutation.mutate(bulkCreateForm, {
+      onSuccess: () => {
+        setIsBulkCreateModalOpen(false);
+        setBulkCreateForm({
+          client_ids: [],
+          obligation_type: 0,
+          month: new Date().getMonth() + 1,
+          year: currentYear,
+        });
+        refetch();
+      },
+    });
+  };
+
+  const handleBulkComplete = () => {
+    if (selectedIds.size === 0) return;
+    bulkUpdateMutation.mutate(
+      { obligation_ids: Array.from(selectedIds), status: 'completed' },
+      {
+        onSuccess: () => {
+          setSelectedIds(new Set());
+          setSelectAll(false);
+          refetch();
+        },
+      }
+    );
+  };
+
+  const handleBulkDeleteConfirm = () => {
+    if (selectedIds.size === 0) return;
+    bulkDeleteMutation.mutate(Array.from(selectedIds), {
+      onSuccess: () => {
+        setIsBulkDeleteDialogOpen(false);
+        setSelectedIds(new Set());
+        setSelectAll(false);
+        refetch();
+      },
+    });
+  };
+
+  // Export handler
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportObligationsToExcel(queryParams);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Filter handlers
+  const handleFilterChange = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+    setSelectedIds(new Set());
+    setSelectAll(false);
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      status: 'all',
+      client: null,
+      type: '',
+      month: null,
+      year: null,
+      deadline_from: '',
+      deadline_to: '',
+    });
+    setPage(1);
+  };
+
+  // Bulk create client selection
+  const toggleClientSelection = (clientId: number) => {
+    const newIds = [...bulkCreateForm.client_ids];
+    const idx = newIds.indexOf(clientId);
+    if (idx > -1) {
+      newIds.splice(idx, 1);
+    } else {
+      newIds.push(clientId);
+    }
+    setBulkCreateForm((prev) => ({ ...prev, client_ids: newIds }));
+  };
+
+  const selectAllClients = () => {
+    const allIds = clients.map((c) => c.id);
+    setBulkCreateForm((prev) => ({ ...prev, client_ids: allIds }));
+  };
+
+  const deselectAllClients = () => {
+    setBulkCreateForm((prev) => ({ ...prev, client_ids: [] }));
   };
 
   const hasMore = data?.next !== null;
   const totalCount = data?.count || 0;
-  const loadedCount = data?.results?.length || 0;
-  const clients = clientsData?.results || [];
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -148,10 +337,16 @@ export default function Obligations() {
                 <h1 className="text-2xl font-bold text-gray-900">Υποχρεώσεις</h1>
               </div>
             </div>
-            <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Νέα Υποχρέωση
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setIsBulkCreateModalOpen(true)}>
+                <Users className="w-4 h-4 mr-2" />
+                Μαζική Δημιουργία
+              </Button>
+              <Button onClick={() => setIsCreateModalOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Νέα Υποχρέωση
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -160,45 +355,180 @@ export default function Obligations() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filter Controls */}
         <div className="mb-6 bg-white rounded-lg shadow p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center text-gray-600">
-              <Filter className="w-5 h-5 mr-2" />
-              <span className="font-medium">Φίλτρο κατάστασης:</span>
+          {/* Quick filters row */}
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center text-gray-600">
+                <Filter className="w-5 h-5 mr-2" />
+                <span className="font-medium">Κατάσταση:</span>
+              </div>
+              <div className="flex gap-2">
+                {[
+                  { value: 'all', label: 'Όλες', className: 'bg-gray-800 text-white' },
+                  { value: 'pending', label: 'Εκκρεμείς', className: 'bg-yellow-500 text-white' },
+                  { value: 'completed', label: 'Ολοκληρωμένες', className: 'bg-green-500 text-white' },
+                  { value: 'overdue', label: 'Εκπρόθεσμες', className: 'bg-red-500 text-white' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleFilterChange('status', opt.value)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      filters.status === opt.value
+                        ? opt.className
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'all'
-                    ? 'bg-gray-800 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setShowFilters(!showFilters)}
+                size="sm"
               >
-                Όλες
-              </button>
-              <button
-                onClick={() => setStatusFilter('pending')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'pending'
-                    ? 'bg-yellow-500 text-white'
-                    : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-                }`}
-              >
-                Εκκρεμείς
-              </button>
-              <button
-                onClick={() => setStatusFilter('completed')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'completed'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-green-50 text-green-700 hover:bg-green-100'
-                }`}
-              >
-                Ολοκληρωμένες
-              </button>
+                <Filter className="w-4 h-4 mr-1" />
+                {showFilters ? 'Απόκρυψη' : 'Περισσότερα'}
+              </Button>
+              <Button variant="secondary" onClick={handleExport} isLoading={isExporting} size="sm">
+                <Download className="w-4 h-4 mr-1" />
+                Εξαγωγή Excel
+              </Button>
             </div>
           </div>
+
+          {/* Extended filters */}
+          {showFilters && (
+            <div className="border-t border-gray-200 pt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Client filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Πελάτης</label>
+                <select
+                  value={filters.client || ''}
+                  onChange={(e) => handleFilterChange('client', e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Όλοι</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.eponimia}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Τύπος</label>
+                <select
+                  value={filters.type}
+                  onChange={(e) => handleFilterChange('type', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Όλοι</option>
+                  {obligationTypes?.map((type) => (
+                    <option key={type.id} value={type.code}>
+                      {type.code} - {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Month filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Μήνας</label>
+                <select
+                  value={filters.month || ''}
+                  onChange={(e) => handleFilterChange('month', e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Όλοι</option>
+                  {MONTHS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Year filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Έτος</label>
+                <select
+                  value={filters.year || ''}
+                  onChange={(e) => handleFilterChange('year', e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Όλα</option>
+                  {YEARS.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Deadline from */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Προθεσμία από</label>
+                <input
+                  type="date"
+                  value={filters.deadline_from}
+                  onChange={(e) => handleFilterChange('deadline_from', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              {/* Deadline to */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Προθεσμία έως</label>
+                <input
+                  type="date"
+                  value={filters.deadline_to}
+                  onChange={(e) => handleFilterChange('deadline_to', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              {/* Reset filters */}
+              <div className="flex items-end col-span-2 md:col-span-2">
+                <Button variant="secondary" onClick={resetFilters} size="sm">
+                  Καθαρισμός Φίλτρων
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Bulk Actions Bar */}
+        {selectedIds.size > 0 && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+            <span className="text-blue-800 font-medium">
+              {selectedIds.size} υποχρεώσεις επιλεγμένες
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleBulkComplete}
+                isLoading={bulkUpdateMutation.isPending}
+              >
+                <CheckSquare className="w-4 h-4 mr-1" />
+                Ολοκλήρωση επιλεγμένων
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setIsBulkDeleteDialogOpen(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Διαγραφή επιλεγμένων
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Error Banner */}
         {isError && (
@@ -234,16 +564,13 @@ export default function Obligations() {
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <p className="text-sm text-gray-500">
-                {filteredObligations.length} από {totalCount} υποχρεώσεις
-                {statusFilter !== 'all' && ` (${STATUS_LABELS[statusFilter as ObligationStatus]})`}
+                {obligations.length} από {totalCount} υποχρεώσεις
               </p>
             </div>
 
-            {filteredObligations.length === 0 ? (
+            {obligations.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                {statusFilter !== 'all'
-                  ? `Δεν υπάρχουν υποχρεώσεις με κατάσταση "${STATUS_LABELS[statusFilter as ObligationStatus]}".`
-                  : 'Δεν υπάρχουν υποχρεώσεις.'}
+                Δεν βρέθηκαν υποχρεώσεις με τα επιλεγμένα φίλτρα.
               </div>
             ) : (
               <>
@@ -251,11 +578,26 @@ export default function Obligations() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 py-3 text-left">
+                          <button
+                            onClick={handleSelectAll}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            {selectAll ? (
+                              <CheckSquare className="w-5 h-5" />
+                            ) : (
+                              <Square className="w-5 h-5" />
+                            )}
+                          </button>
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Πελάτης
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Τύπος
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Περίοδος
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Προθεσμία
@@ -269,20 +611,32 @@ export default function Obligations() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredObligations.map((obligation) => (
-                        <tr key={obligation.id} className="hover:bg-gray-50">
+                      {obligations.map((obligation) => (
+                        <tr key={obligation.id} className={`hover:bg-gray-50 ${selectedIds.has(obligation.id) ? 'bg-blue-50' : ''}`}>
+                          <td className="px-4 py-4">
+                            <button
+                              onClick={() => handleSelectOne(obligation.id)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              {selectedIds.has(obligation.id) ? (
+                                <CheckSquare className="w-5 h-5 text-blue-600" />
+                              ) : (
+                                <Square className="w-5 h-5" />
+                              )}
+                            </button>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {obligation.client_name || `Πελάτης #${obligation.client}`}
                             </div>
-                            <div className="text-xs text-gray-500">
-                              Περίοδος: {obligation.month}/{obligation.year}
-                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-flex px-2 py-1 text-sm font-medium bg-gray-100 text-gray-800 rounded">
-                              {obligation.obligation_type}
+                              {obligation.type_name || obligation.type_code || obligation.obligation_type}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {String(obligation.month).padStart(2, '0')}/{obligation.year}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatDate(obligation.deadline)}
@@ -318,11 +672,11 @@ export default function Obligations() {
                   </table>
                 </div>
 
-                {/* Load More */}
-                {hasMore && statusFilter === 'all' && (
+                {/* Load More / Pagination */}
+                {hasMore && (
                   <div className="px-6 py-4 border-t border-gray-200 text-center">
-                    <Button variant="secondary" onClick={handleLoadMore}>
-                      Φόρτωση περισσότερων ({loadedCount} από {totalCount})
+                    <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
+                      Φόρτωση περισσότερων ({obligations.length} από {totalCount})
                     </Button>
                   </div>
                 )}
@@ -380,6 +734,137 @@ export default function Obligations() {
         />
       </Modal>
 
+      {/* Bulk Create Modal */}
+      <Modal
+        isOpen={isBulkCreateModalOpen}
+        onClose={() => setIsBulkCreateModalOpen(false)}
+        title="Μαζική Δημιουργία Υποχρεώσεων"
+        size="xl"
+      >
+        <div className="space-y-4">
+          {/* Obligation Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Τύπος Υποχρέωσης *
+            </label>
+            <select
+              value={bulkCreateForm.obligation_type}
+              onChange={(e) =>
+                setBulkCreateForm((prev) => ({ ...prev, obligation_type: Number(e.target.value) }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value={0}>-- Επιλέξτε τύπο --</option>
+              {obligationTypes?.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.code} - {type.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Period */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Μήνας</label>
+              <select
+                value={bulkCreateForm.month}
+                onChange={(e) =>
+                  setBulkCreateForm((prev) => ({ ...prev, month: Number(e.target.value) }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              >
+                {MONTHS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Έτος</label>
+              <select
+                value={bulkCreateForm.year}
+                onChange={(e) =>
+                  setBulkCreateForm((prev) => ({ ...prev, year: Number(e.target.value) }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              >
+                {YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Client Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Πελάτες ({bulkCreateForm.client_ids.length} επιλεγμένοι) *
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllClients}
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                >
+                  Επιλογή όλων
+                </button>
+                <button
+                  type="button"
+                  onClick={deselectAllClients}
+                  className="text-xs text-gray-600 hover:text-gray-800"
+                >
+                  Αποεπιλογή όλων
+                </button>
+              </div>
+            </div>
+            <div className="border border-gray-300 rounded-md max-h-60 overflow-y-auto">
+              {clients.map((client) => (
+                <label
+                  key={client.id}
+                  className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={bulkCreateForm.client_ids.includes(client.id)}
+                    onChange={() => toggleClientSelection(client.id)}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">
+                    {client.eponimia} ({client.afm})
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsBulkCreateModalOpen(false)}
+            >
+              Ακύρωση
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleBulkCreate}
+              isLoading={bulkCreateMutation.isPending}
+              disabled={bulkCreateForm.client_ids.length === 0 || !bulkCreateForm.obligation_type}
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Δημιουργία για {bulkCreateForm.client_ids.length} πελάτες
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Delete Confirmation */}
       <ConfirmDialog
         isOpen={isDeleteDialogOpen}
@@ -389,10 +874,23 @@ export default function Obligations() {
         }}
         onConfirm={handleDeleteConfirm}
         title="Διαγραφή Υποχρέωσης"
-        message={`Είστε σίγουροι ότι θέλετε να διαγράψετε την υποχρέωση ${selectedObligation?.obligation_type} για ${selectedObligation?.client_name || 'τον πελάτη'};`}
+        message={`Είστε σίγουροι ότι θέλετε να διαγράψετε την υποχρέωση για ${selectedObligation?.client_name || 'τον πελάτη'};`}
         confirmText="Διαγραφή"
         cancelText="Ακύρωση"
         isLoading={deleteMutation.isPending}
+        variant="danger"
+      />
+
+      {/* Bulk Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={isBulkDeleteDialogOpen}
+        onClose={() => setIsBulkDeleteDialogOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        title="Διαγραφή Επιλεγμένων Υποχρεώσεων"
+        message={`Είστε σίγουροι ότι θέλετε να διαγράψετε ${selectedIds.size} υποχρεώσεις;`}
+        confirmText="Διαγραφή"
+        cancelText="Ακύρωση"
+        isLoading={bulkDeleteMutation.isPending}
         variant="danger"
       />
     </div>
