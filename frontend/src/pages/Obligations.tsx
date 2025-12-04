@@ -36,9 +36,11 @@ export default function Obligations() {
     return data.results.filter((obligation) => obligation.status === statusFilter);
   }, [data?.results, statusFilter]);
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
+  // Format date for display (handles null/undefined/invalid dates)
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return '-';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
     return date.toLocaleDateString('el-GR', {
       day: '2-digit',
       month: '2-digit',
@@ -184,24 +186,24 @@ export default function Obligations() {
                             {obligation.client_name || `Πελάτης #${obligation.client}`}
                           </div>
                           <div className="text-xs text-gray-500">
-                            Περίοδος: {obligation.period_month}/{obligation.period_year}
+                            Περίοδος: {obligation.month || '-'}/{obligation.year || '-'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex px-2 py-1 text-sm font-medium bg-gray-100 text-gray-800 rounded">
-                            {obligation.obligation_type}
+                            {obligation.type_name || `Τύπος #${obligation.obligation_type}`}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(obligation.due_date)}
+                          {formatDate(obligation.deadline)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                              STATUS_COLORS[obligation.status]
+                              STATUS_COLORS[obligation.status] || 'bg-gray-100 text-gray-800'
                             }`}
                           >
-                            {STATUS_LABELS[obligation.status]}
+                            {STATUS_LABELS[obligation.status] || obligation.status}
                           </span>
                         </td>
                       </tr>

@@ -7,7 +7,7 @@ export default function Clients() {
   const [searchTerm, setSearchTerm] = useState('');
   const { data, isLoading, isError, error, refetch } = useClients();
 
-  // Filter clients by name (onoma) or AFM
+  // Filter clients by name (eponimia) or AFM
   const filteredClients = useMemo(() => {
     if (!data?.results) return [];
     if (!searchTerm.trim()) return data.results;
@@ -15,8 +15,8 @@ export default function Clients() {
     const term = searchTerm.toLowerCase().trim();
     return data.results.filter(
       (client) =>
-        client.onoma.toLowerCase().includes(term) ||
-        client.afm.includes(term)
+        (client.eponimia?.toLowerCase() || '').includes(term) ||
+        (client.afm || '').includes(term)
     );
   }, [data?.results, searchTerm]);
 
@@ -129,14 +129,14 @@ export default function Clients() {
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
                               <span className="text-blue-600 font-medium text-sm">
-                                {client.onoma.charAt(0).toUpperCase()}
+                                {client.eponimia?.charAt(0)?.toUpperCase() || '?'}
                               </span>
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">
-                                {client.onoma}
+                                {client.eponimia || 'Χωρίς επωνυμία'}
                               </div>
-                              {!client.is_active && (
+                              {client.is_active === false && (
                                 <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
                                   Ανενεργός
                                 </span>
@@ -145,10 +145,10 @@ export default function Clients() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="font-mono text-sm text-gray-900">{client.afm}</span>
+                          <span className="font-mono text-sm text-gray-900">{client.afm || '-'}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {client.phone || '-'}
+                          {client.kinito_tilefono || client.tilefono_oikias_1 || client.tilefono_epixeirisis_1 || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {client.email || '-'}
