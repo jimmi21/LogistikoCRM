@@ -217,12 +217,12 @@ export default function Clients() {
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
                                 <span className="text-blue-600 font-medium text-sm">
-                                  {client.onoma.charAt(0).toUpperCase()}
+                                  {client.eponimia?.charAt(0)?.toUpperCase() || '?'}
                                 </span>
                               </div>
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">
-                                  {client.onoma}
+                                  {client.eponimia || '-'}
                                 </div>
                                 {!client.is_active && (
                                   <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
@@ -236,7 +236,7 @@ export default function Clients() {
                             <span className="font-mono text-sm text-gray-900">{client.afm}</span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {client.phone || '-'}
+                            {client.kinito_tilefono || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {client.email || '-'}
@@ -330,7 +330,7 @@ export default function Clients() {
         }}
         onConfirm={handleDeleteConfirm}
         title="Διαγραφή Πελάτη"
-        message={`Είστε σίγουροι ότι θέλετε να διαγράψετε τον πελάτη "${selectedClient?.onoma}";`}
+        message={`Είστε σίγουροι ότι θέλετε να διαγράψετε τον πελάτη "${selectedClient?.eponimia}";`}
         confirmText="Διαγραφή"
         cancelText="Ακύρωση"
         isLoading={deleteMutation.isPending}
