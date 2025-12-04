@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useClients, useCreateClient, useDeleteClient } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ClientForm, Button } from '../components';
-import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import type { Client, ClientFormData } from '../types';
 
 export default function Clients() {
@@ -201,14 +202,14 @@ export default function Clients() {
                     {filteredClients.map((client) => (
                       <tr key={client.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Link to={`/clients/${client.id}`} className="flex items-center group">
+                            <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
                               <span className="text-blue-600 font-medium text-sm">
                                 {(client.eponimia || 'Π').charAt(0).toUpperCase()}
                               </span>
                             </div>
                             <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                                 {client.eponimia}
                               </div>
                               {client.is_active === false && (
@@ -217,7 +218,7 @@ export default function Clients() {
                                 </span>
                               )}
                             </div>
-                          </div>
+                          </Link>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="font-mono text-sm text-gray-900">{client.afm}</span>
@@ -229,6 +230,13 @@ export default function Clients() {
                           {client.email || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <Link
+                            to={`/clients/${client.id}`}
+                            className="text-gray-600 hover:text-gray-900 mr-3 p-1.5 hover:bg-gray-50 rounded-lg transition-colors inline-block"
+                            title="Προβολή"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Link>
                           <button
                             onClick={() => handleEdit(client)}
                             className="text-blue-600 hover:text-blue-900 mr-3 p-1.5 hover:bg-blue-50 rounded-lg transition-colors"

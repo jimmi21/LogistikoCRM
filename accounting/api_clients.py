@@ -286,3 +286,296 @@ class ClientViewSet(viewsets.ModelViewSet):
             'total_count': documents.count(),
             'documents': serializer.data
         })
+
+    @action(detail=True, methods=['post'], url_path='documents/upload')
+    def upload_document(self, request, pk=None):
+        """
+        POST /api/clients/{id}/documents/upload/
+        Upload a document for a specific client (multipart/form-data)
+        """
+        client = self.get_object()
+
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'Δεν βρέθηκε αρχείο.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        uploaded_file = request.FILES['file']
+
+        # Validate file size (max 10MB)
+        if uploaded_file.size > 10 * 1024 * 1024:
+            return Response(
+                {'error': 'Το αρχείο είναι μεγαλύτερο από 10MB.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate file type
+        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png']
+        import os
+        ext = os.path.splitext(uploaded_file.name)[1].lower()
+        if ext not in allowed_extensions:
+            return Response(
+                {'error': f'Μη επιτρεπτός τύπος αρχείου. Επιτρέπονται: {", ".join(allowed_extensions)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create document
+        document = ClientDocument.objects.create(
+            client=client,
+            file=uploaded_file,
+            document_category=request.data.get('category', 'general'),
+            description=request.data.get('description', '')
+        )
+
+        # Link to obligation if provided
+        obligation_id = request.data.get('obligation_id')
+        if obligation_id:
+            try:
+                from .models import MonthlyObligation
+                obligation = MonthlyObligation.objects.get(id=obligation_id, client=client)
+                document.obligation = obligation
+                document.save()
+            except MonthlyObligation.DoesNotExist:
+                pass
+
+        serializer = ClientDocumentSerializer(document, context={'request': request})
+        return Response({
+            'message': 'Το αρχείο μεταφορτώθηκε επιτυχώς.',
+            'document': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['delete'], url_path='documents/(?P<doc_id>[^/.]+)/delete')
+    def delete_document(self, request, pk=None, doc_id=None):
+        """
+        DELETE /api/clients/{id}/documents/{doc_id}/delete/
+        Delete a specific document
+        """
+        client = self.get_object()
+
+        try:
+            document = ClientDocument.objects.get(id=doc_id, client=client)
+        except ClientDocument.DoesNotExist:
+            return Response(
+                {'error': 'Το έγγραφο δεν βρέθηκε.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Delete file from storage
+        if document.file:
+            document.file.delete(save=False)
+
+        document.delete()
+
+        return Response({
+            'message': 'Το έγγραφο διαγράφηκε επιτυχώς.'
+        })
+
+    @action(detail=True, methods=['get'])
+    def emails(self, request, pk=None):
+        """
+        GET /api/clients/{id}/emails/
+        Returns all email logs for a specific client
+        """
+        from .models import EmailLog
+
+        client = self.get_object()
+        emails = EmailLog.objects.filter(client=client).order_by('-sent_at')
+
+        # Pagination
+        page_size = int(request.query_params.get('page_size', 20))
+        page = int(request.query_params.get('page', 1))
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total_count = emails.count()
+        emails_page = emails[start:end]
+
+        data = [{
+            'id': email.id,
+            'recipient_email': email.recipient_email,
+            'subject': email.subject,
+            'status': email.status,
+            'status_display': email.get_status_display(),
+            'sent_at': email.sent_at.isoformat() if email.sent_at else None,
+            'template_name': email.template_used.name if email.template_used else None,
+            'obligation_id': email.obligation_id,
+        } for email in emails_page]
+
+        return Response({
+            'client_id': client.id,
+            'client_name': client.eponimia,
+            'total_count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'emails': data
+        })
+
+    @action(detail=True, methods=['get'])
+    def calls(self, request, pk=None):
+        """
+        GET /api/clients/{id}/calls/
+        Returns all VoIP calls for a specific client
+        """
+        from .models import VoIPCall
+
+        client = self.get_object()
+        calls = VoIPCall.objects.filter(client=client).order_by('-started_at')
+
+        # Pagination
+        page_size = int(request.query_params.get('page_size', 20))
+        page = int(request.query_params.get('page', 1))
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total_count = calls.count()
+        calls_page = calls[start:end]
+
+        data = [{
+            'id': call.id,
+            'call_id': call.call_id,
+            'phone_number': call.phone_number,
+            'direction': call.direction,
+            'direction_display': call.get_direction_display(),
+            'status': call.status,
+            'status_display': call.get_status_display(),
+            'started_at': call.started_at.isoformat() if call.started_at else None,
+            'ended_at': call.ended_at.isoformat() if call.ended_at else None,
+            'duration_seconds': call.duration_seconds,
+            'duration_formatted': call.duration_formatted,
+            'notes': call.notes,
+            'resolution': call.resolution,
+            'ticket_created': call.ticket_created,
+        } for call in calls_page]
+
+        return Response({
+            'client_id': client.id,
+            'client_name': client.eponimia,
+            'total_count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'calls': data
+        })
+
+    @action(detail=True, methods=['get', 'post'])
+    def tickets(self, request, pk=None):
+        """
+        GET /api/clients/{id}/tickets/ - List tickets for client
+        POST /api/clients/{id}/tickets/ - Create new ticket for client
+        """
+        from .models import Ticket, VoIPCall
+
+        client = self.get_object()
+
+        if request.method == 'POST':
+            # Create new ticket (manual, not from missed call)
+            title = request.data.get('title')
+            description = request.data.get('description', '')
+            priority = request.data.get('priority', 'medium')
+
+            if not title:
+                return Response(
+                    {'error': 'Απαιτείται τίτλος για το ticket.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Create a dummy VoIPCall for manual ticket (required by model)
+            from django.utils import timezone
+            import uuid
+
+            dummy_call = VoIPCall.objects.create(
+                call_id=f'manual_{uuid.uuid4().hex[:8]}',
+                phone_number=client.kinito_tilefono or 'N/A',
+                direction='incoming',
+                status='completed',
+                started_at=timezone.now(),
+                client=client,
+                ticket_created=True
+            )
+
+            ticket = Ticket.objects.create(
+                call=dummy_call,
+                client=client,
+                title=title,
+                description=description,
+                priority=priority,
+                status='open'
+            )
+
+            return Response({
+                'message': 'Το ticket δημιουργήθηκε επιτυχώς.',
+                'ticket': {
+                    'id': ticket.id,
+                    'title': ticket.title,
+                    'status': ticket.status,
+                    'priority': ticket.priority,
+                    'created_at': ticket.created_at.isoformat()
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        # GET - List tickets
+        tickets = Ticket.objects.filter(client=client).order_by('-created_at')
+
+        # Filter by status
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            tickets = tickets.filter(status=status_filter)
+
+        data = [{
+            'id': ticket.id,
+            'title': ticket.title,
+            'description': ticket.description,
+            'status': ticket.status,
+            'status_display': ticket.get_status_display(),
+            'priority': ticket.priority,
+            'priority_display': ticket.get_priority_display(),
+            'assigned_to': ticket.assigned_to_id,
+            'assigned_to_name': ticket.assigned_to.username if ticket.assigned_to else None,
+            'created_at': ticket.created_at.isoformat(),
+            'resolved_at': ticket.resolved_at.isoformat() if ticket.resolved_at else None,
+            'is_open': ticket.is_open,
+            'days_since_created': ticket.days_since_created,
+        } for ticket in tickets]
+
+        return Response({
+            'client_id': client.id,
+            'client_name': client.eponimia,
+            'total_count': tickets.count(),
+            'tickets': data
+        })
+
+    @action(detail=True, methods=['get'])
+    def full(self, request, pk=None):
+        """
+        GET /api/clients/{id}/full/
+        Returns complete client data with all related counts
+        """
+        from .models import EmailLog, VoIPCall, Ticket
+
+        client = self.get_object()
+
+        # Get counts
+        obligations_count = client.monthly_obligations.count()
+        pending_obligations = client.monthly_obligations.filter(status='pending').count()
+        overdue_obligations = client.monthly_obligations.filter(status='overdue').count()
+        documents_count = client.documents.count()
+        emails_count = EmailLog.objects.filter(client=client).count()
+        calls_count = VoIPCall.objects.filter(client=client).count()
+        tickets_count = Ticket.objects.filter(client=client).count()
+        open_tickets = Ticket.objects.filter(client=client, status__in=['open', 'assigned', 'in_progress']).count()
+
+        serializer = ClientDetailSerializer(client, context={'request': request})
+
+        return Response({
+            **serializer.data,
+            'counts': {
+                'obligations': obligations_count,
+                'pending_obligations': pending_obligations,
+                'overdue_obligations': overdue_obligations,
+                'documents': documents_count,
+                'emails': emails_count,
+                'calls': calls_count,
+                'tickets': tickets_count,
+                'open_tickets': open_tickets,
+            }
+        })
