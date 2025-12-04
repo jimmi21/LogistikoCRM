@@ -15,7 +15,7 @@ export function useObligations(params?: ObligationParams) {
   return useQuery({
     queryKey: [OBLIGATIONS_KEY, params],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<Obligation>>('/obligations/', {
+      const response = await apiClient.get<PaginatedResponse<Obligation>>('/api/v1/obligations/', {
         params,
       });
       return response.data;
@@ -27,7 +27,7 @@ export function useObligation(id: number) {
   return useQuery({
     queryKey: [OBLIGATIONS_KEY, id],
     queryFn: async () => {
-      const response = await apiClient.get<Obligation>(`/obligations/${id}/`);
+      const response = await apiClient.get<Obligation>(`/api/v1/obligations/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -39,7 +39,7 @@ export function useCreateObligation() {
 
   return useMutation({
     mutationFn: async (data: ObligationFormData) => {
-      const response = await apiClient.post<Obligation>('/obligations/', data);
+      const response = await apiClient.post<Obligation>('/api/v1/obligations/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -53,7 +53,7 @@ export function useUpdateObligation(id: number) {
 
   return useMutation({
     mutationFn: async (data: Partial<ObligationFormData>) => {
-      const response = await apiClient.patch<Obligation>(`/obligations/${id}/`, data);
+      const response = await apiClient.patch<Obligation>(`/api/v1/obligations/${id}/`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -67,7 +67,7 @@ export function useDeleteObligation() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.delete(`/obligations/${id}/`);
+      await apiClient.delete(`/api/v1/obligations/${id}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });

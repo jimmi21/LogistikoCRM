@@ -8,7 +8,7 @@ export function useClients(params?: { page?: number; search?: string }) {
   return useQuery({
     queryKey: [CLIENTS_KEY, params],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<Client>>('/clients/', {
+      const response = await apiClient.get<PaginatedResponse<Client>>('/api/v1/clients/', {
         params,
       });
       return response.data;
@@ -20,7 +20,7 @@ export function useClient(id: number) {
   return useQuery({
     queryKey: [CLIENTS_KEY, id],
     queryFn: async () => {
-      const response = await apiClient.get<Client>(`/clients/${id}/`);
+      const response = await apiClient.get<Client>(`/api/v1/clients/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -32,7 +32,7 @@ export function useCreateClient() {
 
   return useMutation({
     mutationFn: async (data: ClientFormData) => {
-      const response = await apiClient.post<Client>('/clients/', data);
+      const response = await apiClient.post<Client>('/api/v1/clients/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -46,7 +46,7 @@ export function useUpdateClient(id: number) {
 
   return useMutation({
     mutationFn: async (data: Partial<ClientFormData>) => {
-      const response = await apiClient.patch<Client>(`/clients/${id}/`, data);
+      const response = await apiClient.patch<Client>(`/api/v1/clients/${id}/`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -60,7 +60,7 @@ export function useDeleteClient() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.delete(`/clients/${id}/`);
+      await apiClient.delete(`/api/v1/clients/${id}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [CLIENTS_KEY] });
