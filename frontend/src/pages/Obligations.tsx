@@ -64,9 +64,11 @@ export default function Obligations() {
     return data.results.filter((obligation) => obligation.status === statusFilter);
   }, [data?.results, statusFilter]);
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
+  // Format date for display (handles null/undefined/invalid dates)
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return '-';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
     return date.toLocaleDateString('el-GR', {
       day: '2-digit',
       month: '2-digit',

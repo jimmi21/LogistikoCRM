@@ -34,7 +34,7 @@ export default function Clients() {
     },
   });
 
-  // Filter clients by name (onoma) or AFM
+  // Filter clients by name (eponimia) or AFM
   const filteredClients = useMemo(() => {
     if (!data?.results) return [];
     if (!searchTerm.trim()) return data.results;
@@ -42,8 +42,8 @@ export default function Clients() {
     const term = searchTerm.toLowerCase().trim();
     return data.results.filter(
       (client) =>
-        client.onoma.toLowerCase().includes(term) ||
-        client.afm.includes(term)
+        (client.eponimia?.toLowerCase() || '').includes(term) ||
+        (client.afm || '').includes(term)
     );
   }, [data?.results, searchTerm]);
 
