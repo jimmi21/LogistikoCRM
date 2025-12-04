@@ -13,9 +13,9 @@ interface ClientFormProps {
 export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: ClientFormProps) {
   const [formData, setFormData] = useState<ClientFormData>({
     afm: '',
-    onoma: '',
+    eponimia: '',
     email: '',
-    phone: '',
+    kinito_tilefono: '',
     is_active: true,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({});
@@ -25,9 +25,9 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
     if (client) {
       setFormData({
         afm: client.afm || '',
-        onoma: client.onoma || '',
+        eponimia: client.eponimia || '',
         email: client.email || '',
-        phone: client.phone || '',
+        kinito_tilefono: client.kinito_tilefono || '',
         is_active: client.is_active ?? true,
       });
     }
@@ -36,8 +36,8 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof ClientFormData, string>> = {};
 
-    if (!formData.onoma.trim()) {
-      newErrors.onoma = 'Η επωνυμία είναι υποχρεωτική';
+    if (!formData.eponimia.trim()) {
+      newErrors.eponimia = 'Η επωνυμία είναι υποχρεωτική';
     }
 
     if (!formData.afm.trim()) {
@@ -73,20 +73,20 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Επωνυμία */}
       <div>
-        <label htmlFor="onoma" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="eponimia" className="block text-sm font-medium text-gray-700 mb-1">
           Επωνυμία *
         </label>
         <input
           type="text"
-          id="onoma"
-          value={formData.onoma}
-          onChange={(e) => handleChange('onoma', e.target.value)}
+          id="eponimia"
+          value={formData.eponimia}
+          onChange={(e) => handleChange('eponimia', e.target.value)}
           className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.onoma ? 'border-red-500' : 'border-gray-300'
+            errors.eponimia ? 'border-red-500' : 'border-gray-300'
           }`}
           placeholder="Εισάγετε επωνυμία"
         />
-        {errors.onoma && <p className="mt-1 text-sm text-red-500">{errors.onoma}</p>}
+        {errors.eponimia && <p className="mt-1 text-sm text-red-500">{errors.eponimia}</p>}
       </div>
 
       {/* ΑΦΜ */}
@@ -128,14 +128,14 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
 
       {/* Τηλέφωνο */}
       <div>
-        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="kinito_tilefono" className="block text-sm font-medium text-gray-700 mb-1">
           Κινητό Τηλέφωνο
         </label>
         <input
           type="tel"
-          id="phone"
-          value={formData.phone}
-          onChange={(e) => handleChange('phone', e.target.value)}
+          id="kinito_tilefono"
+          value={formData.kinito_tilefono}
+          onChange={(e) => handleChange('kinito_tilefono', e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="69xxxxxxxx"
         />

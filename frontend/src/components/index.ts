@@ -3,3 +3,4 @@ export { Modal } from './Modal';
 export { ConfirmDialog } from './ConfirmDialog';
 export { ClientForm } from './ClientForm';
 export { ObligationForm } from './ObligationForm';
+export { Layout, Sidebar, Header, Breadcrumbs, SearchModal } from './layout';

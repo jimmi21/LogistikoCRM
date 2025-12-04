@@ -10,13 +10,14 @@ interface ObligationFormProps {
   isLoading?: boolean;
 }
 
+// Obligation types - these map to ObligationType model IDs
 const OBLIGATION_TYPES = [
-  { value: 'ΦΠΑ', label: 'ΦΠΑ - Φόρος Προστιθέμενης Αξίας' },
-  { value: 'ΑΠΔ', label: 'ΑΠΔ - Αναλυτική Περιοδική Δήλωση' },
-  { value: 'ΕΝΦΙΑ', label: 'ΕΝΦΙΑ - Ενιαίος Φόρος Ιδιοκτησίας' },
-  { value: 'Ε1', label: 'Ε1 - Δήλωση Φορολογίας Εισοδήματος' },
-  { value: 'Ε3', label: 'Ε3 - Κατάσταση Οικονομικών Στοιχείων' },
-  { value: 'ΜΥΦ', label: 'ΜΥΦ - Συγκεντρωτικές Καταστάσεις' },
+  { value: 1, label: 'ΦΠΑ - Φόρος Προστιθέμενης Αξίας' },
+  { value: 2, label: 'ΑΠΔ - Αναλυτική Περιοδική Δήλωση' },
+  { value: 3, label: 'ΕΝΦΙΑ - Ενιαίος Φόρος Ιδιοκτησίας' },
+  { value: 4, label: 'Ε1 - Δήλωση Φορολογίας Εισοδήματος' },
+  { value: 5, label: 'Ε3 - Κατάσταση Οικονομικών Στοιχείων' },
+  { value: 6, label: 'ΜΥΦ - Συγκεντρωτικές Καταστάσεις' },
 ];
 
 const STATUS_OPTIONS: { value: ObligationStatus; label: string }[] = [
@@ -54,10 +55,10 @@ export function ObligationForm({
 }: ObligationFormProps) {
   const [formData, setFormData] = useState<ObligationFormData>({
     client: 0,
-    obligation_type: 'ΦΠΑ',
-    period_month: new Date().getMonth() + 1,
-    period_year: currentYear,
-    due_date: '',
+    obligation_type: 1,
+    month: new Date().getMonth() + 1,
+    year: currentYear,
+    deadline: '',
     status: 'pending',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ObligationFormData, string>>>({});
@@ -68,9 +69,9 @@ export function ObligationForm({
       setFormData({
         client: obligation.client,
         obligation_type: obligation.obligation_type,
-        period_month: obligation.period_month,
-        period_year: obligation.period_year,
-        due_date: obligation.due_date,
+        month: obligation.month,
+        year: obligation.year,
+        deadline: obligation.deadline,
         status: obligation.status,
       });
     }
@@ -87,8 +88,8 @@ export function ObligationForm({
       newErrors.obligation_type = 'Επιλέξτε τύπο υποχρέωσης';
     }
 
-    if (!formData.due_date) {
-      newErrors.due_date = 'Η προθεσμία είναι υποχρεωτική';
+    if (!formData.deadline) {
+      newErrors.deadline = 'Η προθεσμία είναι υποχρεωτική';
     }
 
     setErrors(newErrors);
@@ -127,7 +128,7 @@ export function ObligationForm({
           <option value={0}>-- Επιλέξτε πελάτη --</option>
           {clients.map((client) => (
             <option key={client.id} value={client.id}>
-              {client.onoma} ({client.afm})
+              {client.eponimia} ({client.afm})
             </option>
           ))}
         </select>
@@ -142,7 +143,7 @@ export function ObligationForm({
         <select
           id="obligation_type"
           value={formData.obligation_type}
-          onChange={(e) => handleChange('obligation_type', e.target.value)}
+          onChange={(e) => handleChange('obligation_type', Number(e.target.value))}
           className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
             errors.obligation_type ? 'border-red-500' : 'border-gray-300'
           }`}
@@ -161,13 +162,13 @@ export function ObligationForm({
       {/* Περίοδος */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="period_month" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="month" className="block text-sm font-medium text-gray-700 mb-1">
             Μήνας
           </label>
           <select
-            id="period_month"
-            value={formData.period_month}
-            onChange={(e) => handleChange('period_month', Number(e.target.value))}
+            id="month"
+            value={formData.month}
+            onChange={(e) => handleChange('month', Number(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             {MONTHS.map((month) => (
@@ -178,13 +179,13 @@ export function ObligationForm({
           </select>
         </div>
         <div>
-          <label htmlFor="period_year" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
             Έτος
           </label>
           <select
-            id="period_year"
-            value={formData.period_year}
-            onChange={(e) => handleChange('period_year', Number(e.target.value))}
+            id="year"
+            value={formData.year}
+            onChange={(e) => handleChange('year', Number(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             {YEARS.map((year) => (
@@ -198,19 +199,19 @@ export function ObligationForm({
 
       {/* Προθεσμία */}
       <div>
-        <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
           Προθεσμία *
         </label>
         <input
           type="date"
-          id="due_date"
-          value={formData.due_date}
-          onChange={(e) => handleChange('due_date', e.target.value)}
+          id="deadline"
+          value={formData.deadline}
+          onChange={(e) => handleChange('deadline', e.target.value)}
           className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.due_date ? 'border-red-500' : 'border-gray-300'
+            errors.deadline ? 'border-red-500' : 'border-gray-300'
           }`}
         />
-        {errors.due_date && <p className="mt-1 text-sm text-red-500">{errors.due_date}</p>}
+        {errors.deadline && <p className="mt-1 text-sm text-red-500">{errors.deadline}</p>}
       </div>
 
       {/* Κατάσταση */}
