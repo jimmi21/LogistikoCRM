@@ -349,11 +349,7 @@ export default function Obligations() {
             </div>
           </div>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Νέα Υποχρέωση
-        </Button>
-      </div>
+      </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -560,16 +556,6 @@ export default function Obligations() {
         </div>
       )}
 
-      {/* Obligations Table */}
-      {!isLoading && !isError && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <p className="text-sm text-gray-600">
-              {filteredObligations.length} από {totalCount} υποχρεώσεις
-              {statusFilter !== 'all' && ` (${STATUS_LABELS[statusFilter as ObligationStatus]})`}
-            </p>
-          </div>
-
         {/* Obligations Table */}
         {!isLoading && !isError && (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -695,19 +681,7 @@ export default function Obligations() {
             )}
           </div>
         )}
-
-              {/* Load More */}
-              {hasMore && statusFilter === 'all' && (
-                <div className="px-6 py-4 border-t border-gray-200 text-center">
-                  <Button variant="secondary" onClick={handleLoadMore}>
-                    Φόρτωση περισσότερων ({loadedCount} από {totalCount})
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      </main>
 
       {/* Create Modal */}
       <Modal
