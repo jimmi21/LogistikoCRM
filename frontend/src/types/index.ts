@@ -50,6 +50,7 @@ export interface Obligation {
   client_name?: string;         // from client.eponimia (read_only)
   obligation_type: number;      // Foreign key to ObligationType
   type_name?: string;           // from obligation_type.name (read_only)
+  type_code?: string;           // from obligation_type.code (read_only)
   month: number;                // 1-12
   year: number;
   deadline: string;             // ISO date string
@@ -136,4 +137,28 @@ export interface DashboardStats {
   pending_obligations: number;
   overdue_obligations: number;
   completed_this_month: number;
+}
+
+// Obligation Type from API
+export interface ObligationTypeData {
+  id: number;
+  code: string;
+  name: string;
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'follows_vat';
+  deadline_type: 'last_day' | 'specific_day' | 'last_day_prev' | 'last_day_next';
+  deadline_day: number | null;
+}
+
+// Bulk creation form data
+export interface BulkObligationFormData {
+  client_ids: number[];
+  obligation_type: number;
+  month: number;
+  year: number;
+}
+
+// Bulk update form data
+export interface BulkUpdateFormData {
+  obligation_ids: number[];
+  status: ObligationStatus;
 }

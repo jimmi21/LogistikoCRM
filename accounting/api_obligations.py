@@ -349,3 +349,281 @@ class ObligationViewSet(viewsets.ModelViewSet):
             'message': f'{updated_count} υποχρεώσεις ολοκληρώθηκαν.',
             'updated_count': updated_count
         })
+
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request):
+        """
+        POST /api/obligations/bulk_create/
+        Create obligations for multiple clients at once
+
+        Body: {
+            "client_ids": [1, 2, 3],
+            "obligation_type": 1,
+            "month": 12,
+            "year": 2025
+        }
+        """
+        client_ids = request.data.get('client_ids', [])
+        obligation_type_id = request.data.get('obligation_type')
+        month = request.data.get('month')
+        year = request.data.get('year')
+
+        # Validation
+        if not client_ids:
+            return Response(
+                {'error': 'Δεν δόθηκαν IDs πελατών.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not obligation_type_id:
+            return Response(
+                {'error': 'Δεν δόθηκε τύπος υποχρέωσης.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not month or not year:
+            return Response(
+                {'error': 'Δεν δόθηκε μήνας ή έτος.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            obligation_type = ObligationType.objects.get(id=obligation_type_id)
+        except ObligationType.DoesNotExist:
+            return Response(
+                {'error': 'Ο τύπος υποχρέωσης δεν βρέθηκε.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get clients
+        clients = ClientProfile.objects.filter(id__in=client_ids, is_active=True)
+        if not clients.exists():
+            return Response(
+                {'error': 'Δεν βρέθηκαν ενεργοί πελάτες.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Calculate deadline
+        deadline = obligation_type.get_deadline_for_month(year, month)
+        if not deadline:
+            # Default to last day of month
+            from calendar import monthrange
+            last_day = monthrange(year, month)[1]
+            deadline = timezone.datetime(year, month, last_day).date()
+
+        created_count = 0
+        skipped_count = 0
+        created_obligations = []
+
+        for client in clients:
+            # Check if obligation already exists
+            existing = MonthlyObligation.objects.filter(
+                client=client,
+                obligation_type=obligation_type,
+                year=year,
+                month=month
+            ).exists()
+
+            if existing:
+                skipped_count += 1
+                continue
+
+            # Create new obligation
+            obligation = MonthlyObligation.objects.create(
+                client=client,
+                obligation_type=obligation_type,
+                year=year,
+                month=month,
+                deadline=deadline,
+                status='pending'
+            )
+            created_obligations.append(obligation)
+            created_count += 1
+
+        serializer = ObligationListSerializer(created_obligations, many=True)
+        return Response({
+            'message': f'Δημιουργήθηκαν {created_count} υποχρεώσεις. Παραλείφθηκαν {skipped_count} (υπήρχαν ήδη).',
+            'created_count': created_count,
+            'skipped_count': skipped_count,
+            'obligations': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        """
+        POST /api/obligations/bulk_update/
+        Update status for multiple obligations
+
+        Body: {"obligation_ids": [1, 2, 3], "status": "completed"}
+        """
+        obligation_ids = request.data.get('obligation_ids', [])
+        new_status = request.data.get('status')
+
+        if not obligation_ids:
+            return Response(
+                {'error': 'Δεν δόθηκαν IDs υποχρεώσεων.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        valid_statuses = ['pending', 'completed', 'overdue']
+        if new_status not in valid_statuses:
+            return Response(
+                {'error': f'Μη έγκυρη κατάσταση. Επιλέξτε από: {", ".join(valid_statuses)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        obligations = MonthlyObligation.objects.filter(id__in=obligation_ids)
+
+        update_data = {'status': new_status}
+        if new_status == 'completed':
+            update_data['completed_date'] = timezone.now().date()
+            update_data['completed_by'] = request.user
+
+        updated_count = obligations.update(**update_data)
+
+        return Response({
+            'message': f'{updated_count} υποχρεώσεις ενημερώθηκαν σε "{new_status}".',
+            'updated_count': updated_count
+        })
+
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """
+        POST /api/obligations/bulk_delete/
+        Delete multiple obligations
+
+        Body: {"obligation_ids": [1, 2, 3]}
+        """
+        obligation_ids = request.data.get('obligation_ids', [])
+
+        if not obligation_ids:
+            return Response(
+                {'error': 'Δεν δόθηκαν IDs υποχρεώσεων.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        deleted_count, _ = MonthlyObligation.objects.filter(
+            id__in=obligation_ids
+        ).delete()
+
+        return Response({
+            'message': f'{deleted_count} υποχρεώσεις διαγράφηκαν.',
+            'deleted_count': deleted_count
+        })
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """
+        GET /api/obligations/export/?format=excel
+        Export obligations to Excel with filters applied
+        """
+        import io
+        from django.http import HttpResponse
+
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        except ImportError:
+            return Response(
+                {'error': 'Η βιβλιοθήκη openpyxl δεν είναι εγκατεστημένη.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Get filtered queryset using the same filter as list
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Create workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Υποχρεώσεις"
+
+        # Styles
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # Headers
+        headers = [
+            "ID", "Πελάτης", "ΑΦΜ", "Τύπος Υποχρέωσης", "Κωδικός",
+            "Μήνας", "Έτος", "Προθεσμία", "Κατάσταση", "Ημ/νία Ολοκλήρωσης",
+            "Σημειώσεις"
+        ]
+
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # Status translations
+        status_map = {
+            'pending': 'Εκκρεμεί',
+            'completed': 'Ολοκληρώθηκε',
+            'overdue': 'Καθυστερεί',
+        }
+
+        # Data rows
+        for row_num, obl in enumerate(queryset, 2):
+            data = [
+                obl.id,
+                obl.client.eponimia,
+                obl.client.afm,
+                obl.obligation_type.name,
+                obl.obligation_type.code,
+                obl.month,
+                obl.year,
+                obl.deadline.strftime('%d/%m/%Y') if obl.deadline else '',
+                status_map.get(obl.status, obl.status),
+                obl.completed_date.strftime('%d/%m/%Y') if obl.completed_date else '',
+                obl.notes or ''
+            ]
+
+            for col, value in enumerate(data, 1):
+                cell = ws.cell(row=row_num, column=col, value=value)
+                cell.border = thin_border
+
+        # Adjust column widths
+        column_widths = [8, 30, 12, 25, 10, 8, 8, 12, 15, 15, 30]
+        for i, width in enumerate(column_widths, 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+        # Save to buffer
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+
+        # Generate filename with current date
+        filename = f"υποχρεώσεις_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
+
+# ============================================
+# OBLIGATION TYPE VIEWSET
+# ============================================
+
+class ObligationTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    REST API ViewSet for ObligationType (read-only)
+
+    Endpoints:
+    - GET /api/v1/obligation-types/ - List all active types
+    - GET /api/v1/obligation-types/{id}/ - Get single type
+    """
+    queryset = ObligationType.objects.filter(is_active=True).order_by('priority', 'name')
+    serializer_class = ObligationTypeSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all types without pagination
