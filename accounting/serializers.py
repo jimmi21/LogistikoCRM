@@ -21,14 +21,14 @@ from .models import (
 
 class ClientSerializer(serializers.ModelSerializer):
     total_obligations = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = ClientProfile
         fields = [
             'id', 'afm', 'eponimia', 'email', 'kinito_tilefono',
             'tilefono_oikias_1', 'tilefono_oikias_2',
             'tilefono_epixeirisis_1', 'tilefono_epixeirisis_2',
-            'total_obligations'
+            'is_active', 'total_obligations'
         ]
     
     def get_total_obligations(self, obj):
