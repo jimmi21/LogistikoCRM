@@ -9,20 +9,19 @@ export interface User {
 }
 
 // Client/Customer types (ClientProfile in Django)
+// Fields match accounting/serializers.py ClientSerializer
 export interface Client {
   id: number;
-  afm: string;           // ΑΦΜ - Greek Tax ID (9 digits)
-  onoma: string;         // Επωνυμία - Company name
-  email: string;
-  phone: string;
-  doy: string;           // ΔΟΥ - Tax office
-  address?: string;
-  city?: string;
-  postal_code?: string;
-  is_active: boolean;
-  notes?: string;
-  created: string;       // ISO date string
-  modified: string;      // ISO date string
+  afm: string;                      // ΑΦΜ - Greek Tax ID (9 digits)
+  eponimia: string;                 // Επωνυμία - Company name
+  email?: string | null;
+  kinito_tilefono?: string | null;  // Κινητό τηλέφωνο
+  tilefono_oikias_1?: string | null;
+  tilefono_oikias_2?: string | null;
+  tilefono_epixeirisis_1?: string | null;
+  tilefono_epixeirisis_2?: string | null;
+  total_obligations?: number;
+  is_active?: boolean;
 }
 
 // Obligation status types
@@ -44,19 +43,26 @@ export type ObligationType =
   | string;  // Allow custom types
 
 // Monthly Obligation type
+// Fields match accounting/serializers.py MonthlyObligationSerializer
 export interface Obligation {
   id: number;
-  client: number;        // Foreign key to Client
-  client_name?: string;  // Denormalized for display
-  obligation_type: ObligationType;
-  period_month: number;  // 1-12
-  period_year: number;
-  due_date: string;      // ISO date string
+  client: number;               // Foreign key to Client
+  client_name?: string;         // from client.eponimia (read_only)
+  obligation_type: number;      // Foreign key to ObligationType
+  type_name?: string;           // from obligation_type.name (read_only)
+  month: number;                // 1-12
+  year: number;
+  deadline: string;             // ISO date string
   status: ObligationStatus;
-  completed_date?: string;
+  completed_date?: string | null;
+  completed_by?: number | null;
   notes?: string;
-  created: string;
-  modified: string;
+  time_spent?: number | null;
+  hourly_rate?: number | null;
+  attachment?: string | null;
+  attachments?: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 // Ticket types
@@ -105,23 +111,20 @@ export interface AuthTokens {
 // Form types for creating/updating
 export interface ClientFormData {
   afm: string;
-  onoma: string;
+  eponimia: string;
   email?: string;
-  phone?: string;
-  doy?: string;
-  address?: string;
-  city?: string;
-  postal_code?: string;
+  kinito_tilefono?: string;
+  tilefono_oikias_1?: string;
+  tilefono_epixeirisis_1?: string;
   is_active?: boolean;
-  notes?: string;
 }
 
 export interface ObligationFormData {
   client: number;
-  obligation_type: ObligationType;
-  period_month: number;
-  period_year: number;
-  due_date: string;
+  obligation_type: number;  // FK to ObligationType
+  month: number;
+  year: number;
+  deadline: string;
   status?: ObligationStatus;
   notes?: string;
 }
