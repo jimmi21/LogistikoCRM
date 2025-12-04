@@ -266,16 +266,16 @@ export interface ClientDocument {
   uploaded_at: string;
 }
 
-// Document categories with Greek labels
+// Document Categories
 export const DOCUMENT_CATEGORIES = [
-  { value: 'contracts', label: 'Συμβάσεις', icon: '📜' },
-  { value: 'invoices', label: 'Τιμολόγια', icon: '🧾' },
-  { value: 'tax', label: 'Φορολογικά', icon: '📋' },
-  { value: 'myf', label: 'ΜΥΦ', icon: '📊' },
-  { value: 'vat', label: 'ΦΠΑ', icon: '💶' },
-  { value: 'payroll', label: 'Μισθοδοσία', icon: '👥' },
-  { value: 'general', label: 'Γενικά', icon: '📁' },
-] as const;
+  { value: 'contract', label: 'Σύμβαση' },
+  { value: 'invoice', label: 'Τιμολόγιο' },
+  { value: 'tax_return', label: 'Φορολογική Δήλωση' },
+  { value: 'vat', label: 'ΦΠΑ' },
+  { value: 'payroll', label: 'Μισθοδοσία' },
+  { value: 'apd', label: 'ΑΠΔ' },
+  { value: 'other', label: 'Άλλο' },
+];
 
 // Email Log interface
 export interface EmailLog {
@@ -324,27 +324,25 @@ export interface VoIPTicket {
   days_since_created: number;
 }
 
-// Taxpayer types (eidos_ipoxreou)
+// Taxpayer Types (Είδος Υπόχρεου)
 export const TAXPAYER_TYPES = [
-  { value: 'individual', label: 'Ιδιώτης' },
-  { value: 'professional', label: 'Επαγγελματίας' },
-  { value: 'company', label: 'Εταιρεία' },
-] as const;
+  { value: 'fysiko', label: 'Φυσικό Πρόσωπο' },
+  { value: 'nomiko', label: 'Νομικό Πρόσωπο' },
+];
 
-// Book categories (katigoria_vivlion)
+// Book Categories (Κατηγορία Βιβλίων)
 export const BOOK_CATEGORIES = [
-  { value: 'A', label: 'Α Κατηγορία' },
-  { value: 'B', label: 'Β Κατηγορία' },
-  { value: 'C', label: 'Γ Κατηγορία' },
-  { value: 'none', label: 'Χωρίς Βιβλία' },
-] as const;
+  { value: 'aplografika', label: 'Απλογραφικά' },
+  { value: 'diplografika', label: 'Διπλογραφικά' },
+  { value: 'no_books', label: 'Χωρίς Βιβλία' },
+];
 
-// Legal forms (nomiki_morfi)
+// Legal Forms (Μορφή Επιχείρησης)
 export const LEGAL_FORMS = [
-  { value: 'ΑΕ', label: 'Ανώνυμη Εταιρεία (Α.Ε.)' },
-  { value: 'ΕΠΕ', label: 'Εταιρεία Περιορισμένης Ευθύνης (Ε.Π.Ε.)' },
-  { value: 'ΙΚΕ', label: 'Ιδιωτική Κεφαλαιουχική Εταιρεία (Ι.Κ.Ε.)' },
-  { value: 'ΟΕ', label: 'Ομόρρυθμη Εταιρεία (Ο.Ε.)' },
-  { value: 'ΕΕ', label: 'Ετερόρρυθμη Εταιρεία (Ε.Ε.)' },
-  { value: 'ΑΤΟΜΙΚΗ', label: 'Ατομική Επιχείρηση' },
-] as const;
+  { value: 'AE', label: 'Α.Ε.' },
+  { value: 'EPE', label: 'Ε.Π.Ε.' },
+  { value: 'IKE', label: 'Ι.Κ.Ε.' },
+  { value: 'OE', label: 'Ο.Ε.' },
+  { value: 'EE', label: 'Ε.Ε.' },
+  { value: 'ATOMIKI', label: 'Ατομική' },
+];
