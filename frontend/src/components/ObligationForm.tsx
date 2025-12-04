@@ -10,6 +10,7 @@ interface ObligationFormProps {
   isLoading?: boolean;
 }
 
+// Obligation types - these map to ObligationType model IDs
 const OBLIGATION_TYPES = [
   { value: 1, label: 'ΦΠΑ - Φόρος Προστιθέμενης Αξίας' },
   { value: 2, label: 'ΑΠΔ - Αναλυτική Περιοδική Δήλωση' },
