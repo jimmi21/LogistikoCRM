@@ -113,6 +113,7 @@ urlpatterns = [
 
     # REST ROUTER
     path("api/", include(router.urls)),
+    path("api/v1/", include(router.urls)),  # Versioned API endpoint
 
     # ==================================================
     # JWT AUTHENTICATION ENDPOINTS
