@@ -2,9 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/authStore';
 
-// Pages (to be implemented)
+// Pages
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import Clients from './pages/Clients';
+import Obligations from './pages/Obligations';
 
 // Create a client for React Query
 const queryClient = new QueryClient({
@@ -47,6 +49,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/clients"
+              element={
+                <ProtectedRoute>
+                  <Clients />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/obligations"
+              element={
+                <ProtectedRoute>
+                  <Obligations />
                 </ProtectedRoute>
               }
             />
