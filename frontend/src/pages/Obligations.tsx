@@ -1,8 +1,12 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useObligations } from '../hooks/useObligations';
-import { ArrowLeft, FileText, AlertCircle, RefreshCw, Filter } from 'lucide-react';
-import type { ObligationStatus } from '../types';
+import { useObligations, useCreateObligation, useDeleteObligation } from '../hooks/useObligations';
+import { useClients } from '../hooks/useClients';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import apiClient from '../api/client';
+import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
+import { ArrowLeft, FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2 } from 'lucide-react';
+import type { Obligation, ObligationFormData, ObligationStatus } from '../types';
 
 // Greek labels for obligation statuses
 const STATUS_LABELS: Record<ObligationStatus, string> = {
@@ -26,7 +30,31 @@ type StatusFilter = 'all' | 'pending' | 'completed';
 
 export default function Obligations() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const { data, isLoading, isError, error, refetch } = useObligations();
+  const [page, setPage] = useState(1);
+  const pageSize = 100; // Increased page size
+
+  // Modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedObligation, setSelectedObligation] = useState<Obligation | null>(null);
+
+  const { data, isLoading, isError, error, refetch } = useObligations({ page, page_size: pageSize });
+  const { data: clientsData } = useClients({ page_size: 1000 }); // Fetch all clients for dropdown
+  const createMutation = useCreateObligation();
+  const deleteMutation = useDeleteObligation();
+  const queryClient = useQueryClient();
+
+  // Update obligation mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<ObligationFormData> }) => {
+      const response = await apiClient.patch<Obligation>(`/api/v1/obligations/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['obligations'] });
+    },
+  });
 
   // Filter obligations by status
   const filteredObligations = useMemo(() => {
@@ -46,6 +74,60 @@ export default function Obligations() {
     });
   };
 
+  // Handlers
+  const handleCreate = (formData: ObligationFormData) => {
+    createMutation.mutate(formData, {
+      onSuccess: () => {
+        setIsCreateModalOpen(false);
+        refetch();
+      },
+    });
+  };
+
+  const handleEdit = (obligation: Obligation) => {
+    setSelectedObligation(obligation);
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdate = (formData: ObligationFormData) => {
+    if (!selectedObligation) return;
+    updateMutation.mutate(
+      { id: selectedObligation.id, data: formData },
+      {
+        onSuccess: () => {
+          setIsEditModalOpen(false);
+          setSelectedObligation(null);
+          refetch();
+        },
+      }
+    );
+  };
+
+  const handleDeleteClick = (obligation: Obligation) => {
+    setSelectedObligation(obligation);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!selectedObligation) return;
+    deleteMutation.mutate(selectedObligation.id, {
+      onSuccess: () => {
+        setIsDeleteDialogOpen(false);
+        setSelectedObligation(null);
+        refetch();
+      },
+    });
+  };
+
+  const handleLoadMore = () => {
+    setPage((prev) => prev + 1);
+  };
+
+  const hasMore = data?.next !== null;
+  const totalCount = data?.count || 0;
+  const loadedCount = data?.results?.length || 0;
+  const clients = clientsData?.results || [];
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -64,6 +146,10 @@ export default function Obligations() {
                 <h1 className="text-2xl font-bold text-gray-900">Υποχρεώσεις</h1>
               </div>
             </div>
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Νέα Υποχρέωση
+            </Button>
           </div>
         </div>
       </header>
@@ -146,7 +232,7 @@ export default function Obligations() {
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <p className="text-sm text-gray-500">
-                {filteredObligations.length} {filteredObligations.length === 1 ? 'υποχρέωση' : 'υποχρεώσεις'}
+                {filteredObligations.length} από {totalCount} υποχρεώσεις
                 {statusFilter !== 'all' && ` (${STATUS_LABELS[statusFilter as ObligationStatus]})`}
               </p>
             </div>
@@ -158,57 +244,87 @@ export default function Obligations() {
                   : 'Δεν υπάρχουν υποχρεώσεις.'}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Πελάτης
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Τύπος
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Προθεσμία
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Κατάσταση
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredObligations.map((obligation) => (
-                      <tr key={obligation.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {obligation.client_name || `Πελάτης #${obligation.client}`}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Περίοδος: {obligation.period_month}/{obligation.period_year}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex px-2 py-1 text-sm font-medium bg-gray-100 text-gray-800 rounded">
-                            {obligation.obligation_type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(obligation.due_date)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                              STATUS_COLORS[obligation.status]
-                            }`}
-                          >
-                            {STATUS_LABELS[obligation.status]}
-                          </span>
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Πελάτης
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Τύπος
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Προθεσμία
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Κατάσταση
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Ενέργειες
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredObligations.map((obligation) => (
+                        <tr key={obligation.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {obligation.client_name || `Πελάτης #${obligation.client}`}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Περίοδος: {obligation.period_month}/{obligation.period_year}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex px-2 py-1 text-sm font-medium bg-gray-100 text-gray-800 rounded">
+                              {obligation.obligation_type}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDate(obligation.due_date)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                STATUS_COLORS[obligation.status]
+                              }`}
+                            >
+                              {STATUS_LABELS[obligation.status]}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button
+                              onClick={() => handleEdit(obligation)}
+                              className="text-blue-600 hover:text-blue-900 mr-3 p-1 hover:bg-blue-50 rounded"
+                              title="Επεξεργασία"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(obligation)}
+                              className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
+                              title="Διαγραφή"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Load More */}
+                {hasMore && statusFilter === 'all' && (
+                  <div className="px-6 py-4 border-t border-gray-200 text-center">
+                    <Button variant="secondary" onClick={handleLoadMore}>
+                      Φόρτωση περισσότερων ({loadedCount} από {totalCount})
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -224,6 +340,59 @@ export default function Obligations() {
           </Link>
         </div>
       </main>
+
+      {/* Create Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="Νέα Υποχρέωση"
+        size="lg"
+      >
+        <ObligationForm
+          clients={clients}
+          onSubmit={handleCreate}
+          onCancel={() => setIsCreateModalOpen(false)}
+          isLoading={createMutation.isPending}
+        />
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedObligation(null);
+        }}
+        title="Επεξεργασία Υποχρέωσης"
+        size="lg"
+      >
+        <ObligationForm
+          obligation={selectedObligation}
+          clients={clients}
+          onSubmit={handleUpdate}
+          onCancel={() => {
+            setIsEditModalOpen(false);
+            setSelectedObligation(null);
+          }}
+          isLoading={updateMutation.isPending}
+        />
+      </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setSelectedObligation(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Διαγραφή Υποχρέωσης"
+        message={`Είστε σίγουροι ότι θέλετε να διαγράψετε την υποχρέωση ${selectedObligation?.obligation_type} για ${selectedObligation?.client_name || 'τον πελάτη'};`}
+        confirmText="Διαγραφή"
+        cancelText="Ακύρωση"
+        isLoading={deleteMutation.isPending}
+        variant="danger"
+      />
     </div>
   );
 }
