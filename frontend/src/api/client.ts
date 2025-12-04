@@ -81,4 +81,30 @@ export const authApi = {
   },
 };
 
+// Clients API functions
+export const clientsApi = {
+  getAll: async (params?: { search?: string; page?: number; page_size?: number }) => {
+    const response = await apiClient.get('/api/v1/clients/', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await apiClient.get(`/api/v1/clients/${id}/`);
+    return response.data;
+  },
+};
+
+// Obligations API functions
+export const obligationsApi = {
+  getAll: async (params?: { search?: string; page?: number; page_size?: number; status?: string }) => {
+    const response = await apiClient.get('/api/v1/obligations/', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await apiClient.get(`/api/v1/obligations/${id}/`);
+    return response.data;
+  },
+};
+
 export default apiClient;

@@ -349,7 +349,11 @@ export default function Obligations() {
             </div>
           </div>
         </div>
-      </header>
+        <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Νέα Υποχρέωση
+        </Button>
+      </div>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -530,34 +534,41 @@ export default function Obligations() {
           </div>
         )}
 
-        {/* Error Banner */}
-        {isError && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-                <span className="text-red-700">
-                  Σφάλμα φόρτωσης: {error instanceof Error ? error.message : 'Άγνωστο σφάλμα'}
-                </span>
-              </div>
-              <button
-                onClick={() => refetch()}
-                className="inline-flex items-center px-3 py-1 text-sm font-medium text-red-700 bg-red-100 rounded hover:bg-red-200"
-              >
-                <RefreshCw className="w-4 h-4 mr-1" />
-                Επανάληψη
-              </button>
+      {/* Error Banner */}
+      {isError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <span className="text-red-700">
+                Σφάλμα φόρτωσης: {error instanceof Error ? error.message : 'Άγνωστο σφάλμα'}
+              </span>
             </div>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Επανάληψη
+            </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Loading State */}
-        {isLoading && (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
-            <p className="text-gray-500">Φόρτωση υποχρεώσεων...</p>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Φόρτωση υποχρεώσεων...</p>
+        </div>
+      )}
+
+      {/* Obligations Table */}
+      {!isLoading && !isError && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <p className="text-sm text-gray-600">
+              {filteredObligations.length} από {totalCount} υποχρεώσεις
+              {statusFilter !== 'all' && ` (${STATUS_LABELS[statusFilter as ObligationStatus]})`}
+            </p>
           </div>
-        )}
 
         {/* Obligations Table */}
         {!isLoading && !isError && (
@@ -685,17 +696,18 @@ export default function Obligations() {
           </div>
         )}
 
-        {/* Back to Dashboard Link */}
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Επιστροφή στην Αρχική
-          </Link>
+              {/* Load More */}
+              {hasMore && statusFilter === 'all' && (
+                <div className="px-6 py-4 border-t border-gray-200 text-center">
+                  <Button variant="secondary" onClick={handleLoadMore}>
+                    Φόρτωση περισσότερων ({loadedCount} από {totalCount})
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </main>
+      )}
 
       {/* Create Modal */}
       <Modal
