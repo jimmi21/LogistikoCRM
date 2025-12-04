@@ -12,6 +12,13 @@ from . import views
 from . import api_auth
 from .api_clients import ClientViewSet
 from .api_obligations import ObligationViewSet, ObligationTypeViewSet
+from .api_emails import (
+    EmailTemplateViewSet,
+    ScheduledEmailViewSet,
+    EmailAutomationRuleViewSet,
+    EmailLogViewSet,
+    EmailActionsViewSet,
+)
 from .api_dashboard import (
     dashboard_stats,
     dashboard_calendar,
@@ -32,6 +39,11 @@ router.register(r'documents', views.ClientDocumentViewSet)
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'obligations', ObligationViewSet, basename='obligation')
 router.register(r'obligation-types', ObligationTypeViewSet, basename='obligation-type')
+router.register(r'email-templates', EmailTemplateViewSet, basename='email-template')
+router.register(r'scheduled-emails', ScheduledEmailViewSet, basename='scheduled-email')
+router.register(r'email-automations', EmailAutomationRuleViewSet, basename='email-automation')
+router.register(r'email-logs', EmailLogViewSet, basename='email-log')
+router.register(r'emails', EmailActionsViewSet, basename='email-actions')
 # ============================================
 # URL PATTERNS
 # ============================================

@@ -162,3 +162,201 @@ export interface BulkUpdateFormData {
   obligation_ids: number[];
   status: ObligationStatus;
 }
+
+// ============================================
+// EMAIL TYPES
+// ============================================
+
+// Email Template
+export interface EmailTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  subject: string;
+  body_html?: string;
+  obligation_type?: number | null;
+  obligation_type_name?: string | null;
+  obligation_type_code?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  available_variables?: EmailVariable[];
+}
+
+export interface EmailVariable {
+  key: string;
+  description: string;
+}
+
+export interface EmailTemplateFormData {
+  name: string;
+  description?: string;
+  subject: string;
+  body_html: string;
+  obligation_type?: number | null;
+  is_active?: boolean;
+}
+
+// Email Log
+export type EmailLogStatus = 'sent' | 'failed' | 'pending';
+
+export interface EmailLog {
+  id: number;
+  recipient_email: string;
+  recipient_name: string;
+  client?: number | null;
+  client_name?: string | null;
+  client_afm?: string | null;
+  obligation?: number | null;
+  template_used?: number | null;
+  template_name?: string | null;
+  subject: string;
+  body: string;
+  status: EmailLogStatus;
+  status_display?: string;
+  error_message?: string;
+  sent_at: string;
+  sent_by?: number | null;
+  sent_by_username?: string | null;
+}
+
+// Scheduled Email
+export type ScheduledEmailStatus = 'pending' | 'sent' | 'failed' | 'cancelled';
+
+export interface ScheduledEmail {
+  id: number;
+  recipient_email: string;
+  recipient_name: string;
+  recipient_count?: number;
+  recipients_display?: string;
+  recipients_list?: string[];
+  client?: number | null;
+  client_name?: string | null;
+  template?: number | null;
+  template_name?: string | null;
+  automation_rule?: number | null;
+  subject: string;
+  body_html?: string;
+  send_at: string;
+  sent_at?: string | null;
+  status: ScheduledEmailStatus;
+  error_message?: string;
+  created_by?: number | null;
+  created_by_username?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ScheduledEmailFormData {
+  recipient_email: string;
+  recipient_name?: string;
+  client?: number | null;
+  template?: number | null;
+  subject: string;
+  body_html: string;
+  send_at?: string;
+  obligation_ids?: number[];
+  client_ids?: number[];
+}
+
+// Email Automation Rule
+export type EmailTrigger = 'on_complete' | 'before_deadline' | 'on_overdue' | 'manual';
+export type EmailTiming = 'immediate' | 'delay_1h' | 'delay_24h' | 'scheduled';
+
+export interface EmailAutomationRule {
+  id: number;
+  name: string;
+  description?: string;
+  trigger: EmailTrigger;
+  trigger_display?: string;
+  filter_obligation_types?: number[];
+  filter_obligation_types_data?: ObligationTypeData[];
+  filter_types_count?: number;
+  template: number;
+  template_name?: string;
+  timing: EmailTiming;
+  timing_display?: string;
+  days_before_deadline?: number | null;
+  scheduled_time?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailAutomationRuleFormData {
+  name: string;
+  description?: string;
+  trigger: EmailTrigger;
+  filter_obligation_types?: number[];
+  template: number;
+  timing: EmailTiming;
+  days_before_deadline?: number | null;
+  scheduled_time?: string | null;
+  is_active?: boolean;
+}
+
+// Send Email
+export interface SendEmailData {
+  to: string[];
+  subject: string;
+  body: string;
+  template_id?: number | null;
+  client_id?: number | null;
+  obligation_id?: number | null;
+}
+
+export interface SendBulkEmailData {
+  client_ids: number[];
+  template_id: number;
+  schedule_at?: string | null;
+  variables?: Record<string, string>;
+}
+
+export interface PreviewEmailData {
+  template_id: number;
+  client_id?: number | null;
+  obligation_id?: number | null;
+  variables?: Record<string, string>;
+}
+
+export interface EmailPreviewResult {
+  subject: string;
+  body: string;
+  recipient: string;
+  recipient_name: string;
+}
+
+export interface SendEmailResult {
+  message: string;
+  results: {
+    sent: number;
+    failed: number;
+    scheduled?: number;
+    skipped?: number;
+    details: Array<{
+      email?: string;
+      client?: string;
+      status: 'sent' | 'failed' | 'scheduled' | 'skipped';
+      message: string;
+    }>;
+  };
+}
+
+// Email filters
+export interface EmailLogFilters {
+  client?: number;
+  status?: EmailLogStatus;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface ScheduledEmailFilters {
+  status?: ScheduledEmailStatus;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}
