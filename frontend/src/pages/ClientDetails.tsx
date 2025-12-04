@@ -1302,7 +1302,7 @@ function UploadModal({
             >
               {DOCUMENT_CATEGORIES.map((cat) => (
                 <option key={cat.value} value={cat.value}>
-                  {cat.icon} {cat.label}
+                  {cat.label}
                 </option>
               ))}
             </select>
