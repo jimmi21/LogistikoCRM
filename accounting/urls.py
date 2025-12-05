@@ -37,6 +37,21 @@ from .api_voip import (
     search_clients_for_match,
 )
 from .api_search import global_search
+from .api_documents import (
+    DocumentViewSet,
+    attach_document_to_obligation,
+    obligation_documents,
+)
+from .api_email import (
+    email_templates,
+    email_template_detail,
+    preview_email,
+    send_email,
+    send_obligation_notice,
+    complete_and_notify,
+    bulk_complete_with_notify,
+    email_history,
+)
 
 
 app_name = "accounting"
@@ -52,7 +67,9 @@ router.register(r"voip-call-logs", views.VoIPCallLogViewSet, basename="voip-call
 router_v2 = DefaultRouter()
 router_v2.register(r'calls', VoIPCallViewSetV2, basename='calls')
 router_v2.register(r'tickets', TicketViewSet, basename='tickets')
-router.register(r'documents', views.ClientDocumentViewSet)
+
+# Enhanced Documents API (replaces old ViewSet)
+router.register(r'documents', DocumentViewSet, basename='document')
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'obligations', ObligationViewSet, basename='obligation')
 router.register(r'obligation-types', ObligationTypeViewSet, basename='obligation-type')
@@ -149,6 +166,24 @@ urlpatterns = [
     path("api/v1/obligation-types/grouped/", obligation_types_grouped, name="obligation_types_grouped"),
     path("api/v1/obligation-profiles/", obligation_profiles_list, name="obligation_profiles_list"),
     path("api/v1/obligations/generate-month/", generate_month_obligations, name="generate_month_obligations"),
+
+    # ============================================
+    # EMAIL API (v1)
+    # ============================================
+    path("api/v1/email/templates/", email_templates, name="api_v1_email_templates"),
+    path("api/v1/email/templates/<int:template_id>/", email_template_detail, name="api_v1_email_template_detail"),
+    path("api/v1/email/preview/", preview_email, name="api_v1_email_preview"),
+    path("api/v1/email/send/", send_email, name="api_v1_email_send"),
+    path("api/v1/email/send-obligation-notice/", send_obligation_notice, name="api_v1_send_obligation_notice"),
+    path("api/v1/email/history/", email_history, name="api_v1_email_history"),
+
+    # ============================================
+    # OBLIGATION DOCUMENT & NOTIFICATION ENDPOINTS
+    # ============================================
+    path("api/v1/obligations/<int:obligation_id>/documents/", obligation_documents, name="api_v1_obligation_documents"),
+    path("api/v1/obligations/<int:obligation_id>/attach-document/", attach_document_to_obligation, name="api_v1_attach_document"),
+    path("api/v1/obligations/<int:obligation_id>/complete-and-notify/", complete_and_notify, name="api_v1_complete_and_notify"),
+    path("api/v1/obligations/bulk-complete-notify/", bulk_complete_with_notify, name="api_v1_bulk_complete_notify"),
 
     # REST ROUTER
     path("api/", include(router.urls)),
