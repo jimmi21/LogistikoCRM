@@ -13,6 +13,7 @@ import {
   Calendar,
   Files,
   Calls,
+  Tickets,
   Emails,
   Reports,
   Settings,
@@ -110,6 +111,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Calls />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets"
+            element={
+              <ProtectedRoute>
+                <Tickets />
               </ProtectedRoute>
             }
           />
