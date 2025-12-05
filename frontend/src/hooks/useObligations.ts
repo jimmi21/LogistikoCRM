@@ -200,7 +200,8 @@ export function useObligationTypesGrouped() {
   return useQuery({
     queryKey: ['obligation-types-grouped'],
     queryFn: async () => {
-      const response = await apiClient.get<ObligationGroup[]>('/accounting/api/v1/obligation-types/grouped/');
+      // Note: apiClient baseURL already includes /accounting, so don't prefix it again
+      const response = await apiClient.get<ObligationGroup[]>('/api/v1/obligation-types/grouped/');
       return response.data;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
@@ -214,7 +215,8 @@ export function useObligationProfiles() {
   return useQuery({
     queryKey: ['obligation-profiles'],
     queryFn: async () => {
-      const response = await apiClient.get<ObligationProfileBundle[]>('/accounting/api/v1/obligation-profiles/');
+      // Note: apiClient baseURL already includes /accounting, so don't prefix it again
+      const response = await apiClient.get<ObligationProfileBundle[]>('/api/v1/obligation-profiles/');
       return response.data;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
@@ -229,8 +231,9 @@ export function useGenerateMonthlyObligations() {
 
   return useMutation({
     mutationFn: async (data: GenerateMonthRequest) => {
+      // Note: apiClient baseURL already includes /accounting, so don't prefix it again
       const response = await apiClient.post<GenerateMonthResult>(
-        '/accounting/api/v1/obligations/generate-month/',
+        '/api/v1/obligations/generate-month/',
         data
       );
       return response.data;

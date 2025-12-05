@@ -296,8 +296,9 @@ export function useClientObligationProfile(clientId: number) {
   return useQuery({
     queryKey: [CLIENT_OBLIGATION_PROFILE_KEY, clientId],
     queryFn: async () => {
+      // Note: apiClient baseURL already includes /accounting, so don't prefix it again
       const response = await apiClient.get<ClientObligationProfile>(
-        `/accounting/api/v1/clients/${clientId}/obligation-profile/`
+        `/api/v1/clients/${clientId}/obligation-profile/`
       );
       return response.data;
     },
@@ -316,8 +317,9 @@ export function useUpdateClientObligationProfile(clientId: number) {
       obligation_type_ids: number[];
       obligation_profile_ids: number[];
     }) => {
+      // Note: apiClient baseURL already includes /accounting, so don't prefix it again
       const response = await apiClient.put(
-        `/accounting/api/v1/clients/${clientId}/obligation-profile/`,
+        `/api/v1/clients/${clientId}/obligation-profile/`,
         data
       );
       return response.data;
