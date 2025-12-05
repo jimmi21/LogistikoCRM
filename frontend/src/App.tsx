@@ -10,6 +10,7 @@ import {
   Clients,
   ClientDetails,
   Obligations,
+  Calendar,
   Files,
   Calls,
   Emails,
@@ -85,6 +86,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Obligations />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                <Calendar />
               </ProtectedRoute>
             }
           />
