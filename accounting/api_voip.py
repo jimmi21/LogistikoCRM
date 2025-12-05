@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
 from .models import VoIPCall, VoIPCallLog, Ticket, ClientProfile
+from .phone_utils import auto_match_call, batch_auto_match_calls, find_client_by_phone
 
 import logging
 
@@ -76,6 +77,17 @@ class VoIPCallFullSerializer(serializers.ModelSerializer):
 
     def get_status_display(self, obj):
         return obj.get_status_display()
+
+    def to_representation(self, instance):
+        """
+        Auto-match call to client if not already matched.
+        This runs when serializing calls for display.
+        """
+        # Try to auto-match if client is not set
+        if instance.client is None:
+            auto_match_call(instance, save=True)
+
+        return super().to_representation(instance)
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -303,6 +315,55 @@ class VoIPCallViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=False, methods=['post'])
+    def auto_match_all(self, request):
+        """
+        Batch auto-match all unmatched calls to clients.
+
+        POST /api/v1/calls/auto_match_all/
+        Query params:
+        - dry_run: If 'true', show what would be matched without saving
+        """
+        dry_run = request.query_params.get('dry_run', 'false').lower() == 'true'
+
+        stats = batch_auto_match_calls(dry_run=dry_run)
+
+        return Response({
+            'dry_run': dry_run,
+            'total_unmatched': stats['total'],
+            'matched': stats['matched'],
+            'still_unmatched': stats['unmatched'],
+            'details': stats['details']
+        })
+
+    @action(detail=True, methods=['post'])
+    def auto_match(self, request, pk=None):
+        """
+        Auto-match a single call to a client by phone number.
+
+        POST /api/v1/calls/{id}/auto_match/
+        """
+        call = self.get_object()
+
+        if call.client is not None:
+            return Response({
+                'message': 'Call is already matched to a client',
+                'client': ClientMiniSerializer(call.client).data
+            })
+
+        client = auto_match_call(call, save=True)
+
+        if client:
+            return Response({
+                'message': 'Successfully auto-matched call to client',
+                'client': ClientMiniSerializer(client).data
+            })
+        else:
+            return Response({
+                'message': 'No matching client found for this phone number',
+                'phone_number': call.phone_number
+            }, status=status.HTTP_404_NOT_FOUND)
 
 
 class TicketViewSet(viewsets.ModelViewSet):
