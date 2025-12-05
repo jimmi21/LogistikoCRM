@@ -14,6 +14,8 @@ from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
@@ -205,6 +207,7 @@ class ObligationTypeSettingsViewSet(viewsets.ModelViewSet):
     DELETE /api/v1/settings/obligation-types/{id}/  - Delete type
     """
     queryset = ObligationType.objects.all().select_related('profile', 'exclusion_group')
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['is_active', 'frequency', 'profile', 'exclusion_group']
@@ -257,6 +260,7 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
     """
     queryset = ObligationProfile.objects.all().prefetch_related('obligations')
     serializer_class = ObligationProfileSettingsSerializer
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'description']
@@ -344,6 +348,7 @@ class ObligationGroupSettingsViewSet(viewsets.ModelViewSet):
     """
     queryset = ObligationGroup.objects.all().prefetch_related('obligationtype_set')
     serializer_class = ObligationGroupSettingsSerializer
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'description']

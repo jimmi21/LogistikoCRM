@@ -15,7 +15,8 @@ const SETTINGS_PROFILES_KEY = 'settings-obligation-profiles';
 const SETTINGS_GROUPS_KEY = 'settings-obligation-groups';
 
 // Base URL for settings API
-const SETTINGS_BASE = '/accounting/api/v1/settings';
+// Note: apiClient already has baseURL set to /accounting (from VITE_API_URL)
+const SETTINGS_BASE = '/api/v1/settings';
 
 // ============================================
 // OBLIGATION TYPES HOOKS
