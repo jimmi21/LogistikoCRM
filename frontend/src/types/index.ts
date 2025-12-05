@@ -528,6 +528,112 @@ export const FREQUENCY_LABELS: Record<string, string> = {
 };
 
 // ============================================
+// EMAIL TYPES
+// ============================================
+
+export interface EmailTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  subject: string;
+  body_html: string;
+  obligation_type?: number | null;
+  obligation_type_name?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailPreview {
+  subject: string;
+  body: string;
+  recipient: string;
+  recipient_name: string;
+}
+
+export interface SendEmailRequest {
+  client_id: number;
+  subject: string;
+  body: string;
+  template_id?: number | null;
+  attachment_ids?: number[];
+}
+
+export interface SendObligationNoticeRequest {
+  obligation_id: number;
+  template_type: 'reminder' | 'completion' | 'overdue';
+  template_id?: number | null;
+  include_attachment?: boolean;
+  attachment_ids?: number[];
+}
+
+export interface CompleteAndNotifyRequest {
+  document_id?: number | null;
+  file?: File | null;
+  send_email?: boolean;
+  email_template_id?: number | null;
+  notes?: string;
+  time_spent?: number | null;
+}
+
+export interface BulkCompleteNotifyRequest {
+  obligation_ids: number[];
+  send_notifications: boolean;
+}
+
+export interface EmailSendResult {
+  success: boolean;
+  message: string;
+  email_log_id?: number;
+  error?: string;
+}
+
+export interface BulkCompleteNotifyResult {
+  success: boolean;
+  message: string;
+  completed_count: number;
+  email_results?: {
+    sent: number;
+    failed: number;
+    skipped: number;
+    details: Array<{
+      obligation_id: number;
+      client: string;
+      status: 'sent' | 'failed' | 'skipped';
+      message: string;
+    }>;
+  };
+}
+
+// ============================================
+// DOCUMENT UPLOAD TYPES
+// ============================================
+
+export interface DocumentUploadRequest {
+  file: File;
+  client_id: number;
+  obligation_id?: number | null;
+  document_category?: string;
+  description?: string;
+}
+
+export interface DocumentUploadResult {
+  message: string;
+  document: ClientDocument;
+}
+
+// Document Category labels
+export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
+  contracts: 'Συμβάσεις',
+  invoices: 'Τιμολόγια',
+  tax: 'Φορολογικά',
+  myf: 'ΜΥΦ',
+  vat: 'ΦΠΑ',
+  payroll: 'Μισθοδοσία',
+  general: 'Γενικά',
+};
+
+// ============================================
 // OBLIGATION SETTINGS TYPES
 // ============================================
 

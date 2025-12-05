@@ -11,14 +11,20 @@ import {
   exportObligationsToExcel,
   useGenerateMonthlyObligations,
 } from '../hooks/useObligations';
-import type { GenerateMonthResult } from '../types';
+import { useCompleteAndNotify, useBulkCompleteWithNotify, useSendObligationNotice } from '../hooks/useEmail';
+import { useUploadToObligation } from '../hooks/useDocuments';
+import type { GenerateMonthResult, Client } from '../types';
 import { useClients } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
+import { DocumentUploadModal } from '../components/DocumentUploadModal';
+import { SendEmailModal } from '../components/SendEmailModal';
+import { CompleteObligationModal } from '../components/CompleteObligationModal';
 import {
   ArrowLeft, FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
-  Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X
+  Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X,
+  Paperclip, Mail
 } from 'lucide-react';
 import type { Obligation, ObligationFormData, ObligationStatus, BulkObligationFormData } from '../types';
 
@@ -98,6 +104,12 @@ export default function Obligations() {
   const [generateResult, setGenerateResult] = useState<GenerateMonthResult | null>(null);
   const [selectedObligation, setSelectedObligation] = useState<Obligation | null>(null);
 
+  // New modal states for complete, upload, email
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isBulkCompleteNotifyDialogOpen, setIsBulkCompleteNotifyDialogOpen] = useState(false);
+
   // Bulk create form state
   const [bulkCreateForm, setBulkCreateForm] = useState<BulkObligationFormData>({
     client_ids: [],
@@ -128,6 +140,10 @@ export default function Obligations() {
   const bulkUpdateMutation = useBulkUpdateObligations();
   const bulkDeleteMutation = useBulkDeleteObligations();
   const generateMonthMutation = useGenerateMonthlyObligations();
+  const completeAndNotifyMutation = useCompleteAndNotify();
+  const bulkCompleteNotifyMutation = useBulkCompleteWithNotify();
+  const sendObligationNoticeMutation = useSendObligationNotice();
+  const uploadToObligationMutation = useUploadToObligation();
   const queryClient = useQueryClient();
 
   // Update obligation mutation
@@ -264,6 +280,109 @@ export default function Obligations() {
         refetch();
       },
     });
+  };
+
+  // New handlers for complete, upload, email
+  const handleCompleteClick = (obligation: Obligation) => {
+    setSelectedObligation(obligation);
+    setIsCompleteModalOpen(true);
+  };
+
+  const handleUploadClick = (obligation: Obligation) => {
+    setSelectedObligation(obligation);
+    setIsUploadModalOpen(true);
+  };
+
+  const handleEmailClick = (obligation: Obligation) => {
+    setSelectedObligation(obligation);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleCompleteAndNotify = async (data: {
+    file?: File | null;
+    documentId?: number | null;
+    sendEmail: boolean;
+    emailTemplateId?: number | null;
+    notes: string;
+    timeSpent?: number | null;
+  }) => {
+    if (!selectedObligation) return;
+    await completeAndNotifyMutation.mutateAsync({
+      obligationId: selectedObligation.id,
+      data: {
+        file: data.file,
+        document_id: data.documentId,
+        send_email: data.sendEmail,
+        email_template_id: data.emailTemplateId,
+        notes: data.notes,
+        time_spent: data.timeSpent,
+      },
+    });
+    setIsCompleteModalOpen(false);
+    setSelectedObligation(null);
+    refetch();
+  };
+
+  const handleUploadDocument = async (data: {
+    file: File;
+    category: string;
+    description: string;
+    sendEmail: boolean;
+  }) => {
+    if (!selectedObligation) return;
+    await uploadToObligationMutation.mutateAsync({
+      obligationId: selectedObligation.id,
+      file: data.file,
+      description: data.description,
+    });
+    if (data.sendEmail) {
+      await sendObligationNoticeMutation.mutateAsync({
+        obligation_id: selectedObligation.id,
+        template_type: 'completion',
+        include_attachment: true,
+      });
+    }
+    setIsUploadModalOpen(false);
+    setSelectedObligation(null);
+    refetch();
+  };
+
+  const handleSendEmail = async (data: {
+    subject: string;
+    body: string;
+    templateId?: number;
+    attachmentIds: number[];
+  }) => {
+    if (!selectedObligation) return;
+    const client = clients.find((c) => c.id === selectedObligation.client);
+    if (!client?.email) return;
+
+    await sendObligationNoticeMutation.mutateAsync({
+      obligation_id: selectedObligation.id,
+      template_type: 'completion',
+      template_id: data.templateId,
+      attachment_ids: data.attachmentIds,
+    });
+    setIsEmailModalOpen(false);
+    setSelectedObligation(null);
+  };
+
+  const handleBulkCompleteWithNotify = async (sendNotifications: boolean) => {
+    if (selectedIds.size === 0) return;
+    await bulkCompleteNotifyMutation.mutateAsync({
+      obligation_ids: Array.from(selectedIds),
+      send_notifications: sendNotifications,
+    });
+    setIsBulkCompleteNotifyDialogOpen(false);
+    setSelectedIds(new Set());
+    setSelectAll(false);
+    refetch();
+  };
+
+  // Helper to get client for selected obligation
+  const getSelectedClient = (): Client | undefined => {
+    if (!selectedObligation) return undefined;
+    return clients.find((c) => c.id === selectedObligation.client);
   };
 
   // Export handler
@@ -515,7 +634,7 @@ export default function Obligations() {
         {selectedIds.size > 0 && (
           <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
             <span className="text-blue-800 font-medium">
-              {selectedIds.size} υποχρεώσεις επιλεγμένες
+              {selectedIds.size} επιλεγμένα
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -525,7 +644,16 @@ export default function Obligations() {
                 isLoading={bulkUpdateMutation.isPending}
               >
                 <CheckSquare className="w-4 h-4 mr-1" />
-                Ολοκλήρωση επιλεγμένων
+                Ολοκλήρωση
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsBulkCompleteNotifyDialogOpen(true)}
+                isLoading={bulkCompleteNotifyMutation.isPending}
+              >
+                <Mail className="w-4 h-4 mr-1" />
+                Ολοκλήρωση + Email
               </Button>
               <Button
                 variant="danger"
@@ -533,8 +661,18 @@ export default function Obligations() {
                 onClick={() => setIsBulkDeleteDialogOpen(true)}
               >
                 <Trash2 className="w-4 h-4 mr-1" />
-                Διαγραφή επιλεγμένων
+                Διαγραφή
               </Button>
+              <button
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setSelectAll(false);
+                }}
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                title="Ακύρωση επιλογής"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
@@ -657,20 +795,50 @@ export default function Obligations() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleEdit(obligation)}
-                              className="text-blue-600 hover:text-blue-900 mr-3 p-1 hover:bg-blue-50 rounded"
-                              title="Επεξεργασία"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(obligation)}
-                              className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
-                              title="Διαγραφή"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              {/* Complete button - only show for non-completed */}
+                              {obligation.status !== 'completed' && (
+                                <button
+                                  onClick={() => handleCompleteClick(obligation)}
+                                  className="text-green-600 hover:text-green-900 p-1.5 hover:bg-green-50 rounded"
+                                  title="Ολοκλήρωση"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                              )}
+                              {/* Attach document button */}
+                              <button
+                                onClick={() => handleUploadClick(obligation)}
+                                className="text-purple-600 hover:text-purple-900 p-1.5 hover:bg-purple-50 rounded"
+                                title="Επισύναψη εγγράφου"
+                              >
+                                <Paperclip className="w-4 h-4" />
+                              </button>
+                              {/* Send email button */}
+                              <button
+                                onClick={() => handleEmailClick(obligation)}
+                                className="text-blue-600 hover:text-blue-900 p-1.5 hover:bg-blue-50 rounded"
+                                title="Αποστολή email"
+                              >
+                                <Mail className="w-4 h-4" />
+                              </button>
+                              {/* Edit button */}
+                              <button
+                                onClick={() => handleEdit(obligation)}
+                                className="text-gray-600 hover:text-gray-900 p-1.5 hover:bg-gray-100 rounded"
+                                title="Επεξεργασία"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              {/* Delete button */}
+                              <button
+                                onClick={() => handleDeleteClick(obligation)}
+                                className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded"
+                                title="Διαγραφή"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -904,6 +1072,59 @@ export default function Obligations() {
         }}
         isLoading={generateMonthMutation.isPending}
         result={generateResult}
+      />
+
+      {/* Complete Obligation Modal */}
+      <CompleteObligationModal
+        isOpen={isCompleteModalOpen}
+        onClose={() => {
+          setIsCompleteModalOpen(false);
+          setSelectedObligation(null);
+        }}
+        obligation={selectedObligation}
+        clientName={getSelectedClient()?.eponimia || ''}
+        clientEmail={getSelectedClient()?.email || undefined}
+        onComplete={handleCompleteAndNotify}
+        isLoading={completeAndNotifyMutation.isPending}
+      />
+
+      {/* Document Upload Modal */}
+      <DocumentUploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          setSelectedObligation(null);
+        }}
+        onUpload={handleUploadDocument}
+        clientName={getSelectedClient()?.eponimia}
+        obligationType={selectedObligation?.type_name || selectedObligation?.type_code}
+        isLoading={uploadToObligationMutation.isPending}
+      />
+
+      {/* Send Email Modal */}
+      <SendEmailModal
+        isOpen={isEmailModalOpen}
+        onClose={() => {
+          setIsEmailModalOpen(false);
+          setSelectedObligation(null);
+        }}
+        onSend={handleSendEmail}
+        clientName={getSelectedClient()?.eponimia || ''}
+        clientEmail={getSelectedClient()?.email || ''}
+        obligationId={selectedObligation?.id}
+        isLoading={sendObligationNoticeMutation.isPending}
+      />
+
+      {/* Bulk Complete with Notifications Dialog */}
+      <ConfirmDialog
+        isOpen={isBulkCompleteNotifyDialogOpen}
+        onClose={() => setIsBulkCompleteNotifyDialogOpen(false)}
+        onConfirm={() => handleBulkCompleteWithNotify(true)}
+        title="Ολοκλήρωση με Email"
+        message={`Θέλετε να ολοκληρώσετε ${selectedIds.size} υποχρεώσεις και να στείλετε email ειδοποίησης στους πελάτες;`}
+        confirmText="Ολοκλήρωση & Αποστολή"
+        cancelText="Ακύρωση"
+        isLoading={bulkCompleteNotifyMutation.isPending}
       />
     </div>
   );
