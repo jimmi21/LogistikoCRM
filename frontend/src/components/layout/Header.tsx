@@ -10,6 +10,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import DoorButton from '../DoorButton';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -72,6 +73,9 @@ export default function Header({ onMenuClick, onSearchClick }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          {/* Door Control Button */}
+          <DoorButton />
+
           {/* Notifications */}
           <button
             className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
