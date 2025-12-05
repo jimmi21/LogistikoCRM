@@ -610,6 +610,147 @@ class ObligationViewSet(viewsets.ModelViewSet):
 
         return response
 
+    @action(detail=False, methods=['get'])
+    def calendar(self, request):
+        """
+        GET /api/v1/obligations/calendar/
+        Get obligations organized by day for calendar view
+
+        Query params:
+        - month (1-12, required)
+        - year (YYYY, required)
+        - client_id (optional) - filter by specific client
+        - type_id (optional) - filter by obligation type ID
+        - status (optional) - filter by status
+
+        Returns:
+        {
+            "month": 12,
+            "year": 2025,
+            "days": {
+                "15": {
+                    "total": 5,
+                    "pending": 3,
+                    "completed": 1,
+                    "overdue": 1,
+                    "obligations": [...]
+                }
+            },
+            "summary": {
+                "total": 45,
+                "pending": 30,
+                "completed": 10,
+                "overdue": 5
+            }
+        }
+        """
+        from calendar import monthrange
+        from collections import defaultdict
+
+        today = timezone.now().date()
+
+        # Get and validate parameters
+        try:
+            month = int(request.query_params.get('month', today.month))
+            year = int(request.query_params.get('year', today.year))
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'Μη έγκυρος μήνας ή έτος.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if month < 1 or month > 12:
+            return Response(
+                {'error': 'Ο μήνας πρέπει να είναι από 1 έως 12.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Optional filters
+        client_id = request.query_params.get('client_id')
+        type_id = request.query_params.get('type_id')
+        filter_status = request.query_params.get('status')
+
+        # Get date range for the month
+        first_day = timezone.datetime(year, month, 1).date()
+        last_day_num = monthrange(year, month)[1]
+        last_day = timezone.datetime(year, month, last_day_num).date()
+
+        # Build queryset
+        queryset = self.get_queryset().filter(
+            deadline__gte=first_day,
+            deadline__lte=last_day
+        )
+
+        # Apply optional filters
+        if client_id:
+            try:
+                queryset = queryset.filter(client_id=int(client_id))
+            except (ValueError, TypeError):
+                pass
+
+        if type_id:
+            try:
+                queryset = queryset.filter(obligation_type_id=int(type_id))
+            except (ValueError, TypeError):
+                pass
+
+        if filter_status:
+            queryset = queryset.filter(status=filter_status)
+
+        # Update overdue status for pending obligations past deadline
+        queryset.filter(
+            status='pending',
+            deadline__lt=today
+        ).update(status='overdue')
+
+        # Refresh queryset after update
+        queryset = queryset.order_by('deadline')
+
+        # Group obligations by day
+        days = defaultdict(lambda: {
+            'total': 0,
+            'pending': 0,
+            'completed': 0,
+            'overdue': 0,
+            'in_progress': 0,
+            'obligations': []
+        })
+
+        for obl in queryset:
+            day_str = str(obl.deadline.day)
+            days[day_str]['total'] += 1
+            days[day_str][obl.status] = days[day_str].get(obl.status, 0) + 1
+            days[day_str]['obligations'].append({
+                'id': obl.id,
+                'client_name': obl.client.eponimia,
+                'client_id': obl.client.id,
+                'type_name': obl.obligation_type.name,
+                'type_code': obl.obligation_type.code,
+                'status': obl.status,
+            })
+
+        # Calculate summary
+        summary = {
+            'total': 0,
+            'pending': 0,
+            'completed': 0,
+            'overdue': 0,
+            'in_progress': 0,
+        }
+        for day_data in days.values():
+            summary['total'] += day_data['total']
+            summary['pending'] += day_data['pending']
+            summary['completed'] += day_data['completed']
+            summary['overdue'] += day_data['overdue']
+            summary['in_progress'] += day_data.get('in_progress', 0)
+
+        return Response({
+            'month': month,
+            'year': year,
+            'days': dict(days),
+            'summary': summary,
+        })
+
 
 # ============================================
 # OBLIGATION TYPE VIEWSET
