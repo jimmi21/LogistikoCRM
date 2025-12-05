@@ -209,6 +209,7 @@ class ObligationTypeSettingsViewSet(viewsets.ModelViewSet):
     queryset = ObligationType.objects.all().select_related('profile', 'exclusion_group')
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all types without pagination (frontend expects array, not paginated object)
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['is_active', 'frequency', 'profile', 'exclusion_group']
     search_fields = ['name', 'code', 'description']
@@ -262,6 +263,7 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
     serializer_class = ObligationProfileSettingsSerializer
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all profiles without pagination (frontend expects array)
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name']
@@ -350,6 +352,7 @@ class ObligationGroupSettingsViewSet(viewsets.ModelViewSet):
     serializer_class = ObligationGroupSettingsSerializer
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all groups without pagination (frontend expects array)
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name']
