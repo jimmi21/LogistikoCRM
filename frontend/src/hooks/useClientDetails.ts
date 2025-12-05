@@ -7,6 +7,7 @@ import type {
   EmailLog,
   VoIPCall,
   VoIPTicket,
+  ClientObligationProfile,
 } from '../types';
 
 // ============================================
@@ -18,6 +19,7 @@ const CLIENT_OBLIGATIONS_KEY = 'client-obligations';
 const CLIENT_EMAILS_KEY = 'client-emails';
 const CLIENT_CALLS_KEY = 'client-calls';
 const CLIENT_TICKETS_KEY = 'client-tickets';
+const CLIENT_OBLIGATION_PROFILE_KEY = 'client-obligation-profile';
 
 // ============================================
 // API RESPONSE TYPES
@@ -279,6 +281,51 @@ export function useUpdateClientFull(clientId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [CLIENT_DETAILS_KEY, clientId] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+}
+
+// ============================================
+// CLIENT OBLIGATION PROFILE HOOKS
+// ============================================
+
+/**
+ * Get client's obligation profile
+ */
+export function useClientObligationProfile(clientId: number) {
+  return useQuery({
+    queryKey: [CLIENT_OBLIGATION_PROFILE_KEY, clientId],
+    queryFn: async () => {
+      const response = await apiClient.get<ClientObligationProfile>(
+        `/accounting/api/v1/clients/${clientId}/obligation-profile/`
+      );
+      return response.data;
+    },
+    enabled: !!clientId,
+  });
+}
+
+/**
+ * Update client's obligation profile
+ */
+export function useUpdateClientObligationProfile(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      obligation_type_ids: number[];
+      obligation_profile_ids: number[];
+    }) => {
+      const response = await apiClient.put(
+        `/accounting/api/v1/clients/${clientId}/obligation-profile/`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [CLIENT_OBLIGATION_PROFILE_KEY, clientId],
+      });
     },
   });
 }

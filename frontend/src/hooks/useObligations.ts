@@ -7,7 +7,11 @@ import type {
   PaginatedResponse,
   ObligationTypeData,
   BulkObligationFormData,
-  BulkUpdateFormData
+  BulkUpdateFormData,
+  ObligationGroup,
+  ObligationProfileBundle,
+  GenerateMonthRequest,
+  GenerateMonthResult,
 } from '../types';
 
 const OBLIGATIONS_KEY = 'obligations';
@@ -183,4 +187,57 @@ export async function exportObligationsToExcel(params?: ObligationParams): Promi
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+// ============================================
+// OBLIGATION PROFILE HOOKS
+// ============================================
+
+/**
+ * Get obligation types grouped by category
+ */
+export function useObligationTypesGrouped() {
+  return useQuery({
+    queryKey: ['obligation-types-grouped'],
+    queryFn: async () => {
+      const response = await apiClient.get<ObligationGroup[]>('/accounting/api/v1/obligation-types/grouped/');
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+/**
+ * Get reusable obligation profiles
+ */
+export function useObligationProfiles() {
+  return useQuery({
+    queryKey: ['obligation-profiles'],
+    queryFn: async () => {
+      const response = await apiClient.get<ObligationProfileBundle[]>('/accounting/api/v1/obligation-profiles/');
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+/**
+ * Generate monthly obligations based on client profiles
+ */
+export function useGenerateMonthlyObligations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: GenerateMonthRequest) => {
+      const response = await apiClient.post<GenerateMonthResult>(
+        '/accounting/api/v1/obligations/generate-month/',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate obligations list to refresh
+      queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
+    },
+  });
 }

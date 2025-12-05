@@ -8,15 +8,17 @@ import {
   useBulkCreateObligations,
   useBulkUpdateObligations,
   useBulkDeleteObligations,
-  exportObligationsToExcel
+  exportObligationsToExcel,
+  useGenerateMonthlyObligations,
 } from '../hooks/useObligations';
+import type { GenerateMonthResult } from '../types';
 import { useClients } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
 import {
   ArrowLeft, FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
-  Download, CheckSquare, Square, Users, Calendar
+  Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X
 } from 'lucide-react';
 import type { Obligation, ObligationFormData, ObligationStatus, BulkObligationFormData } from '../types';
 
@@ -92,6 +94,8 @@ export default function Obligations() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isBulkCreateModalOpen, setIsBulkCreateModalOpen] = useState(false);
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isGenerateMonthModalOpen, setIsGenerateMonthModalOpen] = useState(false);
+  const [generateResult, setGenerateResult] = useState<GenerateMonthResult | null>(null);
   const [selectedObligation, setSelectedObligation] = useState<Obligation | null>(null);
 
   // Bulk create form state
@@ -123,6 +127,7 @@ export default function Obligations() {
   const bulkCreateMutation = useBulkCreateObligations();
   const bulkUpdateMutation = useBulkUpdateObligations();
   const bulkDeleteMutation = useBulkDeleteObligations();
+  const generateMonthMutation = useGenerateMonthlyObligations();
   const queryClient = useQueryClient();
 
   // Update obligation mutation
@@ -338,6 +343,10 @@ export default function Obligations() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setIsGenerateMonthModalOpen(true)}>
+                <CalendarPlus className="w-4 h-4 mr-2" />
+                Δημιουργία Μήνα
+              </Button>
               <Button variant="secondary" onClick={() => setIsBulkCreateModalOpen(true)}>
                 <Users className="w-4 h-4 mr-2" />
                 Μαζική Δημιουργία
@@ -879,6 +888,335 @@ export default function Obligations() {
         isLoading={bulkDeleteMutation.isPending}
         variant="danger"
       />
+
+      {/* Generate Month Modal */}
+      <GenerateMonthModal
+        isOpen={isGenerateMonthModalOpen}
+        onClose={() => {
+          setIsGenerateMonthModalOpen(false);
+          setGenerateResult(null);
+        }}
+        clients={clients}
+        onGenerate={async (data) => {
+          const result = await generateMonthMutation.mutateAsync(data);
+          setGenerateResult(result);
+          refetch();
+        }}
+        isLoading={generateMonthMutation.isPending}
+        result={generateResult}
+      />
+    </div>
+  );
+}
+
+// ============================================
+// GENERATE MONTH MODAL COMPONENT
+// ============================================
+interface GenerateMonthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  clients: Array<{ id: number; eponimia: string; afm: string }>;
+  onGenerate: (data: { month: number; year: number; client_ids?: number[] }) => Promise<void>;
+  isLoading: boolean;
+  result: GenerateMonthResult | null;
+}
+
+function GenerateMonthModal({
+  isOpen,
+  onClose,
+  clients,
+  onGenerate,
+  isLoading,
+  result,
+}: GenerateMonthModalProps) {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+
+  const [month, setMonth] = useState(currentMonth);
+  const [year, setYear] = useState(currentYear);
+  const [useAllClients, setUseAllClients] = useState(true);
+  const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filter clients by search
+  const filteredClients = clients.filter(
+    (c) =>
+      c.eponimia.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.afm.includes(searchTerm)
+  );
+
+  // Toggle client selection
+  const toggleClient = (clientId: number) => {
+    if (selectedClientIds.includes(clientId)) {
+      setSelectedClientIds(selectedClientIds.filter((id) => id !== clientId));
+    } else {
+      setSelectedClientIds([...selectedClientIds, clientId]);
+    }
+  };
+
+  // Select all filtered clients
+  const selectAll = () => {
+    setSelectedClientIds(filteredClients.map((c) => c.id));
+  };
+
+  // Deselect all
+  const deselectAll = () => {
+    setSelectedClientIds([]);
+  };
+
+  // Handle submit
+  const handleSubmit = async () => {
+    await onGenerate({
+      month,
+      year,
+      client_ids: useAllClients ? undefined : selectedClientIds,
+    });
+  };
+
+  // Reset form when modal closes
+  const handleClose = () => {
+    setMonth(currentMonth);
+    setYear(currentYear);
+    setUseAllClients(true);
+    setSelectedClientIds([]);
+    setSearchTerm('');
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  // Show result view if we have a result
+  if (result) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center">
+              <CheckCircle className="w-6 h-6 text-green-600 mr-2" />
+              <h2 className="text-lg font-semibold text-gray-900">Ολοκληρώθηκε</h2>
+            </div>
+            <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4 overflow-y-auto">
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="bg-green-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-green-700">{result.created_count}</p>
+                <p className="text-sm text-green-600">Δημιουργήθηκαν</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-yellow-700">{result.skipped_count}</p>
+                <p className="text-sm text-yellow-600">Παραλείφθηκαν</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-blue-700">{result.clients_processed}</p>
+                <p className="text-sm text-blue-600">Πελάτες</p>
+              </div>
+            </div>
+
+            {/* Details */}
+            {result.details && result.details.length > 0 && (
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">Λεπτομέρειες</h3>
+                <div className="border rounded-lg max-h-60 overflow-y-auto divide-y">
+                  {result.details.map((detail) => (
+                    <div key={detail.client_id} className="p-3 text-sm">
+                      <p className="font-medium text-gray-900">{detail.client_name}</p>
+                      {detail.created.length > 0 && (
+                        <p className="text-green-600 text-xs mt-1">
+                          Δημιουργήθηκαν: {detail.created.join(', ')}
+                        </p>
+                      )}
+                      {detail.skipped.length > 0 && (
+                        <p className="text-yellow-600 text-xs mt-1">
+                          Παραλείφθηκαν: {detail.skipped.join(', ')}
+                        </p>
+                      )}
+                      {detail.note && (
+                        <p className="text-gray-500 text-xs mt-1">{detail.note}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="p-4 border-t bg-gray-50">
+            <Button onClick={handleClose} className="w-full">
+              Κλείσιμο
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center">
+            <CalendarPlus className="w-6 h-6 text-yellow-600 mr-2" />
+            <h2 className="text-lg font-semibold text-gray-900">Δημιουργία Υποχρεώσεων Μήνα</h2>
+          </div>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg" disabled={isLoading}>
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        <div className="p-4 space-y-4 overflow-y-auto">
+          {/* Period Selection */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Μήνας</label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                disabled={isLoading}
+              >
+                {MONTHS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Έτος</label>
+              <select
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                disabled={isLoading}
+              >
+                {YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Client Selection Mode */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Πελάτες</label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={useAllClients}
+                  onChange={() => setUseAllClients(true)}
+                  className="h-4 w-4 text-blue-600"
+                  disabled={isLoading}
+                />
+                <span className="text-sm text-gray-700">Όλοι οι ενεργοί πελάτες</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={!useAllClients}
+                  onChange={() => setUseAllClients(false)}
+                  className="h-4 w-4 text-blue-600"
+                  disabled={isLoading}
+                />
+                <span className="text-sm text-gray-700">Επιλεγμένοι πελάτες</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Client List (if not all) */}
+          {!useAllClients && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Επιλέξτε πελάτες ({selectedClientIds.length} επιλεγμένοι)
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                    disabled={isLoading}
+                  >
+                    Επιλογή όλων
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAll}
+                    className="text-xs text-gray-600 hover:text-gray-800"
+                    disabled={isLoading}
+                  >
+                    Αποεπιλογή όλων
+                  </button>
+                </div>
+              </div>
+
+              {/* Search */}
+              <input
+                type="text"
+                placeholder="Αναζήτηση πελάτη..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
+                disabled={isLoading}
+              />
+
+              {/* Client List */}
+              <div className="border border-gray-300 rounded-md max-h-48 overflow-y-auto">
+                {filteredClients.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    Δεν βρέθηκαν πελάτες
+                  </div>
+                ) : (
+                  filteredClients.map((client) => (
+                    <label
+                      key={client.id}
+                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedClientIds.includes(client.id)}
+                        onChange={() => toggleClient(client.id)}
+                        className="mr-3 h-4 w-4 text-blue-600 rounded"
+                        disabled={isLoading}
+                      />
+                      <span className="text-sm">
+                        {client.eponimia}{' '}
+                        <span className="text-gray-500">({client.afm})</span>
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-700">
+              Θα δημιουργηθούν υποχρεώσεις βάσει του προφίλ κάθε πελάτη.
+              Υποχρεώσεις που υπάρχουν ήδη θα παραλειφθούν.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-3 p-4 border-t bg-gray-50">
+          <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
+            Ακύρωση
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            isLoading={isLoading}
+            disabled={isLoading || (!useAllClients && selectedClientIds.length === 0)}
+            className="flex-1"
+          >
+            <CalendarPlus className="w-4 h-4 mr-2" />
+            Δημιουργία
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

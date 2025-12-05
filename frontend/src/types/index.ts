@@ -346,3 +346,90 @@ export const LEGAL_FORMS = [
   { value: 'EE', label: 'Ε.Ε.' },
   { value: 'ATOMIKI', label: 'Ατομική' },
 ];
+
+// ============================================
+// OBLIGATION PROFILE TYPES
+// ============================================
+
+// Obligation Type with group info
+export interface ObligationTypeWithGroup {
+  id: number;
+  name: string;
+  code: string;
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'follows_vat';
+  group_id: number | null;
+  group_name: string;
+  deadline_type?: string;
+  deadline_day?: number | null;
+}
+
+// Obligation Group (category) with types
+export interface ObligationGroup {
+  group_id: number | null;
+  group_name: string;
+  types: ObligationTypeWithGroup[];
+}
+
+// Obligation Profile (reusable bundle)
+export interface ObligationProfileBundle {
+  id: number;
+  name: string;
+  description?: string;
+  obligation_types: ObligationTypeWithGroup[];
+}
+
+// Client Obligation Profile response
+export interface ClientObligationProfile {
+  client_id: number;
+  obligation_type_ids: number[];
+  obligation_types: ObligationTypeWithGroup[];
+  obligation_profile_ids: number[];
+  obligation_profiles: ObligationProfileBundle[];
+}
+
+// Generate Month Request
+export interface GenerateMonthRequest {
+  month: number;
+  year: number;
+  client_ids?: number[];
+}
+
+// Generate Month Result
+export interface GenerateMonthResult {
+  success: boolean;
+  created_count: number;
+  skipped_count: number;
+  clients_processed: number;
+  message: string;
+  details: Array<{
+    client_id: number;
+    client_name: string;
+    created: string[];
+    skipped: string[];
+    note?: string;
+  }>;
+}
+
+// Greek month labels
+export const GREEK_MONTHS = [
+  { value: 1, label: 'Ιανουάριος' },
+  { value: 2, label: 'Φεβρουάριος' },
+  { value: 3, label: 'Μάρτιος' },
+  { value: 4, label: 'Απρίλιος' },
+  { value: 5, label: 'Μάιος' },
+  { value: 6, label: 'Ιούνιος' },
+  { value: 7, label: 'Ιούλιος' },
+  { value: 8, label: 'Αύγουστος' },
+  { value: 9, label: 'Σεπτέμβριος' },
+  { value: 10, label: 'Οκτώβριος' },
+  { value: 11, label: 'Νοέμβριος' },
+  { value: 12, label: 'Δεκέμβριος' },
+];
+
+// Frequency labels
+export const FREQUENCY_LABELS: Record<string, string> = {
+  monthly: 'Μηνιαία',
+  quarterly: 'Τριμηνιαία',
+  annual: 'Ετήσια',
+  follows_vat: 'Ακολουθεί ΦΠΑ',
+};
