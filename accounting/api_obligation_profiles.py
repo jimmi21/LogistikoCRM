@@ -157,28 +157,34 @@ def obligation_types_grouped(request):
     groups = ObligationGroup.objects.all().order_by('name')
 
     # Get all active types
-    types = ObligationType.objects.filter(is_active=True).select_related('exclusion_group').order_by('priority', 'name')
+    types = list(ObligationType.objects.filter(is_active=True).select_related('exclusion_group').order_by('priority', 'name'))
 
     # Group types by their exclusion_group
     result = []
+
+    # Track which types have been added to avoid orphaned FK issues
+    added_type_ids = set()
 
     # First, add groups with their types
     for group in groups:
         group_types = [t for t in types if t.exclusion_group_id == group.id]
         if group_types:
+            for t in group_types:
+                added_type_ids.add(t.id)
             result.append({
                 'group_id': group.id,
                 'group_name': group.name,
                 'types': ObligationTypeGroupedSerializer(group_types, many=True).data
             })
 
-    # Add types without a group
-    ungrouped_types = [t for t in types if t.exclusion_group_id is None]
-    if ungrouped_types:
+    # Add ALL remaining types (including those with orphaned exclusion_group or None)
+    # This catches: types with exclusion_group=None AND types with invalid/orphaned exclusion_group_id
+    remaining_types = [t for t in types if t.id not in added_type_ids]
+    if remaining_types:
         result.append({
             'group_id': None,
             'group_name': 'Λοιπά',
-            'types': ObligationTypeGroupedSerializer(ungrouped_types, many=True).data
+            'types': ObligationTypeGroupedSerializer(remaining_types, many=True).data
         })
 
     return Response(result)
