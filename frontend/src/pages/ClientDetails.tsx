@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   User,
@@ -27,6 +27,8 @@ import {
   ExternalLink,
   Eye,
   X,
+  ClipboardList,
+  CheckCircle,
 } from 'lucide-react';
 import { Button } from '../components';
 import {
@@ -40,22 +42,27 @@ import {
   useDeleteDocument,
   useCreateTicket,
   useUpdateClientFull,
+  useClientObligationProfile,
+  useUpdateClientObligationProfile,
 } from '../hooks/useClientDetails';
-import type { ClientFull, ClientDocument, VoIPTicket } from '../types';
+import { useObligationTypesGrouped } from '../hooks/useObligations';
+import type { ClientFull, ClientDocument, VoIPTicket, ObligationGroup } from '../types';
 import {
   DOCUMENT_CATEGORIES,
   TAXPAYER_TYPES,
   BOOK_CATEGORIES,
   LEGAL_FORMS,
+  FREQUENCY_LABELS,
 } from '../types';
 
 // Tab type
-type TabType = 'info' | 'obligations' | 'documents' | 'emails' | 'calls' | 'tickets' | 'notes';
+type TabType = 'info' | 'obligations' | 'profile' | 'documents' | 'emails' | 'calls' | 'tickets' | 'notes';
 
 // Tab configuration
 const TABS: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'info', label: 'Στοιχεία', icon: User },
   { id: 'obligations', label: 'Υποχρεώσεις', icon: FileText },
+  { id: 'profile', label: 'Προφίλ Υποχρεώσεων', icon: ClipboardList },
   { id: 'documents', label: 'Έγγραφα', icon: FileText },
   { id: 'emails', label: 'Email', icon: Mail },
   { id: 'calls', label: 'Κλήσεις', icon: Phone },
@@ -117,6 +124,11 @@ export default function ClientDetails() {
   const { data: emailsData, isLoading: emailsLoading } = useClientEmails(clientId);
   const { data: callsData, isLoading: callsLoading } = useClientCalls(clientId);
   const { data: ticketsData, isLoading: ticketsLoading } = useClientTickets(clientId);
+
+  // Obligation Profile hooks
+  const { data: obligationTypesGrouped, isLoading: typesLoading } = useObligationTypesGrouped();
+  const { data: clientObligationProfile, isLoading: profileLoading } = useClientObligationProfile(clientId);
+  const updateProfileMutation = useUpdateClientObligationProfile(clientId);
 
   // Mutations
   const updateMutation = useUpdateClientFull(clientId);
@@ -303,6 +315,22 @@ export default function ClientDetails() {
               setYearFilter={setYearFilter}
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
+            />
+          )}
+
+          {/* OBLIGATION PROFILE TAB */}
+          {activeTab === 'profile' && (
+            <ObligationProfileTab
+              groupedTypes={obligationTypesGrouped || []}
+              clientProfile={clientObligationProfile}
+              isLoading={typesLoading || profileLoading}
+              onSave={(typeIds, profileIds) => {
+                updateProfileMutation.mutate({
+                  obligation_type_ids: typeIds,
+                  obligation_profile_ids: profileIds,
+                });
+              }}
+              isSaving={updateProfileMutation.isPending}
             />
           )}
 
@@ -1431,6 +1459,193 @@ function CreateTicketModal({
             Δημιουργία
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// OBLIGATION PROFILE TAB COMPONENT
+// ============================================
+function ObligationProfileTab({
+  groupedTypes,
+  clientProfile,
+  isLoading,
+  onSave,
+  isSaving,
+}: {
+  groupedTypes: ObligationGroup[];
+  clientProfile: { obligation_type_ids: number[]; obligation_profile_ids: number[] } | undefined;
+  isLoading: boolean;
+  onSave: (typeIds: number[], profileIds: number[]) => void;
+  isSaving: boolean;
+}) {
+  // Local state for selected obligations
+  const [selectedTypeIds, setSelectedTypeIds] = useState<Set<number>>(new Set());
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Initialize from client profile when it loads
+  useEffect(() => {
+    if (clientProfile) {
+      setSelectedTypeIds(new Set(clientProfile.obligation_type_ids));
+    }
+  }, [clientProfile]);
+
+  // Toggle a single obligation type
+  const toggleType = (typeId: number) => {
+    const newSelected = new Set(selectedTypeIds);
+    if (newSelected.has(typeId)) {
+      newSelected.delete(typeId);
+    } else {
+      newSelected.add(typeId);
+    }
+    setSelectedTypeIds(newSelected);
+    setHasChanges(true);
+    setSaveSuccess(false);
+  };
+
+  // Select all in a group
+  const selectAllInGroup = (group: ObligationGroup) => {
+    const newSelected = new Set(selectedTypeIds);
+    group.types.forEach((t) => newSelected.add(t.id));
+    setSelectedTypeIds(newSelected);
+    setHasChanges(true);
+    setSaveSuccess(false);
+  };
+
+  // Deselect all in a group
+  const deselectAllInGroup = (group: ObligationGroup) => {
+    const newSelected = new Set(selectedTypeIds);
+    group.types.forEach((t) => newSelected.delete(t.id));
+    setSelectedTypeIds(newSelected);
+    setHasChanges(true);
+    setSaveSuccess(false);
+  };
+
+  // Check if all in group are selected
+  const isAllSelectedInGroup = (group: ObligationGroup) => {
+    return group.types.every((t) => selectedTypeIds.has(t.id));
+  };
+
+  // Handle save
+  const handleSave = () => {
+    onSave(Array.from(selectedTypeIds), clientProfile?.obligation_profile_ids || []);
+    setHasChanges(false);
+    setSaveSuccess(true);
+    // Reset success message after 3 seconds
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <RefreshCw className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+        <p className="text-gray-500 mt-2">Φόρτωση προφίλ υποχρεώσεων...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Προφίλ Υποχρεώσεων</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Επιλέξτε τις υποχρεώσεις που ισχύουν για αυτόν τον πελάτη
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {saveSuccess && (
+            <span className="flex items-center text-green-600 text-sm">
+              <CheckCircle className="w-4 h-4 mr-1" />
+              Αποθηκεύτηκε
+            </span>
+          )}
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving}
+          >
+            {isSaving ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            Αποθήκευση
+          </Button>
+        </div>
+      </div>
+
+      {/* Groups */}
+      {groupedTypes.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          Δεν υπάρχουν διαθέσιμοι τύποι υποχρεώσεων.
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groupedTypes.map((group) => (
+            <div key={group.group_id || 'ungrouped'} className="border border-gray-200 rounded-lg overflow-hidden">
+              {/* Group Header */}
+              <div className="flex items-center justify-between bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h4 className="font-medium text-gray-900">{group.group_name}</h4>
+                <button
+                  onClick={() =>
+                    isAllSelectedInGroup(group)
+                      ? deselectAllInGroup(group)
+                      : selectAllInGroup(group)
+                  }
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  {isAllSelectedInGroup(group) ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
+                </button>
+              </div>
+
+              {/* Types List */}
+              <div className="divide-y divide-gray-100">
+                {group.types.map((type) => (
+                  <label
+                    key={type.id}
+                    className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedTypeIds.has(type.id)}
+                        onChange={() => toggleType(type.id)}
+                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">{type.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">({type.code})</span>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded ${
+                        type.frequency === 'monthly'
+                          ? 'bg-blue-100 text-blue-800'
+                          : type.frequency === 'quarterly'
+                          ? 'bg-purple-100 text-purple-800'
+                          : type.frequency === 'annual'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {FREQUENCY_LABELS[type.frequency] || type.frequency}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Summary */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <p className="text-sm text-gray-600">
+          <span className="font-medium text-gray-900">{selectedTypeIds.size}</span> υποχρεώσεις επιλεγμένες
+        </p>
       </div>
     </div>
   );

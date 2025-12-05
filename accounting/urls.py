@@ -18,6 +18,12 @@ from .api_dashboard import (
     dashboard_recent_activity,
     dashboard_client_stats
 )
+from .api_obligation_profiles import (
+    client_obligation_profile,
+    obligation_types_grouped,
+    obligation_profiles_list,
+    generate_month_obligations
+)
 
 
 app_name = "accounting"
@@ -111,6 +117,14 @@ urlpatterns = [
     path("api/dashboard/calendar/", dashboard_calendar, name="api_dashboard_calendar"),
     path("api/dashboard/recent-activity/", dashboard_recent_activity, name="api_dashboard_recent_activity"),
     path("api/dashboard/client-stats/", dashboard_client_stats, name="api_dashboard_client_stats"),
+
+    # ============================================
+    # OBLIGATION PROFILE APIs
+    # ============================================
+    path("api/v1/clients/<int:client_id>/obligation-profile/", client_obligation_profile, name="client_obligation_profile"),
+    path("api/v1/obligation-types/grouped/", obligation_types_grouped, name="obligation_types_grouped"),
+    path("api/v1/obligation-profiles/", obligation_profiles_list, name="obligation_profiles_list"),
+    path("api/v1/obligations/generate-month/", generate_month_obligations, name="generate_month_obligations"),
 
     # REST ROUTER
     path("api/", include(router.urls)),
