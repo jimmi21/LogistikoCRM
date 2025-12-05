@@ -134,44 +134,41 @@ export function useCompleteAndNotify() {
       email_sent?: boolean;
       email_error?: string;
     }> => {
-      // Build form data if file is included
-      if (data.file) {
-        const formData = new FormData();
-        formData.append('file', data.file);
-        if (data.send_email !== undefined) {
-          formData.append('send_email', String(data.send_email));
-        }
-        if (data.email_template_id) {
-          formData.append('email_template_id', String(data.email_template_id));
-        }
-        if (data.notes) {
-          formData.append('notes', data.notes);
-        }
-        if (data.time_spent) {
-          formData.append('time_spent', String(data.time_spent));
-        }
+      const formData = new FormData();
 
-        const response = await apiClient.post(
-          `/api/v1/obligations/${obligationId}/complete-and-notify/`,
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          }
-        );
-        return response.data;
+      // Add file if included
+      if (data.file) {
+        formData.append('file', data.file);
       }
 
-      // Regular JSON request
+      // Add document_id if provided
+      if (data.document_id) {
+        formData.append('document_id', String(data.document_id));
+      }
+
+      // Add boolean flags
+      formData.append('save_to_client_folder', String(data.save_to_client_folder ?? true));
+      formData.append('send_email', String(data.send_email ?? false));
+      formData.append('attach_to_email', String(data.attach_to_email ?? false));
+
+      // Add optional fields
+      if (data.email_template_id) {
+        formData.append('email_template_id', String(data.email_template_id));
+      }
+      if (data.notes) {
+        formData.append('notes', data.notes);
+      }
+      if (data.time_spent) {
+        formData.append('time_spent', String(data.time_spent));
+      }
+
       const response = await apiClient.post(
         `/api/v1/obligations/${obligationId}/complete-and-notify/`,
+        formData,
         {
-          document_id: data.document_id,
-          send_email: data.send_email,
-          email_template_id: data.email_template_id,
-          notes: data.notes,
-          time_spent: data.time_spent,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         }
       );
       return response.data;
@@ -200,6 +197,83 @@ export function useBulkCompleteWithNotify() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['obligations'] });
+      queryClient.invalidateQueries({ queryKey: [EMAIL_HISTORY_KEY] });
+    },
+  });
+}
+
+/**
+ * Bulk complete obligations with individual documents
+ */
+export interface BulkCompleteWithDocumentsRequest {
+  obligationFiles: { [key: number]: File | null };
+  saveToClientFolders: boolean;
+  sendEmails: boolean;
+  attachToEmails: boolean;
+}
+
+export interface BulkCompleteWithDocumentsResult {
+  success: boolean;
+  message: string;
+  completed_count: number;
+  results: Array<{
+    obligation_id: number;
+    client: string;
+    document_id: number | null;
+    email_sent: boolean;
+  }>;
+  email_results?: {
+    sent: number;
+    failed: number;
+    skipped: number;
+    details: Array<{
+      obligation_id: number;
+      client: string;
+      status: 'sent' | 'failed' | 'skipped';
+      message: string;
+    }>;
+  };
+}
+
+export function useBulkCompleteWithDocuments() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      data: BulkCompleteWithDocumentsRequest
+    ): Promise<BulkCompleteWithDocumentsResult> => {
+      const formData = new FormData();
+
+      // Add obligation IDs as JSON array
+      const obligationIds = Object.keys(data.obligationFiles).map(Number);
+      formData.append('obligation_ids', JSON.stringify(obligationIds));
+
+      // Add individual files for each obligation
+      for (const [obligationId, file] of Object.entries(data.obligationFiles)) {
+        if (file) {
+          formData.append(`file_${obligationId}`, file);
+        }
+      }
+
+      // Add options
+      formData.append('save_to_folders', String(data.saveToClientFolders));
+      formData.append('send_emails', String(data.sendEmails));
+      formData.append('attach_to_emails', String(data.attachToEmails));
+
+      const response = await apiClient.post<BulkCompleteWithDocumentsResult>(
+        '/api/v1/obligations/bulk-complete-with-documents/',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['obligations'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: [EMAIL_HISTORY_KEY] });
     },
   });

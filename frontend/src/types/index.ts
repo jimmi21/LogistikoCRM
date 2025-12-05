@@ -572,7 +572,9 @@ export interface SendObligationNoticeRequest {
 export interface CompleteAndNotifyRequest {
   document_id?: number | null;
   file?: File | null;
+  save_to_client_folder?: boolean;
   send_email?: boolean;
+  attach_to_email?: boolean;
   email_template_id?: number | null;
   notes?: string;
   time_spent?: number | null;

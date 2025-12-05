@@ -4,3 +4,7 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { ClientForm } from './ClientForm';
 export { ObligationForm } from './ObligationForm';
 export { Layout, Sidebar, Header, Breadcrumbs, SearchModal } from './layout';
+export { CompleteObligationModal } from './CompleteObligationModal';
+export { BulkCompleteModal } from './BulkCompleteModal';
+export { DocumentUploadModal } from './DocumentUploadModal';
+export { SendEmailModal } from './SendEmailModal';

@@ -115,7 +115,9 @@ class CompleteAndNotifySerializer(serializers.Serializer):
     """Serializer for complete obligation and send notification"""
     document_id = serializers.IntegerField(required=False, allow_null=True)
     file = serializers.FileField(required=False, allow_null=True)
-    send_email = serializers.BooleanField(default=True)
+    save_to_client_folder = serializers.BooleanField(default=True)
+    send_email = serializers.BooleanField(default=False)
+    attach_to_email = serializers.BooleanField(default=False)
     email_template_id = serializers.IntegerField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
     time_spent = serializers.DecimalField(
@@ -402,14 +404,15 @@ def complete_and_notify(request, obligation_id):
     POST /api/v1/obligations/{id}/complete-and-notify/
     Mark obligation as complete, optionally attach document and send email
 
-    Body: {
-        "document_id": 123,  (optional - attach existing document)
-        "file": <file>,  (optional - upload new document, multipart)
-        "send_email": true,
-        "email_template_id": 1,  (optional)
-        "notes": "Σημειώσεις",
-        "time_spent": 1.5
-    }
+    Body (multipart/form-data):
+        file: <file>  (optional - upload new document)
+        document_id: 123  (optional - attach existing document)
+        save_to_client_folder: true  (default: true)
+        send_email: false  (default: false)
+        attach_to_email: false  (default: false)
+        email_template_id: 1  (optional)
+        notes: "Σημειώσεις"
+        time_spent: 1.5
     """
     from django.utils import timezone
     import os
@@ -433,7 +436,20 @@ def complete_and_notify(request, obligation_id):
     email_sent = False
     email_error = None
 
-    # Handle document attachment
+    # Parse boolean fields from form data
+    save_to_client_folder = request.data.get('save_to_client_folder', 'true')
+    if isinstance(save_to_client_folder, str):
+        save_to_client_folder = save_to_client_folder.lower() == 'true'
+
+    send_email_flag = request.data.get('send_email', 'false')
+    if isinstance(send_email_flag, str):
+        send_email_flag = send_email_flag.lower() == 'true'
+
+    attach_to_email = request.data.get('attach_to_email', 'false')
+    if isinstance(attach_to_email, str):
+        attach_to_email = attach_to_email.lower() == 'true'
+
+    # Handle document attachment from existing document
     document_id = request.data.get('document_id')
     if document_id:
         try:
@@ -447,7 +463,7 @@ def complete_and_notify(request, obligation_id):
             )
 
     # Handle file upload
-    if 'file' in request.FILES:
+    if 'file' in request.FILES and save_to_client_folder:
         uploaded_file = request.FILES['file']
 
         # Validate file
@@ -504,8 +520,7 @@ def complete_and_notify(request, obligation_id):
     obligation.save()
 
     # Send email notification if requested
-    send_email = request.data.get('send_email', True)
-    if send_email and client.email:
+    if send_email_flag and client.email:
         template_id = request.data.get('email_template_id')
 
         if template_id:
@@ -517,12 +532,13 @@ def complete_and_notify(request, obligation_id):
             template = EmailTemplate.get_template_for_obligation(obligation)
 
         if template:
-            # Collect attachments
+            # Collect attachments only if attach_to_email is true
             attachments = []
-            if document and document.file:
-                attachments.append(document.file)
-            elif obligation.attachment:
-                attachments.append(obligation.attachment)
+            if attach_to_email:
+                if document and document.file:
+                    attachments.append(document.file)
+                elif obligation.attachment:
+                    attachments.append(obligation.attachment)
 
             # Render and send
             subject, body = EmailService.render_template(
@@ -564,7 +580,7 @@ def complete_and_notify(request, obligation_id):
             document, context={'request': request}
         ).data
 
-    if send_email:
+    if send_email_flag:
         response_data['email_sent'] = email_sent
         if email_error:
             response_data['email_error'] = email_error
@@ -674,6 +690,206 @@ def bulk_complete_with_notify(request):
     }
 
     if send_notifications:
+        response_data['email_results'] = email_results
+
+    return Response(response_data)
+
+
+# ============================================
+# BULK COMPLETE WITH DOCUMENTS
+# ============================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_complete_with_documents(request):
+    """
+    POST /api/v1/obligations/bulk-complete-with-documents/
+    Bulk complete obligations with individual documents for each obligation.
+
+    Body (multipart/form-data):
+        obligation_ids: JSON array of obligation IDs
+        file_{obligation_id}: File for specific obligation (optional)
+        save_to_folders: boolean (default: true)
+        send_emails: boolean (default: false)
+        attach_to_emails: boolean (default: false)
+    """
+    from django.utils import timezone
+    import json
+    import os
+
+    # Parse obligation_ids from JSON
+    obligation_ids_raw = request.data.get('obligation_ids', '[]')
+    if isinstance(obligation_ids_raw, str):
+        try:
+            obligation_ids = json.loads(obligation_ids_raw)
+        except json.JSONDecodeError:
+            return Response(
+                {'error': 'Μη έγκυρη μορφή obligation_ids.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    else:
+        obligation_ids = obligation_ids_raw
+
+    if not obligation_ids:
+        return Response(
+            {'error': 'Δεν δόθηκαν υποχρεώσεις.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Parse boolean options
+    save_to_folders = request.data.get('save_to_folders', 'true')
+    if isinstance(save_to_folders, str):
+        save_to_folders = save_to_folders.lower() == 'true'
+
+    send_emails = request.data.get('send_emails', 'false')
+    if isinstance(send_emails, str):
+        send_emails = send_emails.lower() == 'true'
+
+    attach_to_emails = request.data.get('attach_to_emails', 'false')
+    if isinstance(attach_to_emails, str):
+        attach_to_emails = attach_to_emails.lower() == 'true'
+
+    # Get obligations
+    obligations = MonthlyObligation.objects.filter(
+        id__in=obligation_ids,
+        status__in=['pending', 'overdue']
+    ).select_related('client', 'obligation_type')
+
+    if not obligations.exists():
+        return Response(
+            {'error': 'Δεν βρέθηκαν υποχρεώσεις προς ολοκλήρωση.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    results = []
+    completed_count = 0
+    email_results = {
+        'sent': 0,
+        'failed': 0,
+        'skipped': 0,
+        'details': []
+    }
+
+    allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png']
+
+    for obligation in obligations:
+        client = obligation.client
+        document = None
+        email_sent = False
+
+        # Check for file specific to this obligation
+        file_key = f'file_{obligation.id}'
+        uploaded_file = request.FILES.get(file_key)
+
+        if uploaded_file and save_to_folders:
+            # Validate file
+            ext = os.path.splitext(uploaded_file.name)[1].lower()
+            if ext in allowed_extensions and uploaded_file.size <= 10 * 1024 * 1024:
+                # Determine category
+                category = 'general'
+                if obligation.obligation_type:
+                    type_code = obligation.obligation_type.code.upper()
+                    if 'ΦΠΑ' in type_code:
+                        category = 'vat'
+                    elif 'ΜΥΦ' in type_code:
+                        category = 'myf'
+                    elif 'ΑΠΔ' in type_code:
+                        category = 'payroll'
+                    elif 'Ε1' in type_code or 'Ε3' in type_code:
+                        category = 'tax'
+
+                document = ClientDocument.objects.create(
+                    client=client,
+                    obligation=obligation,
+                    file=uploaded_file,
+                    document_category=category,
+                    description=f'Υποχρέωση {obligation.obligation_type.name} {obligation.month:02d}/{obligation.year}'
+                )
+
+        # Mark obligation as completed
+        obligation.status = 'completed'
+        obligation.completed_date = timezone.now().date()
+        obligation.completed_by = request.user
+        obligation.save()
+        completed_count += 1
+
+        # Send email if requested
+        if send_emails:
+            if not client.email:
+                email_results['skipped'] += 1
+                email_results['details'].append({
+                    'obligation_id': obligation.id,
+                    'client': client.eponimia,
+                    'status': 'skipped',
+                    'message': 'Ο πελάτης δεν έχει email'
+                })
+            else:
+                template = EmailTemplate.get_template_for_obligation(obligation)
+                if template:
+                    # Collect attachments only if attach_to_emails is true
+                    attachments = []
+                    if attach_to_emails and document and document.file:
+                        attachments.append(document.file)
+
+                    # Render and send
+                    subject, body = EmailService.render_template(
+                        template=template,
+                        obligation=obligation,
+                        user=request.user
+                    )
+
+                    success, result = EmailService.send_email(
+                        recipient_email=client.email,
+                        subject=subject,
+                        body=body,
+                        client=client,
+                        obligation=obligation,
+                        template=template,
+                        user=request.user,
+                        attachments=attachments
+                    )
+
+                    if success:
+                        email_results['sent'] += 1
+                        email_sent = True
+                        email_results['details'].append({
+                            'obligation_id': obligation.id,
+                            'client': client.eponimia,
+                            'status': 'sent',
+                            'message': f'Στάλθηκε στο {client.email}'
+                        })
+                    else:
+                        email_results['failed'] += 1
+                        email_results['details'].append({
+                            'obligation_id': obligation.id,
+                            'client': client.eponimia,
+                            'status': 'failed',
+                            'message': str(result)
+                        })
+                else:
+                    email_results['failed'] += 1
+                    email_results['details'].append({
+                        'obligation_id': obligation.id,
+                        'client': client.eponimia,
+                        'status': 'failed',
+                        'message': 'Δεν βρέθηκε πρότυπο email'
+                    })
+
+        results.append({
+            'obligation_id': obligation.id,
+            'client': client.eponimia,
+            'document_id': document.id if document else None,
+            'email_sent': email_sent
+        })
+
+    response_data = {
+        'success': True,
+        'message': f'{completed_count} υποχρεώσεις ολοκληρώθηκαν.',
+        'completed_count': completed_count,
+        'results': results,
+    }
+
+    if send_emails:
         response_data['email_results'] = email_results
 
     return Response(response_data)
