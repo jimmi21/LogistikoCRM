@@ -165,6 +165,17 @@ class EmailService:
         )
 
         try:
+            # Check email configuration
+            if not getattr(settings, 'EMAIL_HOST', None):
+                raise ValueError("EMAIL_HOST δεν έχει οριστεί στις ρυθμίσεις")
+
+            # Check if using console backend (for testing)
+            is_console_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('console.EmailBackend')
+
+            if not is_console_backend:
+                if not getattr(settings, 'EMAIL_HOST_PASSWORD', ''):
+                    logger.warning("EMAIL_HOST_PASSWORD δεν έχει οριστεί - email ίσως αποτύχει")
+
             # Prepare email
             if html_body:
                 # Send as multipart (plain + HTML)

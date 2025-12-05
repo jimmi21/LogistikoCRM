@@ -645,6 +645,7 @@ function TicketDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(ticket.title);
   const [description, setDescription] = useState(ticket.description || '');
+  const [status, setStatus] = useState(ticket.status);
   const [priority, setPriority] = useState(ticket.priority);
   const [notes, setNotes] = useState(ticket.notes || '');
 
@@ -656,7 +657,7 @@ function TicketDetailModal({
     try {
       await updateMutation.mutateAsync({
         id: ticket.id,
-        data: { title, description, priority, notes },
+        data: { title, description, status, priority, notes },
       });
       setIsEditing(false);
       onRefetch();
@@ -768,6 +769,24 @@ function TicketDetailModal({
               </p>
             )}
           </div>
+
+          {/* Status (editable) */}
+          {isEditing && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Κατάσταση</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as typeof status)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              >
+                <option value="open">Ανοιχτό</option>
+                <option value="assigned">Ανατέθηκε</option>
+                <option value="in_progress">Σε εξέλιξη</option>
+                <option value="resolved">Επιλύθηκε</option>
+                <option value="closed">Κλειστό</option>
+              </select>
+            </div>
+          )}
 
           {/* Priority (editable) */}
           {isEditing && (

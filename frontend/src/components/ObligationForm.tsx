@@ -54,6 +54,9 @@ export function ObligationForm({
     year: currentYear,
     deadline: '',
     status: 'pending',
+    completed_date: null,
+    time_spent: null,
+    notes: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ObligationFormData, string>>>({});
 
@@ -74,6 +77,9 @@ export function ObligationForm({
         year: obligation.year,
         deadline: obligation.deadline,
         status: obligation.status,
+        completed_date: obligation.completed_date || null,
+        time_spent: obligation.time_spent || null,
+        notes: obligation.notes || '',
       });
     }
   }, [obligation]);
@@ -240,6 +246,54 @@ export function ObligationForm({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Ημ/νία Ολοκλήρωσης - εμφανίζεται όταν η κατάσταση είναι 'completed' */}
+      {formData.status === 'completed' && (
+        <div>
+          <label htmlFor="completed_date" className="block text-sm font-medium text-gray-700 mb-1">
+            Ημ/νία Ολοκλήρωσης
+          </label>
+          <input
+            type="date"
+            id="completed_date"
+            value={formData.completed_date || ''}
+            onChange={(e) => handleChange('completed_date', e.target.value || null)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      )}
+
+      {/* Χρόνος Εργασίας */}
+      <div>
+        <label htmlFor="time_spent" className="block text-sm font-medium text-gray-700 mb-1">
+          Χρόνος Εργασίας (ώρες)
+        </label>
+        <input
+          type="number"
+          id="time_spent"
+          value={formData.time_spent ?? ''}
+          onChange={(e) => handleChange('time_spent', e.target.value ? parseFloat(e.target.value) : null)}
+          step="0.25"
+          min="0"
+          placeholder="π.χ. 1.5"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Σημειώσεις */}
+      <div>
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+          Σημειώσεις
+        </label>
+        <textarea
+          id="notes"
+          value={formData.notes || ''}
+          onChange={(e) => handleChange('notes', e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          placeholder="Σημειώσεις για την υποχρέωση..."
+        />
       </div>
 
       {/* Buttons */}
