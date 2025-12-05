@@ -346,3 +346,60 @@ export const LEGAL_FORMS = [
   { value: 'EE', label: 'Ε.Ε.' },
   { value: 'ATOMIKI', label: 'Ατομική' },
 ];
+
+// ============================================
+// OBLIGATION PROFILE TYPES
+// ============================================
+
+// Obligation Type with group info
+export interface ObligationTypeWithGroup {
+  id: number;
+  name: string;
+  code: string;
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'follows_vat';
+  group_id: number | null;
+  group_name: string;
+  deadline_type?: string;
+  deadline_day?: number | null;
+}
+
+// Obligation Type Group
+export interface ObligationGroup {
+  id: number | null;
+  name: string;
+  types: ObligationTypeWithGroup[];
+}
+
+// Client Obligation Profile
+export interface ClientObligationProfile {
+  client_id: number;
+  client_name: string;
+  obligation_types: number[];
+  bundle_id: number | null;
+  bundle_name: string | null;
+}
+
+// Reusable Obligation Profile Bundle
+export interface ObligationProfileBundle {
+  id: number;
+  name: string;
+  description: string;
+  obligation_types: number[];
+  is_default: boolean;
+}
+
+// Generate Month Request
+export interface GenerateMonthRequest {
+  month: number;
+  year: number;
+  client_ids?: number[];
+}
+
+// Generate Month Result
+export interface GenerateMonthResult {
+  success: boolean;
+  clients_processed: number;
+  obligations_created: number;
+  skipped_clients: string[];
+  errors: string[];
+}

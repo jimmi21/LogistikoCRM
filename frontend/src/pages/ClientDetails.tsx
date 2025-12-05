@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   User,
@@ -27,6 +27,8 @@ import {
   ExternalLink,
   Eye,
   X,
+  ClipboardList,
+  CheckCircle,
 } from 'lucide-react';
 import { Button } from '../components';
 import {
@@ -40,8 +42,11 @@ import {
   useDeleteDocument,
   useCreateTicket,
   useUpdateClientFull,
+  useClientObligationProfile,
+  useUpdateClientObligationProfile,
 } from '../hooks/useClientDetails';
-import type { ClientFull, ClientDocument, VoIPTicket } from '../types';
+import { useObligationTypesGrouped } from '../hooks/useObligations';
+import type { ClientFull, ClientDocument, VoIPTicket, ObligationGroup } from '../types';
 import {
   DOCUMENT_CATEGORIES,
   TAXPAYER_TYPES,
@@ -50,12 +55,13 @@ import {
 } from '../types';
 
 // Tab type
-type TabType = 'info' | 'obligations' | 'documents' | 'emails' | 'calls' | 'tickets' | 'notes';
+type TabType = 'info' | 'obligations' | 'profile' | 'documents' | 'emails' | 'calls' | 'tickets' | 'notes';
 
 // Tab configuration
 const TABS: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'info', label: 'Στοιχεία', icon: User },
   { id: 'obligations', label: 'Υποχρεώσεις', icon: FileText },
+  { id: 'profile', label: 'Προφίλ Υποχρ.', icon: ClipboardList },
   { id: 'documents', label: 'Έγγραφα', icon: FileText },
   { id: 'emails', label: 'Email', icon: Mail },
   { id: 'calls', label: 'Κλήσεις', icon: Phone },
@@ -117,12 +123,15 @@ export default function ClientDetails() {
   const { data: emailsData, isLoading: emailsLoading } = useClientEmails(clientId);
   const { data: callsData, isLoading: callsLoading } = useClientCalls(clientId);
   const { data: ticketsData, isLoading: ticketsLoading } = useClientTickets(clientId);
+  const { data: profileData, isLoading: profileLoading } = useClientObligationProfile(clientId);
+  const { data: typesGrouped, isLoading: typesLoading } = useObligationTypesGrouped();
 
   // Mutations
   const updateMutation = useUpdateClientFull(clientId);
   const uploadMutation = useUploadDocument(clientId);
   const deleteMutation = useDeleteDocument(clientId);
   const createTicketMutation = useCreateTicket(clientId);
+  const updateProfileMutation = useUpdateClientObligationProfile(clientId);
 
   // Handlers
   const handleSave = useCallback(() => {
@@ -303,6 +312,18 @@ export default function ClientDetails() {
               setYearFilter={setYearFilter}
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
+            />
+          )}
+
+          {/* OBLIGATION PROFILE TAB */}
+          {activeTab === 'profile' && (
+            <ObligationProfileTab
+              clientId={clientId}
+              profileData={profileData}
+              typesGrouped={typesGrouped}
+              isLoading={profileLoading || typesLoading}
+              onUpdate={updateProfileMutation.mutate}
+              isUpdating={updateProfileMutation.isPending}
             />
           )}
 
@@ -1432,6 +1453,242 @@ function CreateTicketModal({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================
+// OBLIGATION PROFILE TAB COMPONENT
+// ============================================
+interface ObligationProfileTabProps {
+  clientId: number;
+  profileData: { obligation_types: number[]; bundle_id: number | null; bundle_name: string | null } | undefined;
+  typesGrouped: ObligationGroup[] | undefined;
+  isLoading: boolean;
+  onUpdate: (data: { obligation_types: number[] }) => void;
+  isUpdating: boolean;
+}
+
+function ObligationProfileTab({
+  profileData,
+  typesGrouped,
+  isLoading,
+  onUpdate,
+  isUpdating,
+}: ObligationProfileTabProps) {
+  const [selectedTypes, setSelectedTypes] = useState<Set<number>>(new Set());
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Effect to sync with profile data
+  useEffect(() => {
+    if (profileData?.obligation_types) {
+      setSelectedTypes(new Set(profileData.obligation_types));
+      setHasChanges(false);
+    }
+  }, [profileData]);
+
+  // Handle toggle of obligation type
+  const handleToggle = (typeId: number) => {
+    setSelectedTypes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(typeId)) {
+        newSet.delete(typeId);
+      } else {
+        newSet.add(typeId);
+      }
+      setHasChanges(true);
+      return newSet;
+    });
+  };
+
+  // Handle save
+  const handleSave = () => {
+    onUpdate({ obligation_types: Array.from(selectedTypes) });
+    setHasChanges(false);
+  };
+
+  // Select all in a group
+  const handleSelectAllInGroup = (groupTypes: { id: number }[]) => {
+    setSelectedTypes(prev => {
+      const newSet = new Set(prev);
+      groupTypes.forEach(t => newSet.add(t.id));
+      setHasChanges(true);
+      return newSet;
+    });
+  };
+
+  // Deselect all in a group
+  const handleDeselectAllInGroup = (groupTypes: { id: number }[]) => {
+    setSelectedTypes(prev => {
+      const newSet = new Set(prev);
+      groupTypes.forEach(t => newSet.delete(t.id));
+      setHasChanges(true);
+      return newSet;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <RefreshCw className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+        <p className="text-sm text-gray-500 mt-2">Φόρτωση προφίλ υποχρεώσεων...</p>
+      </div>
+    );
+  }
+
+  // Get frequency label
+  const getFrequencyLabel = (frequency: string) => {
+    switch (frequency) {
+      case 'monthly': return 'Μηνιαία';
+      case 'quarterly': return 'Τριμηνιαία';
+      case 'annual': return 'Ετήσια';
+      case 'follows_vat': return 'Ακολουθεί ΦΠΑ';
+      default: return frequency;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-blue-600" />
+            Προφίλ Υποχρεώσεων Πελάτη
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Επιλέξτε τους τύπους υποχρεώσεων που ισχύουν για αυτόν τον πελάτη.
+            Αυτές θα δημιουργούνται αυτόματα κάθε μήνα/τρίμηνο/έτος.
+          </p>
+        </div>
+        {hasChanges && (
+          <Button onClick={handleSave} disabled={isUpdating}>
+            {isUpdating ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            Αποθήκευση
+          </Button>
+        )}
+      </div>
+
+      {/* Bundle info if exists */}
+      {profileData?.bundle_name && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-800">
+            <strong>Πρότυπο:</strong> {profileData.bundle_name}
+          </p>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="bg-gray-50 rounded-lg p-4 flex gap-6">
+        <div className="text-center">
+          <p className="text-2xl font-bold text-blue-600">{selectedTypes.size}</p>
+          <p className="text-xs text-gray-500">Επιλεγμένες</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-600">
+            {typesGrouped?.reduce((sum, g) => sum + g.types.length, 0) || 0}
+          </p>
+          <p className="text-xs text-gray-500">Διαθέσιμες</p>
+        </div>
+      </div>
+
+      {/* Grouped obligation types */}
+      <div className="space-y-6">
+        {typesGrouped?.map((group) => {
+          const selectedInGroup = group.types.filter(t => selectedTypes.has(t.id)).length;
+          const allSelected = selectedInGroup === group.types.length;
+
+          return (
+            <div key={group.id || group.name} className="border border-gray-200 rounded-lg overflow-hidden">
+              {/* Group header */}
+              <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h4 className="font-medium text-gray-900">{group.name}</h4>
+                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                    {selectedInGroup}/{group.types.length}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSelectAllInGroup(group.types)}
+                    className={`text-xs px-2 py-1 rounded ${
+                      allSelected
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                    disabled={allSelected}
+                  >
+                    Επιλογή όλων
+                  </button>
+                  <button
+                    onClick={() => handleDeselectAllInGroup(group.types)}
+                    className={`text-xs px-2 py-1 rounded ${
+                      selectedInGroup === 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-red-100 text-red-700 hover:bg-red-200'
+                    }`}
+                    disabled={selectedInGroup === 0}
+                  >
+                    Αποεπιλογή
+                  </button>
+                </div>
+              </div>
+
+              {/* Types list */}
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {group.types.map((type) => {
+                  const isSelected = selectedTypes.has(type.id);
+
+                  return (
+                    <label
+                      key={type.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 border-blue-300'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggle(type.id)}
+                        className="mt-0.5 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {isSelected && <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                          <span className="font-medium text-gray-900 text-sm">{type.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                            {type.code}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {getFrequencyLabel(type.frequency)}
+                          </span>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Empty state */}
+      {(!typesGrouped || typesGrouped.length === 0) && (
+        <div className="text-center py-8 text-gray-500">
+          <ClipboardList className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+          <p>Δεν βρέθηκαν τύποι υποχρεώσεων.</p>
+          <p className="text-sm mt-1">Δημιουργήστε τύπους υποχρεώσεων από το Admin panel.</p>
+        </div>
+      )}
     </div>
   );
 }
