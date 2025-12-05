@@ -49,10 +49,10 @@ export function usePulseDoor() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (duration: number = 1): Promise<DoorActionResponse> => {
-      const response = await apiClient.post<DoorActionResponse>('/api/v1/door/pulse/', {
-        duration,
-      });
+    mutationFn: async (duration?: number): Promise<DoorActionResponse> => {
+      // Only send duration if explicitly specified, otherwise backend uses its default
+      const payload = duration !== undefined ? { duration } : {};
+      const response = await apiClient.post<DoorActionResponse>('/api/v1/door/pulse/', payload);
       return response.data;
     },
     onSuccess: () => {

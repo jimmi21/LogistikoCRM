@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { DoorOpen, Loader2, WifiOff, Check } from 'lucide-react';
-import { useOpenDoor, useDoorStatus } from '../hooks/useDoor';
+import { usePulseDoor, useDoorStatus } from '../hooks/useDoor';
 
 export default function DoorButton() {
   const { data: status, isLoading: isCheckingStatus } = useDoorStatus();
-  const openDoor = useOpenDoor();
+  const pulseDoor = usePulseDoor();
   const [showSuccess, setShowSuccess] = useState(false);
 
   const handleClick = async () => {
     try {
-      await openDoor.mutateAsync();
+      // Use pulse mode for electric door locks (momentary on/off)
+      await pulseDoor.mutateAsync();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
     } catch {
@@ -18,7 +19,7 @@ export default function DoorButton() {
   };
 
   const isOffline = status && !status.online;
-  const isLoading = openDoor.isPending || isCheckingStatus;
+  const isLoading = pulseDoor.isPending || isCheckingStatus;
 
   // Determine button state and styling
   let buttonStyle = 'bg-blue-600 hover:bg-blue-700 text-white';
@@ -37,7 +38,7 @@ export default function DoorButton() {
     buttonStyle = 'bg-blue-500 text-white opacity-70 cursor-wait';
     icon = <Loader2 size={18} className="animate-spin" />;
     label = '...';
-  } else if (openDoor.isError) {
+  } else if (pulseDoor.isError) {
     buttonStyle = 'bg-red-500 hover:bg-red-600 text-white';
   }
 
