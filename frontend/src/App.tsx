@@ -15,6 +15,7 @@ import {
   Emails,
   Reports,
   Settings,
+  ObligationSettings,
 } from './pages';
 
 // Create a client for React Query
@@ -124,6 +125,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/obligations"
+            element={
+              <ProtectedRoute>
+                <ObligationSettings />
               </ProtectedRoute>
             }
           />

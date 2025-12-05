@@ -8,3 +8,4 @@ export { default as Calls } from './Calls';
 export { default as Emails } from './Emails';
 export { default as Reports } from './Reports';
 export { default as Settings } from './Settings';
+export { default as ObligationSettings } from './ObligationSettings';

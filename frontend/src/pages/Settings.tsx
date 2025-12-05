@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   User,
   Bell,
@@ -8,6 +9,8 @@ import {
   Mail,
   Phone,
   Save,
+  FileText,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useAuthStore } from '../stores/authStore';
@@ -210,10 +213,30 @@ export default function Settings() {
           )}
 
           {activeTab === 'integrations' && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">Ενσωματώσεις</h3>
+            <div className="space-y-6">
+              {/* Quick Link to Obligation Settings */}
+              <Link
+                to="/settings/obligations"
+                className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <FileText size={24} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Ρυθμίσεις Υποχρεώσεων</h3>
+                      <p className="text-sm text-gray-500">Διαχείριση τύπων, προφίλ και ομάδων υποχρεώσεων</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="text-gray-400" size={20} />
+                </div>
+              </Link>
 
-              <div className="space-y-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">Ενσωματώσεις</h3>
+
+                <div className="space-y-4">
                 {[
                   {
                     name: 'Fritz!Box VoIP',
@@ -262,6 +285,7 @@ export default function Settings() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             </div>
           )}
