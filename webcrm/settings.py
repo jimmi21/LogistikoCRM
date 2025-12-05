@@ -534,6 +534,8 @@ SITE_URL = 'http://127.0.0.1:8000'  # Change for production!
 TASMOTA_IP = os.environ.get('TASMOTA_IP', '192.168.178.27')
 TASMOTA_PORT = int(os.environ.get('TASMOTA_PORT', '80'))
 TASMOTA_DEVICE_NAME = os.environ.get('TASMOTA_DEVICE_NAME', 'Πόρτα Γραφείου')
+# Pulse duration for electric door locks (in seconds)
+TASMOTA_DOOR_PULSE_DURATION = float(os.environ.get('TASMOTA_DOOR_PULSE_DURATION', '0.5'))
 
 # ==================== Fritz!Box VoIP Monitor Authentication ====================
 # SECURITY: Token for Fritz!Box monitor webhook authentication

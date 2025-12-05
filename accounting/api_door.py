@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Tasmota configuration from settings
 TASMOTA_IP = getattr(settings, 'TASMOTA_IP', '192.168.1.100')
 TASMOTA_PORT = getattr(settings, 'TASMOTA_PORT', 80)
+TASMOTA_DOOR_PULSE_DURATION = getattr(settings, 'TASMOTA_DOOR_PULSE_DURATION', 0.5)
 TIMEOUT = 5
 
 
@@ -148,15 +149,15 @@ def door_pulse(request):
     POST /api/v1/door/pulse/
 
     Optional body:
-        - duration: int (seconds, default 1)
+        - duration: float (seconds, default from TASMOTA_DOOR_PULSE_DURATION setting)
 
     Returns:
         - success: bool
         - message: str (Greek)
     """
     try:
-        duration = request.data.get('duration', 1)
-        pulse_time = int(duration) * 10  # Tasmota uses deciseconds
+        duration = float(request.data.get('duration', TASMOTA_DOOR_PULSE_DURATION))
+        pulse_time = int(duration * 10)  # Tasmota uses deciseconds (0.1s units)
 
         # Set pulse time
         set_pulse_url = f"http://{TASMOTA_IP}:{TASMOTA_PORT}/cm?cmnd=PulseTime1%20{pulse_time}"
