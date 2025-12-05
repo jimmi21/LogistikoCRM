@@ -50,6 +50,7 @@ from .api_email import (
     send_obligation_notice,
     complete_and_notify,
     bulk_complete_with_notify,
+    bulk_complete_with_documents,
     email_history,
 )
 
@@ -184,6 +185,7 @@ urlpatterns = [
     path("api/v1/obligations/<int:obligation_id>/attach-document/", attach_document_to_obligation, name="api_v1_attach_document"),
     path("api/v1/obligations/<int:obligation_id>/complete-and-notify/", complete_and_notify, name="api_v1_complete_and_notify"),
     path("api/v1/obligations/bulk-complete-notify/", bulk_complete_with_notify, name="api_v1_bulk_complete_notify"),
+    path("api/v1/obligations/bulk-complete-with-documents/", bulk_complete_with_documents, name="api_v1_bulk_complete_with_documents"),
 
     # REST ROUTER
     path("api/", include(router.urls)),

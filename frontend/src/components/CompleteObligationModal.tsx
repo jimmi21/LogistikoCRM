@@ -1,10 +1,11 @@
 /**
  * CompleteObligationModal.tsx
  * Modal for completing an obligation with optional document attachment and email notification
+ * Features: Drag & drop file upload, save to client folder, send email with attachment
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { CheckCircle, Upload, File, X, AlertCircle, Mail } from 'lucide-react';
+import { CheckCircle, Upload, File, X, AlertCircle, Mail, FolderPlus, Paperclip } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { useEmailTemplates } from '../hooks/useEmail';
@@ -20,7 +21,9 @@ interface CompleteObligationModalProps {
   onComplete: (data: {
     file?: File | null;
     documentId?: number | null;
+    saveToClientFolder: boolean;
     sendEmail: boolean;
+    attachToEmail: boolean;
     emailTemplateId?: number | null;
     notes: string;
     timeSpent?: number | null;
@@ -41,15 +44,17 @@ export function CompleteObligationModal({
   onComplete,
   isLoading = false,
 }: CompleteObligationModalProps) {
-  const [attachDocument, setAttachDocument] = useState(false);
-  const [documentSource, setDocumentSource] = useState<'upload' | 'existing'>('upload');
   const [file, setFile] = useState<File | null>(null);
+  const [documentSource, setDocumentSource] = useState<'upload' | 'existing'>('upload');
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
-  const [sendEmail, setSendEmail] = useState(true);
+  const [saveToClientFolder, setSaveToClientFolder] = useState(true);
+  const [sendEmail, setSendEmail] = useState(false);
+  const [attachToEmail, setAttachToEmail] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [timeSpent, setTimeSpent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: templates } = useEmailTemplates();
@@ -66,28 +71,60 @@ export function CompleteObligationModal({
   }, []);
 
   const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFile = e.target.files?.[0];
-      if (selectedFile) {
-        const validationError = validateFile(selectedFile);
-        if (validationError) {
-          setError(validationError);
-          return;
-        }
-        setFile(selectedFile);
-        setSelectedDocId(null);
-        setError(null);
+    (selectedFile: File) => {
+      const validationError = validateFile(selectedFile);
+      if (validationError) {
+        setError(validationError);
+        return;
       }
+      setFile(selectedFile);
+      setSelectedDocId(null);
+      setDocumentSource('upload');
+      setError(null);
     },
     [validateFile]
   );
 
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = e.target.files?.[0];
+      if (selectedFile) {
+        handleFileSelect(selectedFile);
+      }
+    },
+    [handleFileSelect]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const droppedFile = e.dataTransfer.files[0];
+      if (droppedFile) {
+        handleFileSelect(droppedFile);
+      }
+    },
+    [handleFileSelect]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
   const handleSubmit = async () => {
     try {
       await onComplete({
-        file: attachDocument && documentSource === 'upload' ? file : null,
-        documentId: attachDocument && documentSource === 'existing' ? selectedDocId : null,
+        file: documentSource === 'upload' ? file : null,
+        documentId: documentSource === 'existing' ? selectedDocId : null,
+        saveToClientFolder,
         sendEmail: sendEmail && !!clientEmail,
+        attachToEmail: sendEmail && attachToEmail && (!!file || !!selectedDocId),
         emailTemplateId: sendEmail && selectedTemplate ? selectedTemplate : null,
         notes,
         timeSpent: timeSpent ? parseFloat(timeSpent) : null,
@@ -99,15 +136,17 @@ export function CompleteObligationModal({
   };
 
   const handleClose = () => {
-    setAttachDocument(false);
-    setDocumentSource('upload');
     setFile(null);
+    setDocumentSource('upload');
     setSelectedDocId(null);
-    setSendEmail(true);
+    setSaveToClientFolder(true);
+    setSendEmail(false);
+    setAttachToEmail(false);
     setSelectedTemplate(null);
     setNotes('');
     setTimeSpent('');
     setError(null);
+    setIsDragging(false);
     onClose();
   };
 
@@ -116,6 +155,8 @@ export function CompleteObligationModal({
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
+
+  const hasDocument = file || selectedDocId;
 
   if (!obligation) return null;
 
@@ -145,98 +186,98 @@ export function CompleteObligationModal({
           </div>
         )}
 
-        {/* Attach document option */}
+        {/* Document attachment section */}
         <div className="border border-gray-200 rounded-lg p-4">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex items-center gap-2 mb-3">
+            <Paperclip className="w-4 h-4 text-gray-500" />
+            <span className="font-medium text-gray-900">Επισύναψη Εγγράφου</span>
+          </div>
+
+          {/* Drop zone */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => fileInputRef.current?.click()}
+            className={`
+              border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+              ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
+            `}
+          >
             <input
-              type="checkbox"
-              checked={attachDocument}
-              onChange={(e) => setAttachDocument(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded"
+              ref={fileInputRef}
+              type="file"
+              onChange={handleInputChange}
+              accept={ALLOWED_EXTENSIONS.join(',')}
+              className="hidden"
             />
-            <span className="font-medium text-gray-900">Επισύναψη εγγράφου</span>
-          </label>
+            <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+            <p className="text-gray-600 text-sm font-medium">
+              Σύρετε αρχείο εδώ ή κάντε κλικ για επιλογή
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              PDF, DOC, XLS, JPG, PNG (max 10MB)
+            </p>
+          </div>
 
-          {attachDocument && (
-            <div className="mt-4 space-y-3 pl-6">
-              {/* Document source selection */}
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={documentSource === 'upload'}
-                    onChange={() => setDocumentSource('upload')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-sm">Μεταφόρτωση νέου</span>
-                </label>
-                {existingDocuments.length > 0 && (
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={documentSource === 'existing'}
-                      onChange={() => setDocumentSource('existing')}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm">Επιλογή υπάρχοντος</span>
-                  </label>
-                )}
+          {/* Selected file preview */}
+          {file && (
+            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg mt-3 border border-green-200">
+              <File className="w-6 h-6 text-green-600" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-green-800 truncate">{file.name}</p>
+                <p className="text-xs text-green-600">{formatFileSize(file.size)}</p>
               </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFile(null);
+                }}
+                className="p-1 hover:bg-green-100 rounded"
+              >
+                <X className="w-4 h-4 text-green-600" />
+              </button>
+            </div>
+          )}
 
-              {/* Upload file */}
-              {documentSource === 'upload' && (
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    onChange={handleFileSelect}
-                    accept={ALLOWED_EXTENSIONS.join(',')}
-                    className="hidden"
-                  />
-                  {file ? (
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <File className="w-6 h-6 text-blue-500" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{file.name}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
-                      </div>
-                      <button
-                        onClick={() => setFile(null)}
-                        className="p-1 hover:bg-gray-200 rounded"
-                      >
-                        <X className="w-4 h-4 text-gray-400" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
-                    >
-                      <Upload className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">Επιλογή αρχείου...</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Select existing document */}
-              {documentSource === 'existing' && existingDocuments.length > 0 && (
-                <select
-                  value={selectedDocId || ''}
-                  onChange={(e) => setSelectedDocId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                >
-                  <option value="">-- Επιλέξτε έγγραφο --</option>
-                  {existingDocuments.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.filename}
-                    </option>
-                  ))}
-                </select>
-              )}
+          {/* Existing document selection */}
+          {existingDocuments.length > 0 && !file && (
+            <div className="mt-3">
+              <label className="block text-sm text-gray-600 mb-1">
+                Ή επιλέξτε υπάρχον έγγραφο:
+              </label>
+              <select
+                value={selectedDocId || ''}
+                onChange={(e) => {
+                  setSelectedDocId(e.target.value ? Number(e.target.value) : null);
+                  setDocumentSource('existing');
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              >
+                <option value="">-- Επιλέξτε έγγραφο --</option>
+                {existingDocuments.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.filename}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
+
+        {/* Save to client folder option */}
+        {hasDocument && (
+          <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+            <input
+              type="checkbox"
+              checked={saveToClientFolder}
+              onChange={(e) => setSaveToClientFolder(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded"
+            />
+            <FolderPlus className="w-4 h-4 text-gray-500" />
+            <span className="text-sm text-gray-700">Αποθήκευση στον φάκελο πελάτη</span>
+          </label>
+        )}
 
         {/* Send email option */}
         <div className="border border-gray-200 rounded-lg p-4">
@@ -244,34 +285,56 @@ export function CompleteObligationModal({
             <input
               type="checkbox"
               checked={sendEmail}
-              onChange={(e) => setSendEmail(e.target.checked)}
+              onChange={(e) => {
+                setSendEmail(e.target.checked);
+                if (!e.target.checked) {
+                  setAttachToEmail(false);
+                }
+              }}
               disabled={!clientEmail}
               className="w-4 h-4 text-blue-600 rounded"
             />
             <Mail className="w-4 h-4 text-gray-400" />
-            <span className="font-medium text-gray-900">Αποστολή email ενημέρωσης</span>
+            <span className="font-medium text-gray-900">Αποστολή email στον πελάτη</span>
             {!clientEmail && (
               <span className="text-xs text-gray-400">(ο πελάτης δεν έχει email)</span>
             )}
           </label>
 
           {sendEmail && clientEmail && (
-            <div className="mt-4 pl-6">
-              <label className="block text-sm text-gray-600 mb-1">Πρότυπο</label>
-              <select
-                value={selectedTemplate || ''}
-                onChange={(e) =>
-                  setSelectedTemplate(e.target.value ? Number(e.target.value) : null)
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              >
-                <option value="">Αυτόματη επιλογή</option>
-                {templates?.map((template: EmailTemplate) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-4 pl-6 space-y-3">
+              {/* Attach document to email option */}
+              {hasDocument && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={attachToEmail}
+                    onChange={(e) => setAttachToEmail(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <Paperclip className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-700">Επισύναψη εγγράφου στο email</span>
+                </label>
+              )}
+
+              {/* Template selection */}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Πρότυπο</label>
+                <select
+                  value={selectedTemplate || ''}
+                  onChange={(e) =>
+                    setSelectedTemplate(e.target.value ? Number(e.target.value) : null)
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Αυτόματη επιλογή</option>
+                  {templates?.map((template: EmailTemplate) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
         </div>
