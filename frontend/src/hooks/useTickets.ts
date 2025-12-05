@@ -38,6 +38,7 @@ export interface CreateTicketData {
 export interface UpdateTicketData {
   title?: string;
   description?: string;
+  status?: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   notes?: string;
 }

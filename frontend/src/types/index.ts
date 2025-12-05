@@ -127,6 +127,8 @@ export interface ObligationFormData {
   year: number;
   deadline: string;
   status?: ObligationStatus;
+  completed_date?: string | null;
+  time_spent?: number | null;
   notes?: string;
 }
 
