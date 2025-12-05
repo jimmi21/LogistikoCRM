@@ -53,6 +53,11 @@ from .api_email import (
     bulk_complete_with_documents,
     email_history,
 )
+from .api_door import (
+    door_status as api_door_status,
+    door_open as api_door_open,
+    door_pulse as api_door_pulse,
+)
 
 
 app_name = "accounting"
@@ -167,6 +172,13 @@ urlpatterns = [
     path("api/v1/obligation-types/grouped/", obligation_types_grouped, name="obligation_types_grouped"),
     path("api/v1/obligation-profiles/", obligation_profiles_list, name="obligation_profiles_list"),
     path("api/v1/obligations/generate-month/", generate_month_obligations, name="generate_month_obligations"),
+
+    # ============================================
+    # DOOR CONTROL API (v1) - JWT authenticated
+    # ============================================
+    path("api/v1/door/status/", api_door_status, name="api_v1_door_status"),
+    path("api/v1/door/open/", api_door_open, name="api_v1_door_open"),
+    path("api/v1/door/pulse/", api_door_pulse, name="api_v1_door_pulse"),
 
     # ============================================
     # EMAIL API (v1)
