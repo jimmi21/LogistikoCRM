@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/accounting';
 
 // Create axios instance
 export const apiClient = axios.create({
@@ -39,6 +39,8 @@ apiClient.interceptors.response.use(
         if (refreshToken) {
           const response = await axios.post(`${API_BASE_URL}/api/auth/refresh/`, {
             refresh: refreshToken,
+          }, {
+            headers: { 'Content-Type': 'application/json' }
           });
 
           const { access } = response.data;

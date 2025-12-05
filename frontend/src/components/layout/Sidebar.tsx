@@ -25,14 +25,14 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { to: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
+  { to: '/', icon: <LayoutDashboard size={20} />, label: 'Πίνακας Ελέγχου' },
   { to: '/clients', icon: <Users size={20} />, label: 'Πελάτες' },
   { to: '/obligations', icon: <ClipboardList size={20} />, label: 'Υποχρεώσεις' },
   { to: '/calendar', icon: <Calendar size={20} />, label: 'Ημερολόγιο' },
   { to: '/files', icon: <FolderOpen size={20} />, label: 'Αρχεία' },
   { to: '/calls', icon: <Phone size={20} />, label: 'Κλήσεις' },
-  { to: '/tickets', icon: <Ticket size={20} />, label: 'Tickets' },
-  { to: '/emails', icon: <Mail size={20} />, label: 'Email' },
+  { to: '/tickets', icon: <Ticket size={20} />, label: 'Αιτήματα' },
+  { to: '/emails', icon: <Mail size={20} />, label: 'Αλληλογραφία' },
   { to: '/reports', icon: <BarChart3 size={20} />, label: 'Αναφορές' },
   { to: '/settings', icon: <Settings size={20} />, label: 'Ρυθμίσεις' },
 ];
