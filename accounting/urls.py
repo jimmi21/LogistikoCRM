@@ -29,6 +29,13 @@ from .api_obligation_settings import (
     ObligationProfileSettingsViewSet,
     ObligationGroupSettingsViewSet,
 )
+from .api_voip import (
+    VoIPCallViewSet as VoIPCallViewSetV2,
+    TicketViewSet,
+    calls_stats,
+    tickets_stats,
+    search_clients_for_match,
+)
 
 
 app_name = "accounting"
@@ -39,6 +46,11 @@ app_name = "accounting"
 router = DefaultRouter()
 router.register(r"voip-calls", views.VoIPCallViewSet, basename="voip-call")
 router.register(r"voip-call-logs", views.VoIPCallLogViewSet, basename="voip-call-log")
+
+# New enhanced VoIP/Tickets router (v2)
+router_v2 = DefaultRouter()
+router_v2.register(r'calls', VoIPCallViewSetV2, basename='calls')
+router_v2.register(r'tickets', TicketViewSet, basename='tickets')
 router.register(r'documents', views.ClientDocumentViewSet)
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'obligations', ObligationViewSet, basename='obligation')
@@ -139,6 +151,14 @@ urlpatterns = [
     # REST ROUTER
     path("api/", include(router.urls)),
     path("api/v1/", include(router.urls)),  # Versioned API endpoint
+
+    # ============================================
+    # ENHANCED VOIP/TICKETS API (v2)
+    # ============================================
+    path("api/v1/", include(router_v2.urls)),  # New calls/tickets endpoints
+    path("api/v1/calls/stats/", calls_stats, name="api_calls_stats"),
+    path("api/v1/tickets/stats/", tickets_stats, name="api_tickets_stats"),
+    path("api/v1/clients/search-for-match/", search_clients_for_match, name="search_clients_for_match"),
 
     # ==================================================
     # JWT AUTHENTICATION ENDPOINTS

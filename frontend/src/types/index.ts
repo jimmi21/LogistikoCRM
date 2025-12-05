@@ -307,6 +307,31 @@ export interface VoIPCall {
   ticket_created?: boolean;
 }
 
+// VoIP Call Full interface (with nested client)
+export interface VoIPCallFull {
+  id: number;
+  call_id: string;
+  phone_number: string;
+  direction: 'incoming' | 'outgoing';
+  direction_display?: string;
+  status: 'active' | 'completed' | 'missed' | 'failed';
+  status_display?: string;
+  duration_seconds: number;
+  duration_formatted?: string;
+  started_at: string;
+  ended_at?: string | null;
+  client?: {
+    id: number;
+    eponimia: string;
+    afm: string;
+  } | null;
+  has_ticket: boolean;
+  notes?: string;
+  resolution?: 'pending' | 'closed' | 'follow_up';
+  created_at: string;
+  updated_at: string;
+}
+
 // VoIP Ticket interface (extended from base Ticket)
 export interface VoIPTicket {
   id: number;
@@ -322,6 +347,74 @@ export interface VoIPTicket {
   resolved_at?: string | null;
   is_open: boolean;
   days_since_created: number;
+}
+
+// Ticket Full interface (with nested client and call)
+export interface TicketFull {
+  id: number;
+  title: string;
+  description?: string;
+  status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
+  status_display?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  priority_display?: string;
+  client?: {
+    id: number;
+    eponimia: string;
+    afm: string;
+  } | null;
+  call?: {
+    id: number;
+    phone_number: string;
+    direction: string;
+    direction_display?: string;
+    started_at?: string;
+  } | null;
+  assigned_to?: number | null;
+  assigned_to_name?: string | null;
+  notes?: string;
+  created_at: string;
+  assigned_at?: string | null;
+  resolved_at?: string | null;
+  closed_at?: string | null;
+  days_since_created: number;
+  is_open: boolean;
+}
+
+// Calls Stats
+export interface CallsStats {
+  total: number;
+  incoming: number;
+  outgoing: number;
+  missed: number;
+  today: number;
+}
+
+// Tickets Stats
+export interface TicketsStats {
+  total: number;
+  open: number;
+  in_progress: number;
+  resolved: number;
+  closed: number;
+}
+
+// Calls List Response
+export interface CallsListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: VoIPCallFull[];
+  stats: CallsStats;
+}
+
+// Tickets List Response
+export interface TicketsListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: TicketFull[];
+  stats: TicketsStats;
 }
 
 // Taxpayer Types (Είδος Υπόχρεου)
