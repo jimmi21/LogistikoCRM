@@ -433,3 +433,95 @@ export const FREQUENCY_LABELS: Record<string, string> = {
   annual: 'Ετήσια',
   follows_vat: 'Ακολουθεί ΦΠΑ',
 };
+
+// ============================================
+// OBLIGATION SETTINGS TYPES
+// ============================================
+
+// Full ObligationType for settings management
+export interface ObligationTypeFull {
+  id: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'follows_vat';
+  deadline_type: 'last_day' | 'specific_day' | 'last_day_prev' | 'last_day_next';
+  deadline_day: number | null;
+  applicable_months?: string | null;
+  exclusion_group: number | null;
+  exclusion_group_name: string | null;
+  profile: number | null;
+  profile_name: string | null;
+  priority: number;
+  is_active: boolean;
+}
+
+// Form data for creating/updating ObligationType
+export interface ObligationTypeFormData {
+  code: string;
+  name: string;
+  description?: string;
+  frequency: string;
+  deadline_type: string;
+  deadline_day?: number | null;
+  applicable_months?: string;
+  exclusion_group?: number | null;
+  profile?: number | null;
+  priority?: number;
+  is_active: boolean;
+}
+
+// Full ObligationProfile for settings management
+export interface ObligationProfileFull {
+  id: number;
+  name: string;
+  description: string | null;
+  obligation_types_count: number;
+  obligation_types: Array<{ id: number; name: string; code: string }>;
+}
+
+// Form data for creating/updating ObligationProfile
+export interface ObligationProfileFormData {
+  name: string;
+  description?: string;
+}
+
+// Full ObligationGroup (exclusion group) for settings management
+export interface ObligationGroupFull {
+  id: number;
+  name: string;
+  description: string | null;
+  obligation_types: number[];
+  obligation_type_names: string[];
+}
+
+// Form data for creating/updating ObligationGroup
+export interface ObligationGroupFormData {
+  name: string;
+  description?: string;
+  obligation_types?: number[];
+}
+
+// Deadline type labels
+export const DEADLINE_TYPE_LABELS: Record<string, string> = {
+  last_day: 'Τέλος μήνα',
+  specific_day: 'Συγκεκριμένη ημέρα',
+  last_day_prev: 'Τέλος προηγ. μήνα',
+  last_day_next: 'Τέλος επόμ. μήνα',
+};
+
+// Frequency options for forms
+export const FREQUENCY_OPTIONS = [
+  { value: 'monthly', label: 'Μηνιαίο' },
+  { value: 'quarterly', label: 'Τριμηνιαίο' },
+  { value: 'annual', label: 'Ετήσιο' },
+  { value: 'follows_vat', label: 'Ακολουθεί ΦΠΑ' },
+];
+
+// Deadline type options for forms
+export const DEADLINE_TYPE_OPTIONS = [
+  { value: 'last_day', label: 'Τέλος μήνα' },
+  { value: 'specific_day', label: 'Συγκεκριμένη ημέρα' },
+  { value: 'last_day_prev', label: 'Τέλος προηγ. μήνα' },
+  { value: 'last_day_next', label: 'Τέλος επόμ. μήνα' },
+];

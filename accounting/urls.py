@@ -24,6 +24,11 @@ from .api_obligation_profiles import (
     obligation_profiles_list,
     generate_month_obligations
 )
+from .api_obligation_settings import (
+    ObligationTypeSettingsViewSet,
+    ObligationProfileSettingsViewSet,
+    ObligationGroupSettingsViewSet,
+)
 
 
 app_name = "accounting"
@@ -38,6 +43,11 @@ router.register(r'documents', views.ClientDocumentViewSet)
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'obligations', ObligationViewSet, basename='obligation')
 router.register(r'obligation-types', ObligationTypeViewSet, basename='obligation-type')
+
+# Settings management ViewSets
+router.register(r'settings/obligation-types', ObligationTypeSettingsViewSet, basename='settings-obligation-type')
+router.register(r'settings/obligation-profiles', ObligationProfileSettingsViewSet, basename='settings-obligation-profile')
+router.register(r'settings/obligation-groups', ObligationGroupSettingsViewSet, basename='settings-obligation-group')
 # ============================================
 # URL PATTERNS
 # ============================================
