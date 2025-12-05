@@ -107,4 +107,33 @@ export const obligationsApi = {
   },
 };
 
+// Global Search API
+export interface SearchResultItem {
+  id: number;
+  title: string;
+  subtitle: string;
+  url: string;
+  type: 'client' | 'obligation' | 'ticket' | 'call';
+  extra?: Record<string, unknown>;
+}
+
+export interface GlobalSearchResponse {
+  query: string;
+  results: {
+    clients: SearchResultItem[];
+    obligations: SearchResultItem[];
+    tickets: SearchResultItem[];
+    calls: SearchResultItem[];
+  };
+  total: number;
+  error?: string;
+}
+
+export const searchApi = {
+  globalSearch: async (query: string): Promise<GlobalSearchResponse> => {
+    const response = await apiClient.get('/api/v1/search/', { params: { q: query } });
+    return response.data;
+  },
+};
+
 export default apiClient;

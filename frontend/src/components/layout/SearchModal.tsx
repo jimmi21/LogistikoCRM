@@ -1,55 +1,103 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, ClipboardList, X, Loader2 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { clientsApi, obligationsApi } from '../../api/client';
-import type { Client, Obligation } from '../../types';
+import {
+  Search,
+  Users,
+  ClipboardList,
+  Ticket,
+  Phone,
+  X,
+  Loader2
+} from 'lucide-react';
+import { useGlobalSearch, type SearchResultItem } from '../../hooks/useGlobalSearch';
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SearchResult =
-  | { type: 'client'; data: Client }
-  | { type: 'obligation'; data: Obligation };
+// Category configuration with icons and labels
+const CATEGORIES = {
+  clients: {
+    label: 'ΠΕΛΑΤΕΣ',
+    icon: Users,
+    iconBg: 'bg-blue-100',
+    iconColor: 'text-blue-600'
+  },
+  obligations: {
+    label: 'ΥΠΟΧΡΕΩΣΕΙΣ',
+    icon: ClipboardList,
+    iconBg: 'bg-purple-100',
+    iconColor: 'text-purple-600'
+  },
+  tickets: {
+    label: 'TICKETS',
+    icon: Ticket,
+    iconBg: 'bg-orange-100',
+    iconColor: 'text-orange-600'
+  },
+  calls: {
+    label: 'ΚΛΗΣΕΙΣ',
+    icon: Phone,
+    iconBg: 'bg-green-100',
+    iconColor: 'text-green-600'
+  }
+} as const;
+
+type CategoryKey = keyof typeof CATEGORIES;
+
+// Status colors for obligations
+const OBLIGATION_STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  completed: 'bg-green-100 text-green-700',
+  overdue: 'bg-red-100 text-red-700',
+  cancelled: 'bg-gray-100 text-gray-700',
+};
+
+// Status colors for tickets
+const TICKET_STATUS_COLORS: Record<string, string> = {
+  open: 'bg-red-100 text-red-700',
+  assigned: 'bg-blue-100 text-blue-700',
+  in_progress: 'bg-yellow-100 text-yellow-700',
+  resolved: 'bg-green-100 text-green-700',
+  closed: 'bg-gray-100 text-gray-700',
+};
+
+// Call status colors
+const CALL_STATUS_COLORS: Record<string, string> = {
+  active: 'bg-blue-100 text-blue-700',
+  completed: 'bg-green-100 text-green-700',
+  missed: 'bg-red-100 text-red-700',
+  failed: 'bg-gray-100 text-gray-700',
+};
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsContainerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Fetch clients
-  const { data: clientsData, isLoading: clientsLoading } = useQuery({
-    queryKey: ['search-clients', query],
-    queryFn: () => clientsApi.getAll({ search: query, page_size: 5 }),
-    enabled: isOpen && query.length >= 2,
-    staleTime: 30000,
-  });
+  // Use the new unified search hook
+  const { data: searchData, isLoading } = useGlobalSearch(query, isOpen);
 
-  // Fetch obligations
-  const { data: obligationsData, isLoading: obligationsLoading } = useQuery({
-    queryKey: ['search-obligations', query],
-    queryFn: () => obligationsApi.getAll({ search: query, page_size: 5 }),
-    enabled: isOpen && query.length >= 2,
-    staleTime: 30000,
-  });
+  // Flatten results for keyboard navigation
+  const flatResults = useMemo(() => {
+    if (!searchData?.results) return [];
 
-  const isLoading = clientsLoading || obligationsLoading;
+    const items: Array<{ category: CategoryKey; item: SearchResultItem }> = [];
 
-  // Combine results
-  const results: SearchResult[] = [];
-  if (clientsData?.results) {
-    clientsData.results.forEach((client: Client) => {
-      results.push({ type: 'client', data: client });
+    const categories: CategoryKey[] = ['clients', 'obligations', 'tickets', 'calls'];
+    categories.forEach((category) => {
+      const categoryItems = searchData.results[category] || [];
+      categoryItems.forEach((item) => {
+        items.push({ category, item });
+      });
     });
-  }
-  if (obligationsData?.results) {
-    obligationsData.results.forEach((obligation: Obligation) => {
-      results.push({ type: 'obligation', data: obligation });
-    });
-  }
+
+    return items;
+  }, [searchData]);
 
   // Focus input when modal opens
   useEffect(() => {
@@ -63,16 +111,24 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   // Reset selection when results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [results.length]);
+  }, [flatResults.length]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (resultsContainerRef.current && flatResults.length > 0) {
+      const selectedElement = resultsContainerRef.current.querySelector(
+        `[data-index="${selectedIndex}"]`
+      );
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [selectedIndex, flatResults.length]);
 
   // Navigate to result
   const navigateToResult = useCallback(
-    (result: SearchResult) => {
-      if (result.type === 'client') {
-        navigate(`/clients?highlight=${result.data.id}`);
-      } else {
-        navigate(`/obligations?highlight=${result.data.id}`);
-      }
+    (result: SearchResultItem) => {
+      navigate(result.url);
       onClose();
     },
     [navigate, onClose]
@@ -86,7 +142,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
+          setSelectedIndex((prev) => Math.min(prev + 1, flatResults.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -94,8 +150,8 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           break;
         case 'Enter':
           e.preventDefault();
-          if (results[selectedIndex]) {
-            navigateToResult(results[selectedIndex]);
+          if (flatResults[selectedIndex]) {
+            navigateToResult(flatResults[selectedIndex].item);
           }
           break;
         case 'Escape':
@@ -107,7 +163,99 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, results, selectedIndex, navigateToResult, onClose]);
+  }, [isOpen, flatResults, selectedIndex, navigateToResult, onClose]);
+
+  // Get status badge for different item types
+  const getStatusBadge = (item: SearchResultItem) => {
+    const extra = item.extra as Record<string, string> | undefined;
+    if (!extra?.status) return null;
+
+    let colorClass = 'bg-gray-100 text-gray-700';
+    let statusText = extra.status_display || extra.status;
+
+    if (item.type === 'obligation') {
+      colorClass = OBLIGATION_STATUS_COLORS[extra.status] || colorClass;
+    } else if (item.type === 'ticket') {
+      colorClass = TICKET_STATUS_COLORS[extra.status] || colorClass;
+    } else if (item.type === 'call') {
+      colorClass = CALL_STATUS_COLORS[extra.status] || colorClass;
+    }
+
+    return (
+      <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${colorClass}`}>
+        {statusText}
+      </span>
+    );
+  };
+
+  // Render a single result item
+  const renderResultItem = (
+    item: SearchResultItem,
+    category: CategoryKey,
+    globalIndex: number
+  ) => {
+    const config = CATEGORIES[category];
+    const Icon = config.icon;
+    const isSelected = selectedIndex === globalIndex;
+
+    return (
+      <button
+        key={`${item.type}-${item.id}`}
+        data-index={globalIndex}
+        onClick={() => navigateToResult(item)}
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+          isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+        }`}
+      >
+        <div
+          className={`w-10 h-10 ${config.iconBg} rounded-full flex items-center justify-center flex-shrink-0`}
+        >
+          <Icon size={18} className={config.iconColor} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-900 truncate">{item.title}</p>
+          <p className="text-sm text-gray-500 truncate">{item.subtitle}</p>
+        </div>
+        {getStatusBadge(item)}
+      </button>
+    );
+  };
+
+  // Render a category section
+  const renderCategory = (category: CategoryKey, startIndex: number) => {
+    const items = searchData?.results[category] || [];
+    if (items.length === 0) return { element: null, nextIndex: startIndex };
+
+    const config = CATEGORIES[category];
+
+    const element = (
+      <div key={category}>
+        <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-t border-gray-100 first:border-t-0">
+          {config.label}
+        </div>
+        {items.map((item, idx) => renderResultItem(item, category, startIndex + idx))}
+      </div>
+    );
+
+    return { element, nextIndex: startIndex + items.length };
+  };
+
+  // Render all category sections
+  const renderAllCategories = () => {
+    let currentIndex = 0;
+    const elements: React.ReactNode[] = [];
+
+    const categories: CategoryKey[] = ['clients', 'obligations', 'tickets', 'calls'];
+    categories.forEach((category) => {
+      const { element, nextIndex } = renderCategory(category, currentIndex);
+      if (element) {
+        elements.push(element);
+      }
+      currentIndex = nextIndex;
+    });
+
+    return elements;
+  };
 
   if (!isOpen) return null;
 
@@ -127,7 +275,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Αναζήτηση πελατών, υποχρεώσεων..."
+            placeholder="Αναζήτηση πελατών, υποχρεώσεων, tickets, κλήσεων..."
             className="flex-1 text-lg outline-none placeholder-gray-400"
           />
           <button
@@ -139,13 +287,13 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         </div>
 
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div ref={resultsContainerRef} className="max-h-[60vh] overflow-y-auto">
           {query.length < 2 ? (
             <div className="px-4 py-8 text-center text-gray-500">
               <Search size={40} className="mx-auto mb-2 opacity-50" />
               <p>Πληκτρολογήστε τουλάχιστον 2 χαρακτήρες</p>
               <p className="text-sm text-gray-400 mt-1">
-                Αναζήτηση με επωνυμία, ΑΦΜ ή τύπο υποχρέωσης
+                Αναζήτηση με επωνυμία, ΑΦΜ, τηλέφωνο ή τύπο
               </p>
             </div>
           ) : isLoading ? (
@@ -153,108 +301,12 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <Loader2 size={24} className="mx-auto mb-2 animate-spin" />
               <p>Αναζήτηση...</p>
             </div>
-          ) : results.length === 0 ? (
+          ) : flatResults.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500">
               <p>Δεν βρέθηκαν αποτελέσματα για "{query}"</p>
             </div>
           ) : (
-            <div className="py-2">
-              {/* Clients section */}
-              {clientsData?.results && clientsData.results.length > 0 && (
-                <div>
-                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Πελάτες
-                  </div>
-                  {clientsData.results.map((client: Client, index: number) => {
-                    const resultIndex = index;
-                    return (
-                      <button
-                        key={`client-${client.id}`}
-                        onClick={() => navigateToResult({ type: 'client', data: client })}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                          selectedIndex === resultIndex
-                            ? 'bg-blue-50'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <Users size={18} className="text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">
-                            {client.eponimia}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            ΑΦΜ: {client.afm}
-                          </p>
-                        </div>
-                        {client.is_active === false && (
-                          <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
-                            Ανενεργός
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Obligations section */}
-              {obligationsData?.results && obligationsData.results.length > 0 && (
-                <div>
-                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-t border-gray-100 mt-2">
-                    Υποχρεώσεις
-                  </div>
-                  {obligationsData.results.map((obligation: Obligation, index: number) => {
-                    const resultIndex = (clientsData?.results?.length || 0) + index;
-                    const statusColors: Record<string, string> = {
-                      pending: 'bg-yellow-100 text-yellow-700',
-                      in_progress: 'bg-blue-100 text-blue-700',
-                      completed: 'bg-green-100 text-green-700',
-                      overdue: 'bg-red-100 text-red-700',
-                      cancelled: 'bg-gray-100 text-gray-700',
-                    };
-                    return (
-                      <button
-                        key={`obligation-${obligation.id}`}
-                        onClick={() =>
-                          navigateToResult({ type: 'obligation', data: obligation })
-                        }
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                          selectedIndex === resultIndex
-                            ? 'bg-blue-50'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <ClipboardList size={18} className="text-purple-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">
-                            {obligation.type_name || 'Υποχρέωση'} - {obligation.client_name}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {obligation.month}/{obligation.year} - Προθεσμία:{' '}
-                            {new Date(obligation.deadline).toLocaleDateString('el-GR')}
-                          </p>
-                        </div>
-                        <span
-                          className={`px-2 py-0.5 text-xs rounded-full ${
-                            statusColors[obligation.status] || 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {obligation.status === 'pending' && 'Εκκρεμεί'}
-                          {obligation.status === 'in_progress' && 'Σε εξέλιξη'}
-                          {obligation.status === 'completed' && 'Ολοκληρώθηκε'}
-                          {obligation.status === 'overdue' && 'Εκπρόθεσμη'}
-                          {obligation.status === 'cancelled' && 'Ακυρώθηκε'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <div className="py-2">{renderAllCategories()}</div>
           )}
         </div>
 
@@ -281,6 +333,11 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <span>Κλείσιμο</span>
               </span>
             </div>
+            {searchData && searchData.total > 0 && (
+              <span className="text-gray-400">
+                {searchData.total} αποτελέσματα
+              </span>
+            )}
           </div>
         </div>
       </div>

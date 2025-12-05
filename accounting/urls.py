@@ -36,6 +36,7 @@ from .api_voip import (
     tickets_stats,
     search_clients_for_match,
 )
+from .api_search import global_search
 
 
 app_name = "accounting"
@@ -124,6 +125,7 @@ urlpatterns = [
 
     # GLOBAL SEARCH API
     path("api/search/", views.global_search_api, name="global_search_api"),
+    path("api/v1/search/", global_search, name="api_v1_global_search"),
 
     # PDF REPORTS
     path("reports/client/<int:client_id>/pdf/", views.client_report_pdf, name="client_report_pdf"),
