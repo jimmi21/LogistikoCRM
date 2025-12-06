@@ -65,6 +65,23 @@ from .api_gsis import (
     gsis_settings_update,
     gsis_test_connection,
 )
+from .api_users import (
+    user_list,
+    user_create,
+    user_detail,
+    user_update,
+    user_delete,
+    user_toggle_active,
+)
+from .api_export_import import (
+    export_clients_csv,
+    export_clients_template,
+    import_clients_csv,
+    export_obligation_types_csv,
+    export_obligation_profiles_csv,
+    export_client_obligations_csv,
+    import_client_obligations_csv,
+)
 
 # New Completion Views
 from .completion.completion_views import (
