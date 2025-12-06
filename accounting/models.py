@@ -363,8 +363,18 @@ class MonthlyObligation(models.Model):
     status = models.CharField('Κατάσταση', max_length=20, choices=STATUS_CHOICES, default='pending')
     completed_date = models.DateField('Ημ/νία Ολοκλήρωσης', null=True, blank=True)
     completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
-                                    verbose_name='Ολοκληρώθηκε από')
-    
+                                    verbose_name='Ολοκληρώθηκε από',
+                                    related_name='completed_obligations')
+
+    assigned_to = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Ανατεθειμένο σε',
+        related_name='assigned_obligations'
+    )
+
     notes = models.TextField('Σημειώσεις', blank=True)
     
     time_spent = models.DecimalField(

@@ -25,6 +25,7 @@ import {
   useDeleteTicket,
   type TicketsFilters,
 } from '../hooks/useTickets';
+import { useUsers } from '../hooks/useUsers';
 import type { TicketFull } from '../types';
 
 // Status filter options
@@ -337,6 +338,9 @@ export default function Tickets() {
                       Ημ/νία
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ανάθεση
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ενέργειες
                     </th>
                   </tr>
@@ -344,7 +348,7 @@ export default function Tickets() {
                 <tbody className="divide-y divide-gray-200">
                   {data?.results?.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                         Δεν βρέθηκαν tickets
                       </td>
                     </tr>
@@ -490,6 +494,9 @@ function TicketRow({
             ({ticket.days_since_created} μέρες)
           </span>
         )}
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-500">
+        {ticket.assigned_to_name || '-'}
       </td>
       <td className="px-6 py-4">
         <div className="flex items-center gap-2">
@@ -648,6 +655,11 @@ function TicketDetailModal({
   const [status, setStatus] = useState(ticket.status);
   const [priority, setPriority] = useState(ticket.priority);
   const [notes, setNotes] = useState(ticket.notes || '');
+  const [assignedTo, setAssignedTo] = useState<number | null>(ticket.assigned_to || null);
+
+  // Fetch users for assignment dropdown
+  const { data: usersData, isLoading: usersLoading } = useUsers();
+  const users = usersData?.users || [];
 
   const updateMutation = useUpdateTicket();
   const changeStatusMutation = useChangeTicketStatus();
@@ -657,7 +669,7 @@ function TicketDetailModal({
     try {
       await updateMutation.mutateAsync({
         id: ticket.id,
-        data: { title, description, status, priority, notes },
+        data: { title, description, status, priority, notes, assigned_to: assignedTo },
       });
       setIsEditing(false);
       onRefetch();
@@ -802,6 +814,38 @@ function TicketDetailModal({
                 <option value="high">Υψηλή</option>
                 <option value="urgent">Επείγον</option>
               </select>
+            </div>
+          )}
+
+          {/* Assigned To (editable) */}
+          {isEditing && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ανάθεση σε</label>
+              <select
+                value={assignedTo || ''}
+                onChange={(e) => setAssignedTo(e.target.value ? Number(e.target.value) : null)}
+                disabled={usersLoading}
+                className={`w-full px-3 py-2 border border-gray-200 rounded-lg ${
+                  usersLoading ? 'bg-gray-100' : ''
+                }`}
+              >
+                <option value="">-- Χωρίς ανάθεση --</option>
+                {users.filter(u => u.is_active).map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.first_name && user.last_name
+                      ? `${user.first_name} ${user.last_name}`
+                      : user.username}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Display assigned_to when not editing */}
+          {!isEditing && ticket.assigned_to_name && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ανατεθειμένο σε</label>
+              <p className="text-gray-600">{ticket.assigned_to_name}</p>
             </div>
           )}
 
