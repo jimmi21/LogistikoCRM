@@ -19,6 +19,7 @@ export function useClients(params?: ClientParams) {
       });
       return response.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -30,6 +31,7 @@ export function useClient(id: number) {
       return response.data;
     },
     enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

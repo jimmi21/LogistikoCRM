@@ -52,7 +52,7 @@ export default function Clients() {
     createMutation.mutate(formData, {
       onSuccess: () => {
         setIsCreateModalOpen(false);
-        refetch();
+        // invalidateQueries in hook triggers automatic refetch
       },
     });
   };
@@ -70,7 +70,7 @@ export default function Clients() {
         onSuccess: () => {
           setIsEditModalOpen(false);
           setSelectedClient(null);
-          refetch();
+          // invalidateQueries in hook triggers automatic refetch
         },
       }
     );
@@ -87,7 +87,7 @@ export default function Clients() {
       onSuccess: () => {
         setIsDeleteDialogOpen(false);
         setSelectedClient(null);
-        refetch();
+        // invalidateQueries in hook triggers automatic refetch
       },
     });
   };

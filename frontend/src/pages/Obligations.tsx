@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import {
   useObligations,
   useCreateObligation,
@@ -22,7 +21,7 @@ import { DocumentUploadModal } from '../components/DocumentUploadModal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { CompleteObligationModal } from '../components/CompleteObligationModal';
 import {
-  ArrowLeft, FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
+  FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
   Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X,
   Paperclip, Mail
 } from 'lucide-react';
@@ -198,7 +197,7 @@ export default function Obligations() {
     createMutation.mutate(formData, {
       onSuccess: () => {
         setIsCreateModalOpen(false);
-        refetch();
+        // invalidateQueries in hook triggers automatic refetch
       },
     });
   };
@@ -216,7 +215,7 @@ export default function Obligations() {
         onSuccess: () => {
           setIsEditModalOpen(false);
           setSelectedObligation(null);
-          refetch();
+          // invalidateQueries in hook triggers automatic refetch
         },
       }
     );
@@ -233,7 +232,7 @@ export default function Obligations() {
       onSuccess: () => {
         setIsDeleteDialogOpen(false);
         setSelectedObligation(null);
-        refetch();
+        // invalidateQueries in hook triggers automatic refetch
       },
     });
   };
@@ -251,7 +250,7 @@ export default function Obligations() {
           month: new Date().getMonth() + 1,
           year: currentYear,
         });
-        refetch();
+        // invalidateQueries in hook triggers automatic refetch
       },
     });
   };
@@ -264,7 +263,7 @@ export default function Obligations() {
         onSuccess: () => {
           setSelectedIds(new Set());
           setSelectAll(false);
-          refetch();
+          // invalidateQueries in hook triggers automatic refetch
         },
       }
     );
@@ -277,7 +276,7 @@ export default function Obligations() {
         setIsBulkDeleteDialogOpen(false);
         setSelectedIds(new Set());
         setSelectAll(false);
-        refetch();
+        // invalidateQueries in hook triggers automatic refetch
       },
     });
   };
@@ -320,7 +319,7 @@ export default function Obligations() {
     });
     setIsCompleteModalOpen(false);
     setSelectedObligation(null);
-    refetch();
+    // invalidateQueries in hook triggers automatic refetch
   };
 
   const handleUploadDocument = async (data: {
@@ -344,7 +343,7 @@ export default function Obligations() {
     }
     setIsUploadModalOpen(false);
     setSelectedObligation(null);
-    refetch();
+    // invalidateQueries in hook triggers automatic refetch
   };
 
   const handleSendEmail = async (data: {
@@ -376,7 +375,7 @@ export default function Obligations() {
     setIsBulkCompleteNotifyDialogOpen(false);
     setSelectedIds(new Set());
     setSelectAll(false);
-    refetch();
+    // invalidateQueries in hook triggers automatic refetch
   };
 
   // Helper to get client for selected obligation
@@ -444,45 +443,36 @@ export default function Obligations() {
   const totalCount = data?.count || 0;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Link
-                to="/"
-                className="mr-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <div className="flex items-center">
-                <FileText className="w-6 h-6 text-yellow-600 mr-3" />
-                <h1 className="text-2xl font-bold text-gray-900">Υποχρεώσεις</h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={() => setIsGenerateMonthModalOpen(true)}>
-                <CalendarPlus className="w-4 h-4 mr-2" />
-                Δημιουργία Μήνα
-              </Button>
-              <Button variant="secondary" onClick={() => setIsBulkCreateModalOpen(true)}>
-                <Users className="w-4 h-4 mr-2" />
-                Μαζική Δημιουργία
-              </Button>
-              <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Νέα Υποχρέωση
-              </Button>
-            </div>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-yellow-100 rounded-lg">
+            <FileText className="w-6 h-6 text-yellow-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Υποχρεώσεις</h1>
+            <p className="text-sm text-gray-500">{totalCount} συνολικά</p>
           </div>
         </div>
-      </header>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => setIsGenerateMonthModalOpen(true)}>
+            <CalendarPlus className="w-4 h-4 mr-2" />
+            Δημιουργία Μήνα
+          </Button>
+          <Button variant="secondary" onClick={() => setIsBulkCreateModalOpen(true)}>
+            <Users className="w-4 h-4 mr-2" />
+            Μαζική Δημιουργία
+          </Button>
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Νέα Υποχρέωση
+          </Button>
+        </div>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filter Controls */}
-        <div className="mb-6 bg-white rounded-lg shadow p-4">
+      {/* Filter Controls */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
           {/* Quick filters row */}
           <div className="flex items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-4">
@@ -630,9 +620,9 @@ export default function Obligations() {
           )}
         </div>
 
-        {/* Bulk Actions Bar */}
-        {selectedIds.size > 0 && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
             <span className="text-blue-800 font-medium">
               {selectedIds.size} επιλεγμένα
             </span>
@@ -663,19 +653,19 @@ export default function Obligations() {
                 <Trash2 className="w-4 h-4 mr-1" />
                 Διαγραφή
               </Button>
-              <button
-                onClick={() => {
-                  setSelectedIds(new Set());
-                  setSelectAll(false);
-                }}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-                title="Ακύρωση επιλογής"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                setSelectedIds(new Set());
+                setSelectAll(false);
+              }}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+              title="Ακύρωση επιλογής"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Error Banner */}
       {isError && (
@@ -703,9 +693,9 @@ export default function Obligations() {
         </div>
       )}
 
-        {/* Obligations Table */}
-        {!isLoading && !isError && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Obligations Table */}
+      {!isLoading && !isError && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <p className="text-sm text-gray-500">
                 {obligations.length} από {totalCount} υποχρεώσεις
@@ -854,11 +844,10 @@ export default function Obligations() {
                     </Button>
                   </div>
                 )}
-              </>
-            )}
-          </div>
-        )}
-      </main>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Create Modal */}
       <Modal
@@ -1068,7 +1057,7 @@ export default function Obligations() {
         onGenerate={async (data) => {
           const result = await generateMonthMutation.mutateAsync(data);
           setGenerateResult(result);
-          refetch();
+          // invalidateQueries in hook triggers automatic refetch
         }}
         isLoading={generateMonthMutation.isPending}
         result={generateResult}
