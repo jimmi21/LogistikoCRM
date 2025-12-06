@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Phone,
@@ -15,10 +15,15 @@ import {
   X,
   Calendar,
   Plus,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useCalls, useMatchCallToClient, useCreateTicketFromCall, useSearchClientsForMatch, type CallsFilters } from '../hooks/useVoIP';
 import type { VoIPCallFull } from '../types';
+
+// Auto-refresh interval in milliseconds (30 seconds)
+const AUTO_REFRESH_INTERVAL = 30000;
 
 // Direction filter options
 const DIRECTION_OPTIONS = [
@@ -45,13 +50,52 @@ export default function Calls() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchInput, setSearchInput] = useState('');
 
+  // Auto-refresh state
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(AUTO_REFRESH_INTERVAL / 1000);
+
   // Modal states
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
   const [selectedCall, setSelectedCall] = useState<VoIPCallFull | null>(null);
 
   // Data fetching
-  const { data, isLoading, isError, refetch } = useCalls(filters);
+  const { data, isLoading, isError, refetch, isFetching } = useCalls(filters);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    // Countdown timer
+    const countdownInterval = setInterval(() => {
+      setSecondsUntilRefresh((prev) => {
+        if (prev <= 1) {
+          return AUTO_REFRESH_INTERVAL / 1000;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Refresh interval
+    const refreshInterval = setInterval(() => {
+      refetch();
+      setLastRefresh(new Date());
+      setSecondsUntilRefresh(AUTO_REFRESH_INTERVAL / 1000);
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(countdownInterval);
+      clearInterval(refreshInterval);
+    };
+  }, [autoRefresh, refetch]);
+
+  // Manual refresh handler
+  const handleManualRefresh = useCallback(() => {
+    refetch();
+    setLastRefresh(new Date());
+    setSecondsUntilRefresh(AUTO_REFRESH_INTERVAL / 1000);
+  }, [refetch]);
 
   // Handlers
   const handleFilterChange = useCallback(
@@ -102,13 +146,36 @@ export default function Calls() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Κλήσεις</h1>
-          <p className="text-gray-500 mt-1">Ιστορικό κλήσεων και VoIP ενσωμάτωση</p>
+          <p className="text-gray-500 mt-1">
+            Ιστορικό κλήσεων και VoIP ενσωμάτωση
+            {autoRefresh && (
+              <span className="ml-2 text-xs text-blue-500">
+                • Αυτόματη ανανέωση σε {secondsUntilRefresh}s
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => refetch()}>
-            <RefreshCw size={18} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          {/* Auto-refresh toggle */}
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              autoRefresh
+                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+            title={autoRefresh ? 'Απενεργοποίηση αυτόματης ανανέωσης' : 'Ενεργοποίηση αυτόματης ανανέωσης'}
+          >
+            {autoRefresh ? <Pause size={16} /> : <Play size={16} />}
+            <span className="hidden sm:inline">{autoRefresh ? 'Live' : 'Παύση'}</span>
+          </button>
+
+          {/* Manual refresh */}
+          <Button variant="secondary" onClick={handleManualRefresh} disabled={isFetching}>
+            <RefreshCw size={18} className={`mr-2 ${isFetching ? 'animate-spin' : ''}`} />
             Ανανέωση
           </Button>
+
           <Link to="/tickets">
             <Button>
               <Ticket size={18} className="mr-2" />

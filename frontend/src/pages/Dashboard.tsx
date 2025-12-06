@@ -5,6 +5,7 @@ import {
   Calendar, CheckCircle, Plus, Activity
 } from 'lucide-react';
 import { Button } from '../components';
+import VoIPWidget from '../components/dashboard/VoIPWidget';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -280,8 +281,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Calendar and Recent Activity Row */}
+      {/* VoIP Widget and Calendar Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* VoIP Widget */}
+        <VoIPWidget />
+
         {/* Mini Calendar */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">

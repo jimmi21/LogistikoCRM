@@ -26,7 +26,9 @@ from django.views.decorators.http import require_GET
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
-from rest_framework.response import Response 
+from rest_framework.response import Response
+
+from .permissions import IsVoIPMonitor, IsLocalRequest
 
 from .models import (
     ClientProfile, ClientObligation, MonthlyObligation,
@@ -994,10 +996,15 @@ def voip_call_update(request, call_id):
 class VoIPCallViewSet(viewsets.ModelViewSet):
     """
     REST API ViewSet for VoIP calls
+
+    Authentication (any of these):
+    - Admin user access
+    - X-API-Key header for internal services (Fritz!Box monitor)
+    - Localhost requests (127.0.0.1, ::1) for same-machine services
     """
     queryset = VoIPCall.objects.all()
     serializer_class = VoIPCallSerializer
-    permission_classes = [permissions.IsAdminUser]  # SECURITY: Restrict to admin users only
+    permission_classes = [permissions.IsAdminUser | IsVoIPMonitor | IsLocalRequest]
     filterset_fields = ['direction', 'status', 'client', 'phone_number']
     search_fields = ['phone_number', 'client__eponimia', 'notes']
     ordering_fields = ['started_at', 'duration_seconds']
@@ -1032,7 +1039,43 @@ class VoIPCallViewSet(viewsets.ModelViewSet):
             Q(tilefono_epixeirisis_1__icontains=clean_number) |
             Q(tilefono_epixeirisis_2__icontains=clean_number)
         ).first()
-    
+
+    def perform_update(self, serializer):
+        """Update call and create ticket if requested"""
+        voip_call = serializer.save()
+
+        # Check if we should create a ticket (for missed calls)
+        create_ticket = self.request.data.get('create_ticket', False)
+
+        if create_ticket and voip_call.status == 'missed' and not voip_call.ticket_created:
+            try:
+                # Create ticket for missed call
+                ticket = Ticket.objects.create(
+                    client=voip_call.client,
+                    title=f"Αναπάντητη κλήση από {voip_call.phone_number}",
+                    description=f"Αναπάντητη κλήση στις {voip_call.started_at.strftime('%d/%m/%Y %H:%M') if voip_call.started_at else 'N/A'}",
+                    priority='medium',
+                    status='open',
+                    call=voip_call
+                )
+
+                # Update call with ticket info
+                voip_call.ticket_created = True
+                voip_call.ticket_id = str(ticket.id)
+                voip_call.save(update_fields=['ticket_created', 'ticket_id'])
+
+                # Log the action
+                VoIPCallLog.objects.create(
+                    call=voip_call,
+                    action='ticket_created',
+                    description=f'Auto-created ticket #{ticket.id} for missed call'
+                )
+
+                logger.info(f"🎫 Created ticket #{ticket.id} for missed call from {voip_call.phone_number}")
+
+            except Exception as e:
+                logger.error(f"Failed to create ticket for call {voip_call.id}: {e}")
+
     @action(detail=True, methods=['post'])
     def end_call(self, request, pk=None):
         """End a call and process follow-up actions"""
