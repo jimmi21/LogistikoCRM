@@ -21,7 +21,7 @@ class ClientPagination(PageNumberPagination):
     """Pagination for client list"""
     page_size = 20
     page_size_query_param = 'page_size'
-    max_page_size = 100
+    max_page_size = 1000  # Increased to allow full client list in dropdowns
 
 
 class ClientFilter(FilterSet):

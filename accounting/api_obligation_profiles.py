@@ -350,3 +350,105 @@ def generate_month_obligations(request):
         'details': details,
         'message': f'Δημιουργήθηκαν {created_count} υποχρεώσεις. Παραλείφθηκαν {skipped_count} (υπήρχαν ήδη).'
     }, status=status.HTTP_201_CREATED)
+
+
+# ============================================
+# BULK ASSIGN OBLIGATIONS TO CLIENTS
+# ============================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_assign_obligations(request):
+    """
+    POST /api/v1/obligations/bulk-assign/
+    Bulk assign obligation types and profiles to multiple clients
+
+    Body: {
+        client_ids: [1, 2, 3],              # Required: client IDs
+        obligation_type_ids: [1, 2, 3],     # Optional: individual obligation types
+        obligation_profile_ids: [1, 2],     # Optional: obligation profiles
+        mode: 'add' | 'replace'             # Optional: 'add' (default) or 'replace'
+    }
+
+    Response: {
+        success: true,
+        created_count: 5,
+        updated_count: 2,
+        message: "..."
+    }
+    """
+    client_ids = request.data.get('client_ids', [])
+    obligation_type_ids = request.data.get('obligation_type_ids', [])
+    obligation_profile_ids = request.data.get('obligation_profile_ids', [])
+    mode = request.data.get('mode', 'add')  # 'add' or 'replace'
+
+    # Validation
+    if not client_ids:
+        return Response(
+            {'error': 'Δεν επιλέχθηκαν πελάτες.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not obligation_type_ids and not obligation_profile_ids:
+        return Response(
+            {'error': 'Επιλέξτε τουλάχιστον έναν τύπο ή προφίλ υποχρεώσεων.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get clients
+    clients = ClientProfile.objects.filter(id__in=client_ids)
+    if not clients.exists():
+        return Response(
+            {'error': 'Δεν βρέθηκαν οι επιλεγμένοι πελάτες.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get obligation types
+    obligation_types = ObligationType.objects.filter(
+        id__in=obligation_type_ids,
+        is_active=True
+    ) if obligation_type_ids else ObligationType.objects.none()
+
+    # Get profiles
+    profiles = ObligationProfile.objects.filter(
+        id__in=obligation_profile_ids
+    ) if obligation_profile_ids else ObligationProfile.objects.none()
+
+    created_count = 0
+    updated_count = 0
+
+    with transaction.atomic():
+        for client in clients:
+            # Get or create ClientObligation
+            client_obligation, created = ClientObligation.objects.get_or_create(
+                client=client,
+                defaults={'is_active': True}
+            )
+
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
+
+            # Update based on mode
+            if mode == 'replace':
+                # Replace all
+                client_obligation.obligation_types.set(obligation_types)
+                client_obligation.obligation_profiles.set(profiles)
+            else:
+                # Add to existing
+                for ot in obligation_types:
+                    client_obligation.obligation_types.add(ot)
+                for p in profiles:
+                    client_obligation.obligation_profiles.add(p)
+
+            client_obligation.is_active = True
+            client_obligation.save()
+
+    return Response({
+        'success': True,
+        'created_count': created_count,
+        'updated_count': updated_count,
+        'clients_processed': clients.count(),
+        'message': f'Ανατέθηκαν υποχρεώσεις σε {clients.count()} πελάτες. ({created_count} νέα, {updated_count} ενημερωμένα)'
+    })
