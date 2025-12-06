@@ -267,11 +267,21 @@ class Command(BaseCommand):
         ]
         
         for obl_data in obligations:
-            obj, created = ObligationType.objects.get_or_create(
-                code=obl_data['code'],
-                defaults=obl_data
-            )
-            if created:
-                self.stdout.write(f'  ✓ {obj.name}')
+            code = obl_data['code']
+            name = obl_data['name']
+
+            # Try to find existing by code first, then by name
+            obj = ObligationType.objects.filter(code=code).first()
+            if not obj:
+                obj = ObligationType.objects.filter(name=name).first()
+
+            if obj:
+                # Update existing record
+                for key, value in obl_data.items():
+                    setattr(obj, key, value)
+                obj.save()
+                self.stdout.write(f'  → {obj.name} (ενημερώθηκε)')
             else:
-                self.stdout.write(f'  → {obj.name} (υπήρχε ήδη)')
+                # Create new record
+                obj = ObligationType.objects.create(**obl_data)
+                self.stdout.write(f'  ✓ {obj.name}')
