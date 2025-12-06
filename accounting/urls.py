@@ -59,22 +59,11 @@ from .api_door import (
     door_open as api_door_open,
     door_pulse as api_door_pulse,
 )
-from .api_users import (
-    user_list,
-    user_create,
-    user_detail,
-    user_update,
-    user_delete,
-    user_toggle_active,
-)
-from .api_export_import import (
-    export_clients_csv,
-    export_clients_template,
-    import_clients_csv,
-    export_obligation_profiles_csv,
-    export_obligation_types_csv,
-    export_client_obligations_csv,
-    import_client_obligations_csv,
+from .api_gsis import (
+    afm_lookup,
+    gsis_settings_status,
+    gsis_settings_update,
+    gsis_test_connection,
 )
 
 # New Completion Views
@@ -215,6 +204,14 @@ urlpatterns = [
     path("api/v1/door/status/", api_door_status, name="api_v1_door_status"),
     path("api/v1/door/open/", api_door_open, name="api_v1_door_open"),
     path("api/v1/door/pulse/", api_door_pulse, name="api_v1_door_pulse"),
+
+    # ============================================
+    # GSIS API (v1) - Αναζήτηση στοιχείων με ΑΦΜ
+    # ============================================
+    path("api/v1/afm-lookup/", afm_lookup, name="api_v1_afm_lookup"),
+    path("api/v1/gsis/status/", gsis_settings_status, name="api_v1_gsis_status"),
+    path("api/v1/gsis/settings/", gsis_settings_update, name="api_v1_gsis_settings"),
+    path("api/v1/gsis/test/", gsis_test_connection, name="api_v1_gsis_test"),
 
     # ============================================
     # EMAIL API (v1)

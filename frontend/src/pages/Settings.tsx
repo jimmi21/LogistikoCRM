@@ -12,12 +12,13 @@ import {
   Save,
   FileText,
   ChevronRight,
-  RefreshCw,
+  Check,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useAuthStore } from '../stores/authStore';
-import { authApi } from '../api/client';
-import { useToast } from '../components/Toast';
+import { gsisApi } from '../api/client';
 
 type SettingsTab = 'profile' | 'notifications' | 'security' | 'integrations';
 
@@ -100,6 +101,86 @@ export default function Settings() {
       }
     }
   }, []);
+
+  // GSIS Settings State
+  const [gsisConfigured, setGsisConfigured] = useState(false);
+  const [gsisActive, setGsisActive] = useState(false);
+  const [gsisUsername, setGsisUsername] = useState('');
+  const [gsisPassword, setGsisPassword] = useState('');
+  const [gsisLoading, setGsisLoading] = useState(false);
+  const [gsisTesting, setGsisTesting] = useState(false);
+  const [gsisMessage, setGsisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showGsisModal, setShowGsisModal] = useState(false);
+
+  // Load GSIS status on mount
+  useEffect(() => {
+    loadGsisStatus();
+  }, []);
+
+  const loadGsisStatus = async () => {
+    try {
+      const status = await gsisApi.getStatus();
+      setGsisConfigured(status.configured);
+      setGsisActive(status.active);
+      if (status.username) {
+        setGsisUsername(status.username);
+      }
+    } catch (error) {
+      console.error('Failed to load GSIS status:', error);
+    }
+  };
+
+  const handleSaveGsisSettings = async () => {
+    if (!gsisUsername.trim()) {
+      setGsisMessage({ type: 'error', text: 'Το όνομα χρήστη είναι υποχρεωτικό' });
+      return;
+    }
+    if (!gsisConfigured && !gsisPassword.trim()) {
+      setGsisMessage({ type: 'error', text: 'Ο κωδικός είναι υποχρεωτικός' });
+      return;
+    }
+
+    setGsisLoading(true);
+    setGsisMessage(null);
+
+    try {
+      const data: { username: string; password?: string; is_active: boolean } = {
+        username: gsisUsername,
+        is_active: true,
+      };
+      if (gsisPassword.trim()) {
+        data.password = gsisPassword;
+      }
+
+      await gsisApi.updateSettings(data);
+      setGsisMessage({ type: 'success', text: 'Οι ρυθμίσεις αποθηκεύτηκαν!' });
+      setGsisPassword('');
+      await loadGsisStatus();
+      setTimeout(() => setShowGsisModal(false), 1500);
+    } catch (error) {
+      setGsisMessage({ type: 'error', text: 'Αποτυχία αποθήκευσης ρυθμίσεων' });
+    } finally {
+      setGsisLoading(false);
+    }
+  };
+
+  const handleTestGsisConnection = async () => {
+    setGsisTesting(true);
+    setGsisMessage(null);
+
+    try {
+      const result = await gsisApi.testConnection();
+      if (result.success) {
+        setGsisMessage({ type: 'success', text: result.message });
+      } else {
+        setGsisMessage({ type: 'error', text: result.message });
+      }
+    } catch (error) {
+      setGsisMessage({ type: 'error', text: 'Αποτυχία δοκιμής σύνδεσης' });
+    } finally {
+      setGsisTesting(false);
+    }
+  };
 
   const tabs = [
     { id: 'profile' as const, label: 'Προφίλ', icon: User },
@@ -363,8 +444,39 @@ export default function Settings() {
                 )}
               </div>
 
+              {/* GSIS Integration - Λήψη στοιχείων με ΑΦΜ */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Ενσωματώσεις</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">ΑΑΔΕ - Λήψη Στοιχείων</h3>
+
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${gsisConfigured ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <Database size={24} className={gsisConfigured ? 'text-green-600' : 'text-gray-600'} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Λήψη Στοιχείων με ΑΦΜ</p>
+                      <p className="text-sm text-gray-500">
+                        {gsisConfigured
+                          ? `Ρυθμισμένο (${gsisUsername})`
+                          : 'Ειδικοί κωδικοί λήψης στοιχείων ΑΑΔΕ'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {gsisConfigured ? (
+                      <>
+                        <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Ρυθμισμένο</span>
+                        <Button variant="secondary" size="sm" onClick={() => setShowGsisModal(true)}>Ρυθμίσεις</Button>
+                      </>
+                    ) : (
+                      <Button size="sm" onClick={() => setShowGsisModal(true)}>Ρύθμιση</Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">Άλλες Ενσωματώσεις</h3>
 
                 <div className="space-y-4">
                 {[
@@ -388,7 +500,7 @@ export default function Settings() {
                   },
                   {
                     name: 'MyData ΑΑΔΕ',
-                    desc: 'Σύνδεση με την πλατφόρμα myDATA',
+                    desc: 'Σύνδεση με την πλατφόρμα myDATA (Συνοπτικό Βιβλίο)',
                     icon: Database,
                     status: 'disconnected'
                   },
@@ -410,7 +522,7 @@ export default function Settings() {
                           <Button variant="secondary" size="sm">Ρυθμίσεις</Button>
                         </>
                       ) : (
-                        <Button size="sm">Σύνδεση</Button>
+                        <Button size="sm" disabled>Σύντομα</Button>
                       )}
                     </div>
                   </div>
@@ -421,6 +533,121 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      {/* GSIS Settings Modal */}
+      {showGsisModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Ρυθμίσεις GSIS - Λήψη Στοιχείων
+              </h3>
+              <button
+                onClick={() => {
+                  setShowGsisModal(false);
+                  setGsisMessage(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Εισάγετε τους "Ειδικούς Κωδικούς Λήψης Στοιχείων" που έχετε λάβει από την ΑΑΔΕ.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Όνομα Χρήστη *
+                </label>
+                <input
+                  type="text"
+                  value={gsisUsername}
+                  onChange={(e) => setGsisUsername(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Εισάγετε username"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Κωδικός {!gsisConfigured && '*'}
+                </label>
+                <input
+                  type="password"
+                  value={gsisPassword}
+                  onChange={(e) => setGsisPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder={gsisConfigured ? 'Αφήστε κενό για να διατηρηθεί ο υπάρχων' : 'Εισάγετε password'}
+                />
+                {gsisConfigured && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Αφήστε κενό αν δεν θέλετε να αλλάξετε τον κωδικό
+                  </p>
+                )}
+              </div>
+
+              {gsisMessage && (
+                <div className={`p-3 rounded-lg flex items-center gap-2 ${
+                  gsisMessage.type === 'success'
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-red-50 text-red-700'
+                }`}>
+                  {gsisMessage.type === 'success' ? <Check size={18} /> : <X size={18} />}
+                  {gsisMessage.text}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              <Button
+                variant="secondary"
+                onClick={handleTestGsisConnection}
+                disabled={!gsisConfigured || gsisTesting}
+              >
+                {gsisTesting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin mr-2" />
+                    Δοκιμή...
+                  </>
+                ) : (
+                  'Δοκιμή Σύνδεσης'
+                )}
+              </Button>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowGsisModal(false);
+                    setGsisMessage(null);
+                  }}
+                >
+                  Ακύρωση
+                </Button>
+                <Button
+                  onClick={handleSaveGsisSettings}
+                  disabled={gsisLoading}
+                >
+                  {gsisLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin mr-2" />
+                      Αποθήκευση...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} className="mr-2" />
+                      Αποθήκευση
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

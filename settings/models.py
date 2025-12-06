@@ -2,6 +2,53 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
+class GSISSettings(models.Model):
+    """
+    Ρυθμίσεις για GSIS API (Λήψη στοιχείων με ΑΦΜ).
+
+    Χρησιμοποιεί τους "Ειδικούς Κωδικούς Λήψης Στοιχείων" της ΑΑΔΕ.
+    Singleton model - μόνο μία εγγραφή επιτρέπεται.
+    """
+
+    class Meta:
+        verbose_name = _('Ρυθμίσεις GSIS')
+        verbose_name_plural = _('Ρυθμίσεις GSIS')
+
+    username = models.CharField(
+        'Όνομα Χρήστη',
+        max_length=100,
+        help_text='Ειδικός κωδικός λήψης στοιχείων - Username'
+    )
+    password = models.CharField(
+        'Κωδικός',
+        max_length=100,
+        help_text='Ειδικός κωδικός λήψης στοιχείων - Password'
+    )
+    is_active = models.BooleanField(
+        'Ενεργό',
+        default=True,
+        help_text='Αν είναι απενεργοποιημένο, η λήψη στοιχείων δεν θα είναι διαθέσιμη'
+    )
+    created_at = models.DateTimeField('Δημιουργήθηκε', auto_now_add=True)
+    updated_at = models.DateTimeField('Ενημερώθηκε', auto_now=True)
+
+    def save(self, *args, **kwargs):
+        # Singleton pattern - only one instance allowed
+        if not self.pk and GSISSettings.objects.exists():
+            # Update existing instead of creating new
+            existing = GSISSettings.objects.first()
+            self.pk = existing.pk
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        """Επιστρέφει τις ρυθμίσεις GSIS ή None αν δεν υπάρχουν."""
+        return cls.objects.first()
+
+    def __str__(self):
+        return f"GSIS Settings ({self.username})"
+
+
 class BannedCompanyName(models.Model):
     """
     Model representing a banned company name.

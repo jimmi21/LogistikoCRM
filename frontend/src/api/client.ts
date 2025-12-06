@@ -148,4 +148,65 @@ export const searchApi = {
   },
 };
 
+// GSIS API (Αναζήτηση στοιχείων με ΑΦΜ)
+export interface AFMData {
+  afm: string;
+  onomasia: string;
+  doy: string;
+  doy_descr: string;
+  legal_form: string;
+  legal_form_descr: string;
+  postal_address: string;
+  postal_address_no: string;
+  postal_zip_code: string;
+  postal_area: string;
+  registration_date: string | null;
+  stop_date: string | null;
+  deactivation_flag: boolean;
+  firm_flag: boolean;
+  activities: Array<{
+    firm_act_descr?: string;
+    firm_act_kind?: string;
+    firm_act_kind_descr?: string;
+  }>;
+}
+
+export interface AFMLookupResponse {
+  success: boolean;
+  data?: AFMData;
+  error?: string;
+}
+
+export interface GSISStatusResponse {
+  configured: boolean;
+  active: boolean;
+  username?: string;
+}
+
+export const gsisApi = {
+  // Αναζήτηση στοιχείων με ΑΦΜ
+  lookupAfm: async (afm: string): Promise<AFMLookupResponse> => {
+    const response = await apiClient.post('/api/v1/afm-lookup/', { afm });
+    return response.data;
+  },
+
+  // Κατάσταση ρυθμίσεων GSIS
+  getStatus: async (): Promise<GSISStatusResponse> => {
+    const response = await apiClient.get('/api/v1/gsis/status/');
+    return response.data;
+  },
+
+  // Ενημέρωση ρυθμίσεων GSIS
+  updateSettings: async (data: { username: string; password?: string; is_active?: boolean }) => {
+    const response = await apiClient.post('/api/v1/gsis/settings/', data);
+    return response.data;
+  },
+
+  // Δοκιμή σύνδεσης
+  testConnection: async () => {
+    const response = await apiClient.post('/api/v1/gsis/test/');
+    return response.data;
+  },
+};
+
 export default apiClient;
