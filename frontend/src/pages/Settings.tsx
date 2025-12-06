@@ -15,10 +15,12 @@ import {
   Check,
   X,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '../components';
+import { useToast } from '../components/Toast';
 import { useAuthStore } from '../stores/authStore';
-import { gsisApi } from '../api/client';
+import { gsisApi, authApi } from '../api/client';
 
 type SettingsTab = 'profile' | 'notifications' | 'security' | 'integrations';
 
