@@ -247,6 +247,12 @@ class GSISClient:
         registration_date = get_basic('regist_date')
         stop_date = get_basic('stop_date')
 
+        # Debug logging for address fields
+        logger.info(f"GSIS parsed address fields - postal_address: '{postal_address}', "
+                    f"postal_address_no: '{postal_address_no}', "
+                    f"postal_zip_code: '{postal_zip_code}', "
+                    f"postal_area: '{postal_area}'")
+
         # Δραστηριότητες
         activities = []
         for elem in result.iter():
