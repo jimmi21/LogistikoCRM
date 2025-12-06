@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Calendar, CheckSquare, Bell, Search, Plus, TrendingUp, DollarSign, AlertCircle, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, CheckSquare, Bell, Search, Plus, TrendingUp, DollarSign, AlertCircle, ChevronRight, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import MyDataDashboard from './MyDataDashboard';
 
 const mockStats = {
     totalClients: 127,
@@ -78,6 +79,7 @@ const CRMDashboard = () => {
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
                         { id: 'clients', label: 'Πελάτες', icon: Users },
+                        { id: 'mydata', label: 'myDATA', icon: FileText },
                         { id: 'tasks', label: 'Εργασίες', icon: CheckSquare },
                         { id: 'calendar', label: 'Ημερολόγιο', icon: Calendar },
                     ].map((item) => {
@@ -113,6 +115,10 @@ const CRMDashboard = () => {
 
             {/* Main Content - With left margin for sidebar */}
             <div className="flex-1 ml-64">
+                {/* Conditional rendering based on active tab */}
+                {activeTab === 'mydata' ? (
+                    <MyDataDashboard onBack={() => setActiveTab('dashboard')} />
+                ) : (
                 <div className="p-8 max-w-7xl">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8">
@@ -331,6 +337,7 @@ const CRMDashboard = () => {
                         </div>
                     </div>
                 </div>
+                )}
             </div>
         </div>
     );

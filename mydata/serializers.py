@@ -1,0 +1,267 @@
+# mydata/serializers.py
+"""
+Django REST Framework Serializers για myDATA module.
+
+Παρέχει serialization για:
+- MyDataCredentials (με masked secrets)
+- VATRecord (με computed fields)
+- VATSyncLog
+- Custom summary serializers
+"""
+
+from rest_framework import serializers
+from decimal import Decimal
+
+from .models import MyDataCredentials, VATRecord, VATSyncLog
+
+
+# =============================================================================
+# CREDENTIALS SERIALIZERS
+# =============================================================================
+
+class MyDataCredentialsSerializer(serializers.ModelSerializer):
+    """
+    Serializer για MyDataCredentials.
+
+    SECURITY: Τα credentials δεν επιστρέφονται ποτέ decrypted.
+    Για update, χρησιμοποιείται ξεχωριστό endpoint.
+    """
+
+    client_afm = serializers.CharField(source='client.afm', read_only=True)
+    client_name = serializers.CharField(source='client.eponimia', read_only=True)
+    has_credentials = serializers.BooleanField(read_only=True)
+    environment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MyDataCredentials
+        fields = [
+            'id',
+            'client',
+            'client_afm',
+            'client_name',
+            'has_credentials',
+            'is_sandbox',
+            'environment',
+            'is_active',
+            'is_verified',
+            'verification_error',
+            'last_sync_at',
+            'last_vat_sync_at',
+            'notes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'is_verified',
+            'verification_error',
+            'last_sync_at',
+            'last_vat_sync_at',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_environment(self, obj):
+        return 'sandbox' if obj.is_sandbox else 'production'
+
+
+class CredentialsUpdateSerializer(serializers.Serializer):
+    """
+    Serializer για update credentials.
+
+    Ξεχωριστός serializer για security - τα credentials
+    γράφονται μόνο, δεν διαβάζονται ποτέ.
+    """
+
+    user_id = serializers.CharField(write_only=True, required=True)
+    subscription_key = serializers.CharField(write_only=True, required=True)
+    is_sandbox = serializers.BooleanField(required=False, default=False)
+
+    def validate_user_id(self, value):
+        if len(value) < 5:
+            raise serializers.ValidationError("User ID πρέπει να έχει τουλάχιστον 5 χαρακτήρες")
+        return value
+
+    def validate_subscription_key(self, value):
+        if len(value) < 10:
+            raise serializers.ValidationError("Subscription Key πρέπει να έχει τουλάχιστον 10 χαρακτήρες")
+        return value
+
+
+# =============================================================================
+# VAT RECORD SERIALIZERS
+# =============================================================================
+
+class VATRecordSerializer(serializers.ModelSerializer):
+    """Serializer για VATRecord."""
+
+    client_afm = serializers.CharField(source='client.afm', read_only=True)
+    client_name = serializers.CharField(source='client.eponimia', read_only=True)
+    gross_value = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
+    vat_rate = serializers.IntegerField(read_only=True)
+    vat_rate_display = serializers.CharField(read_only=True)
+    rec_type_display = serializers.CharField(source='get_rec_type_display', read_only=True)
+    vat_category_display = serializers.CharField(source='get_vat_category_display', read_only=True)
+
+    class Meta:
+        model = VATRecord
+        fields = [
+            'id',
+            'client',
+            'client_afm',
+            'client_name',
+            'mark',
+            'is_cancelled',
+            'issue_date',
+            'rec_type',
+            'rec_type_display',
+            'inv_type',
+            'vat_category',
+            'vat_category_display',
+            'vat_exemption_category',
+            'net_value',
+            'vat_amount',
+            'gross_value',
+            'vat_rate',
+            'vat_rate_display',
+            'counter_vat_number',
+            'vat_offset_amount',
+            'deductions_amount',
+            'fetched_at',
+            'updated_at',
+        ]
+        read_only_fields = ['fetched_at', 'updated_at']
+
+
+class VATRecordListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer για list views."""
+
+    client_afm = serializers.CharField(source='client.afm', read_only=True)
+    gross_value = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
+    vat_rate_display = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = VATRecord
+        fields = [
+            'id',
+            'client_afm',
+            'mark',
+            'issue_date',
+            'rec_type',
+            'inv_type',
+            'vat_category',
+            'vat_rate_display',
+            'net_value',
+            'vat_amount',
+            'gross_value',
+            'is_cancelled',
+        ]
+
+
+# =============================================================================
+# VAT SYNC LOG SERIALIZER
+# =============================================================================
+
+class VATSyncLogSerializer(serializers.ModelSerializer):
+    """Serializer για VATSyncLog."""
+
+    client_afm = serializers.CharField(source='client.afm', read_only=True, allow_null=True)
+    client_name = serializers.CharField(source='client.eponimia', read_only=True, allow_null=True)
+    duration_display = serializers.CharField(read_only=True)
+    sync_type_display = serializers.CharField(source='get_sync_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = VATSyncLog
+        fields = [
+            'id',
+            'client',
+            'client_afm',
+            'client_name',
+            'sync_type',
+            'sync_type_display',
+            'status',
+            'status_display',
+            'date_from',
+            'date_to',
+            'started_at',
+            'completed_at',
+            'duration_display',
+            'records_fetched',
+            'records_created',
+            'records_updated',
+            'records_skipped',
+            'records_failed',
+            'error_message',
+        ]
+
+
+# =============================================================================
+# SUMMARY SERIALIZERS
+# =============================================================================
+
+class VATPeriodSummarySerializer(serializers.Serializer):
+    """Summary για μια περίοδο (μήνα)."""
+
+    year = serializers.IntegerField()
+    month = serializers.IntegerField()
+
+    # Εκροές (Έσοδα)
+    income_net = serializers.DecimalField(max_digits=15, decimal_places=2)
+    income_vat = serializers.DecimalField(max_digits=15, decimal_places=2)
+    income_gross = serializers.DecimalField(max_digits=15, decimal_places=2)
+    income_count = serializers.IntegerField()
+
+    # Εισροές (Έξοδα)
+    expense_net = serializers.DecimalField(max_digits=15, decimal_places=2)
+    expense_vat = serializers.DecimalField(max_digits=15, decimal_places=2)
+    expense_gross = serializers.DecimalField(max_digits=15, decimal_places=2)
+    expense_count = serializers.IntegerField()
+
+    # Διαφορά
+    net_difference = serializers.DecimalField(max_digits=15, decimal_places=2)
+    vat_difference = serializers.DecimalField(max_digits=15, decimal_places=2)
+
+
+class VATCategoryBreakdownSerializer(serializers.Serializer):
+    """Breakdown ανά κατηγορία ΦΠΑ."""
+
+    vat_category = serializers.IntegerField()
+    vat_rate = serializers.IntegerField()
+    vat_rate_display = serializers.CharField()
+    net_value = serializers.DecimalField(max_digits=15, decimal_places=2)
+    vat_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    count = serializers.IntegerField()
+
+
+class ClientVATSummarySerializer(serializers.Serializer):
+    """Complete VAT summary για έναν πελάτη."""
+
+    client_afm = serializers.CharField()
+    client_name = serializers.CharField()
+    has_credentials = serializers.BooleanField()
+    is_verified = serializers.BooleanField()
+    last_sync = serializers.DateTimeField(allow_null=True)
+
+    # Current period summary
+    current_period = VATPeriodSummarySerializer()
+
+    # Breakdown by category
+    income_by_category = VATCategoryBreakdownSerializer(many=True)
+    expense_by_category = VATCategoryBreakdownSerializer(many=True)
+
+
+class MultiClientSummarySerializer(serializers.Serializer):
+    """Summary για πολλούς πελάτες (dashboard overview)."""
+
+    total_clients = serializers.IntegerField()
+    clients_with_credentials = serializers.IntegerField()
+    verified_credentials = serializers.IntegerField()
+
+    # Aggregated totals
+    total_income_net = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_income_vat = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_expense_net = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_expense_vat = serializers.DecimalField(max_digits=15, decimal_places=2)
+
+    # Per-client breakdown
+    clients = ClientVATSummarySerializer(many=True)
