@@ -2,13 +2,14 @@
 """
 fritz_monitor.py - PRODUCTION VERSION
 Author: ddiplas
-Version: 3.2 - Fixed Timezone Issues
-Date: 2025-11-08
+Version: 3.3 - Fixed API Authentication
+Date: 2025-12-06
 
 FIXES:
 - Proper timezone-aware datetime handling
 - Smart ticket creation (only for missed calls)
 - Extended timeout with retry logic
+- API Key authentication via X-API-Key header
 """
 
 import socket
@@ -33,20 +34,24 @@ logger = logging.getLogger(__name__)
 # ============================================
 # CONFIGURATION
 # ============================================
+import os
+
 class Config:
     # Fritz!Box
     FRITZ_HOST = 'fritz.box'
     FRITZ_PORT = 1012
-    
+
     # CRM API
     CRM_BASE_URL = 'http://127.0.0.1:8000/accounting/api'
-    API_TOKEN = 'your-api-token-here'  # Optional
-    
+    # API Key for authentication with CRM API
+    # Set via environment variable: export FRITZ_API_TOKEN=your-secret-key
+    FRITZ_API_TOKEN = os.environ.get('FRITZ_API_TOKEN', 'change-this-token-in-production')
+
     # Timeouts & Retries
     API_TIMEOUT = 30
     API_MAX_RETRIES = 3
     RETRY_DELAY = 2
-    
+
     # Statistics
     STATS_INTERVAL = 600
 
@@ -69,6 +74,7 @@ class CRMAPIClient:
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
+            'X-API-Key': Config.FRITZ_API_TOKEN,
         })
         
         self.stats = {
@@ -316,9 +322,10 @@ class VoIPMonitor:
     def run(self):
         """Main monitoring loop"""
         logger.info("=" * 60)
-        logger.info("🚀 Fritz!Box VoIP Monitor - PRODUCTION v3.2")
+        logger.info("🚀 Fritz!Box VoIP Monitor - PRODUCTION v3.3")
         logger.info(f"Fritz: {Config.FRITZ_HOST}:{Config.FRITZ_PORT}")
         logger.info(f"CRM: {Config.CRM_BASE_URL}/voip-calls/")
+        logger.info(f"🔐 API Auth: X-API-Key header enabled")
         logger.info(f"🎫 Smart Tickets: Only for MISSED calls")
         logger.info(f"⏰ Timezone: UTC (timezone-aware)")
         logger.info("=" * 60)
