@@ -75,6 +75,7 @@ class ObligationListSerializer(serializers.ModelSerializer):
     period = serializers.SerializerMethodField()
     days_until_deadline = serializers.IntegerField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
 
     class Meta:
         model = MonthlyObligation
@@ -82,11 +83,19 @@ class ObligationListSerializer(serializers.ModelSerializer):
             'id', 'client', 'client_name', 'client_afm',
             'obligation_type', 'type_name', 'type_code',
             'year', 'month', 'period', 'deadline', 'status',
+            'assigned_to', 'assigned_to_name',
             'days_until_deadline', 'is_overdue'
         ]
 
     def get_period(self, obj):
         return f"{obj.month:02d}/{obj.year}"
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            if obj.assigned_to.first_name or obj.assigned_to.last_name:
+                return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip()
+            return obj.assigned_to.username
+        return None
 
 
 class ObligationDetailSerializer(serializers.ModelSerializer):
@@ -106,6 +115,7 @@ class ObligationDetailSerializer(serializers.ModelSerializer):
     completed_by_username = serializers.CharField(
         source='completed_by.username', read_only=True
     )
+    assigned_to_name = serializers.SerializerMethodField()
     documents = serializers.SerializerMethodField()
     attachment_url = serializers.SerializerMethodField()
 
@@ -116,12 +126,20 @@ class ObligationDetailSerializer(serializers.ModelSerializer):
             'obligation_type', 'type_name', 'type_code',
             'year', 'month', 'period', 'deadline', 'status',
             'completed_date', 'completed_by', 'completed_by_username',
+            'assigned_to', 'assigned_to_name',
             'notes', 'time_spent', 'hourly_rate', 'cost',
             'days_until_deadline', 'is_overdue', 'deadline_status',
             'attachment', 'attachment_url', 'attachments', 'documents',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at', 'completed_by']
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            if obj.assigned_to.first_name or obj.assigned_to.last_name:
+                return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip()
+            return obj.assigned_to.username
+        return None
 
     def get_period(self, obj):
         return f"{obj.month:02d}/{obj.year}"
@@ -153,7 +171,8 @@ class ObligationCreateUpdateSerializer(serializers.ModelSerializer):
         model = MonthlyObligation
         fields = [
             'client', 'obligation_type', 'year', 'month',
-            'deadline', 'status', 'notes', 'time_spent', 'hourly_rate'
+            'deadline', 'status', 'notes', 'time_spent', 'hourly_rate',
+            'assigned_to'
         ]
 
     def validate(self, data):
@@ -223,7 +242,7 @@ class ObligationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Optimize queryset with select_related"""
         return super().get_queryset().select_related(
-            'client', 'obligation_type', 'completed_by'
+            'client', 'obligation_type', 'completed_by', 'assigned_to'
         )
 
     @action(detail=True, methods=['patch'])

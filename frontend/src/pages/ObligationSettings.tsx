@@ -330,9 +330,10 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile?: ObligationProfileFull | null;
+  allTypes: ObligationTypeFull[];
 }
 
-function ObligationProfileModal({ isOpen, onClose, profile }: ProfileModalProps) {
+function ObligationProfileModal({ isOpen, onClose, profile, allTypes }: ProfileModalProps) {
   const isEdit = !!profile;
   const createMutation = useCreateObligationProfile();
   const updateMutation = useUpdateObligationProfile();
@@ -342,7 +343,9 @@ function ObligationProfileModal({ isOpen, onClose, profile }: ProfileModalProps)
     description: profile?.description || '',
   });
 
+  const [selectedTypeIds, setSelectedTypeIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSavingTypes, setIsSavingTypes] = useState(false);
 
   // Reset form data when profile changes
   useEffect(() => {
@@ -350,21 +353,68 @@ function ObligationProfileModal({ isOpen, onClose, profile }: ProfileModalProps)
       name: profile?.name || '',
       description: profile?.description || '',
     });
+    // Set selected types based on which types have this profile assigned
+    if (profile) {
+      const linkedTypeIds = profile.obligation_types?.map(t => t.id) || [];
+      setSelectedTypeIds(linkedTypeIds);
+    } else {
+      setSelectedTypeIds([]);
+    }
     setError(null);
   }, [profile]);
+
+  const toggleType = (typeId: number) => {
+    if (selectedTypeIds.includes(typeId)) {
+      setSelectedTypeIds(selectedTypeIds.filter(id => id !== typeId));
+    } else {
+      setSelectedTypeIds([...selectedTypeIds, typeId]);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     try {
+      let profileId: number;
+
       if (isEdit && profile) {
         await updateMutation.mutateAsync({ id: profile.id, data: formData });
+        profileId = profile.id;
       } else {
-        await createMutation.mutateAsync(formData);
+        const result = await createMutation.mutateAsync(formData);
+        profileId = result.id;
       }
+
+      // Update type assignments
+      if (isEdit && profile) {
+        setIsSavingTypes(true);
+        const { default: apiClient } = await import('../api/client');
+
+        // Get current types assigned to this profile
+        const currentTypeIds = profile.obligation_types?.map(t => t.id) || [];
+
+        // Types to add (in selectedTypeIds but not in currentTypeIds)
+        const toAdd = selectedTypeIds.filter(id => !currentTypeIds.includes(id));
+        // Types to remove (in currentTypeIds but not in selectedTypeIds)
+        const toRemove = currentTypeIds.filter(id => !selectedTypeIds.includes(id));
+
+        if (toAdd.length > 0) {
+          await apiClient.post(`/api/v1/settings/obligation-profiles/${profileId}/add_types/`, {
+            obligation_type_ids: toAdd
+          });
+        }
+        if (toRemove.length > 0) {
+          await apiClient.post(`/api/v1/settings/obligation-profiles/${profileId}/remove_types/`, {
+            obligation_type_ids: toRemove
+          });
+        }
+        setIsSavingTypes(false);
+      }
+
       onClose();
     } catch (err: unknown) {
+      setIsSavingTypes(false);
       const errorObj = err as { response?: { data?: { name?: string[]; error?: string } } };
       const errorData = errorObj.response?.data;
       if (errorData?.name) {
@@ -379,11 +429,12 @@ function ObligationProfileModal({ isOpen, onClose, profile }: ProfileModalProps)
 
   if (!isOpen) return null;
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending || isSavingTypes;
+  const activeTypes = allTypes.filter(t => t.is_active);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {isEdit ? 'Επεξεργασία Προφίλ' : 'Νέο Προφίλ Υποχρεώσεων'}
@@ -420,10 +471,47 @@ function ObligationProfileModal({ isOpen, onClose, profile }: ProfileModalProps)
             <textarea
               value={formData.description || ''}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={3}
+              rows={2}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Περιγραφή του προφίλ..."
             />
+          </div>
+
+          {/* Obligation Types Checklist */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Τύποι Υποχρεώσεων στο προφίλ
+              <span className="ml-2 text-xs text-gray-500">
+                ({selectedTypeIds.length} επιλεγμένοι)
+              </span>
+            </label>
+            <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+              {activeTypes.length === 0 ? (
+                <p className="p-3 text-gray-500 text-sm">Δεν υπάρχουν τύποι υποχρεώσεων.</p>
+              ) : (
+                activeTypes.map((type) => (
+                  <label
+                    key={type.id}
+                    className="flex items-center gap-3 p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTypeIds.includes(type.id)}
+                      onChange={() => toggleType(type.id)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-medium text-blue-600">{type.code}</span>
+                      {' - '}
+                      {type.name}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Επιλέξτε τους τύπους υποχρεώσεων που θα ανήκουν σε αυτό το προφίλ.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -1090,6 +1178,7 @@ export default function ObligationSettings() {
           setEditingProfile(null);
         }}
         profile={editingProfile}
+        allTypes={types}
       />
 
       <ObligationGroupModal

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/authStore';
@@ -19,6 +20,7 @@ import {
   Reports,
   Settings,
   ObligationSettings,
+  UserManagement,
 } from './pages';
 
 // Create a client for React Query
@@ -34,6 +36,24 @@ const queryClient = new QueryClient({
 // Protected Route wrapper with Layout
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    const verify = async () => {
+      await checkAuth();
+      setIsChecking(false);
+    };
+    verify();
+  }, [checkAuth]);
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -153,6 +173,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ObligationSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/users"
+            element={
+              <ProtectedRoute>
+                <UserManagement />
               </ProtectedRoute>
             }
           />

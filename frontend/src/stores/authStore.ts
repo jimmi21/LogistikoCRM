@@ -38,18 +38,18 @@ export const useAuthStore = create<AuthState>()(
       login: async (username: string, password: string, rememberMe: boolean = true) => {
         set({ isLoading: true, error: null, rememberMe });
         try {
-          const tokens = await authApi.login(username, password);
+          const response = await authApi.login(username, password);
 
           // Store tokens in appropriate storage
           const storage = getStorage(rememberMe);
-          storage.setItem('accessToken', tokens.access);
-          storage.setItem('refreshToken', tokens.refresh);
+          storage.setItem('accessToken', response.access);
+          storage.setItem('refreshToken', response.refresh);
           storage.setItem('rememberMe', String(rememberMe));
 
           // Also ensure localStorage is used by persist middleware if rememberMe
           if (rememberMe) {
-            localStorage.setItem('accessToken', tokens.access);
-            localStorage.setItem('refreshToken', tokens.refresh);
+            localStorage.setItem('accessToken', response.access);
+            localStorage.setItem('refreshToken', response.refresh);
           } else {
             // Clear localStorage if not remembering
             localStorage.removeItem('accessToken');
@@ -57,8 +57,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           set({
-            accessToken: tokens.access,
-            refreshToken: tokens.refresh,
+            accessToken: response.access,
+            refreshToken: response.refresh,
+            user: response.user || null,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -114,7 +115,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
-        const { accessToken, refreshToken } = get();
+        const { accessToken, refreshToken, user } = get();
 
         if (!accessToken) {
           set({ isAuthenticated: false });
@@ -123,6 +124,17 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           await authApi.verifyToken(accessToken);
+
+          // If we don't have user info, fetch it
+          if (!user) {
+            try {
+              const response = await authApi.getCurrentUser();
+              set({ user: response.data || response });
+            } catch {
+              // Ignore user fetch errors, token is still valid
+            }
+          }
+
           set({ isAuthenticated: true });
           return true;
         } catch {
@@ -131,10 +143,21 @@ export const useAuthStore = create<AuthState>()(
             try {
               const newTokens = await authApi.refreshToken(refreshToken);
               localStorage.setItem('accessToken', newTokens.access);
-              set({
-                accessToken: newTokens.access,
-                isAuthenticated: true,
-              });
+
+              // Also fetch user info after refresh
+              try {
+                const response = await authApi.getCurrentUser();
+                set({
+                  accessToken: newTokens.access,
+                  user: response.data || response,
+                  isAuthenticated: true,
+                });
+              } catch {
+                set({
+                  accessToken: newTokens.access,
+                  isAuthenticated: true,
+                });
+              }
               return true;
             } catch {
               // Refresh also failed, logout

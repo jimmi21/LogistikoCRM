@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User,
+  Users,
   Bell,
   Shield,
   Globe,
@@ -11,15 +12,94 @@ import {
   Save,
   FileText,
   ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useAuthStore } from '../stores/authStore';
+import { authApi } from '../api/client';
+import { useToast } from '../components/Toast';
 
 type SettingsTab = 'profile' | 'notifications' | 'security' | 'integrations';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
+  const { showToast } = useToast();
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState({
+    email_reminders: true,
+    email_overdue: true,
+    new_files: false,
+    missed_calls: true,
+    weekly_summary: false,
+  });
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+
+  // Initialize form with user data
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+      });
+    }
+  }, [user]);
+
+  // Handle profile save
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      const response = await authApi.updateProfile(profileForm);
+      // Update local user state
+      if (response.data) {
+        setUser(response.data);
+      }
+      showToast('success', response.message || 'Το προφίλ αποθηκεύτηκε');
+    } catch (error) {
+      console.error('Profile save error:', error);
+      showToast('error', 'Σφάλμα κατά την αποθήκευση');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Handle notification settings save
+  const handleSaveNotifications = async () => {
+    setIsSavingNotifications(true);
+    try {
+      // TODO: Implement backend API for notification settings
+      // For now, just store in localStorage as a temporary solution
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+      showToast('success', 'Οι ρυθμίσεις ειδοποιήσεων αποθηκεύτηκαν');
+    } catch (error) {
+      console.error('Notification settings save error:', error);
+      showToast('error', 'Σφάλμα κατά την αποθήκευση');
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  };
+
+  // Load notification settings from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('notificationSettings');
+    if (saved) {
+      try {
+        setNotificationSettings(JSON.parse(saved));
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
 
   const tabs = [
     { id: 'profile' as const, label: 'Προφίλ', icon: User },
@@ -83,7 +163,8 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Όνομα</label>
                     <input
                       type="text"
-                      defaultValue={user?.first_name || ''}
+                      value={profileForm.first_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -91,7 +172,8 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Επώνυμο</label>
                     <input
                       type="text"
-                      defaultValue={user?.last_name || ''}
+                      value={profileForm.last_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -101,7 +183,8 @@ export default function Settings() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input
                     type="email"
-                    defaultValue={user?.email || ''}
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -118,9 +201,18 @@ export default function Settings() {
                 </div>
 
                 <div className="pt-4">
-                  <Button>
-                    <Save size={18} className="mr-2" />
-                    Αποθήκευση αλλαγών
+                  <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+                    {isSavingProfile ? (
+                      <>
+                        <RefreshCw size={18} className="mr-2 animate-spin" />
+                        Αποθήκευση...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} className="mr-2" />
+                        Αποθήκευση αλλαγών
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -133,19 +225,24 @@ export default function Settings() {
 
               <div className="space-y-4">
                 {[
-                  { title: 'Email υπενθυμίσεων', desc: 'Λήψη email για επερχόμενες υποχρεώσεις', enabled: true },
-                  { title: 'Email για εκπρόθεσμες', desc: 'Ειδοποίηση όταν μια υποχρέωση καθυστερεί', enabled: true },
-                  { title: 'Νέα αρχεία', desc: 'Ειδοποίηση όταν προστίθεται νέο αρχείο', enabled: false },
-                  { title: 'Αναπάντητες κλήσεις', desc: 'Ειδοποίηση για αναπάντητες κλήσεις', enabled: true },
-                  { title: 'Εβδομαδιαία σύνοψη', desc: 'Αναφορά προόδου κάθε Δευτέρα', enabled: false },
-                ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  { key: 'email_reminders' as const, title: 'Email υπενθυμίσεων', desc: 'Λήψη email για επερχόμενες υποχρεώσεις' },
+                  { key: 'email_overdue' as const, title: 'Email για εκπρόθεσμες', desc: 'Ειδοποίηση όταν μια υποχρέωση καθυστερεί' },
+                  { key: 'new_files' as const, title: 'Νέα αρχεία', desc: 'Ειδοποίηση όταν προστίθεται νέο αρχείο' },
+                  { key: 'missed_calls' as const, title: 'Αναπάντητες κλήσεις', desc: 'Ειδοποίηση για αναπάντητες κλήσεις' },
+                  { key: 'weekly_summary' as const, title: 'Εβδομαδιαία σύνοψη', desc: 'Αναφορά προόδου κάθε Δευτέρα' },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-gray-900">{item.title}</p>
                       <p className="text-sm text-gray-500">{item.desc}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" defaultChecked={item.enabled} />
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={notificationSettings[item.key]}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                      />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
@@ -153,9 +250,18 @@ export default function Settings() {
               </div>
 
               <div className="pt-6">
-                <Button>
-                  <Save size={18} className="mr-2" />
-                  Αποθήκευση ρυθμίσεων
+                <Button onClick={handleSaveNotifications} disabled={isSavingNotifications}>
+                  {isSavingNotifications ? (
+                    <>
+                      <RefreshCw size={18} className="mr-2 animate-spin" />
+                      Αποθήκευση...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} className="mr-2" />
+                      Αποθήκευση ρυθμίσεων
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -214,24 +320,48 @@ export default function Settings() {
 
           {activeTab === 'integrations' && (
             <div className="space-y-6">
-              {/* Quick Link to Obligation Settings */}
-              <Link
-                to="/settings/obligations"
-                className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <FileText size={24} className="text-blue-600" />
+              {/* Quick Links */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Obligation Settings */}
+                <Link
+                  to="/settings/obligations"
+                  className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <FileText size={24} className="text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Υποχρεώσεις</h3>
+                        <p className="text-sm text-gray-500">Τύποι, προφίλ, ομάδες</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Ρυθμίσεις Υποχρεώσεων</h3>
-                      <p className="text-sm text-gray-500">Διαχείριση τύπων, προφίλ και ομάδων υποχρεώσεων</p>
-                    </div>
+                    <ChevronRight className="text-gray-400" size={20} />
                   </div>
-                  <ChevronRight className="text-gray-400" size={20} />
-                </div>
-              </Link>
+                </Link>
+
+                {/* User Management - Only for staff/superuser */}
+                {user?.is_staff && (
+                  <Link
+                    to="/settings/users"
+                    className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-purple-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <Users size={24} className="text-purple-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Χρήστες</h3>
+                          <p className="text-sm text-gray-500">Διαχείριση λογαριασμών</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="text-gray-400" size={20} />
+                    </div>
+                  </Link>
+                )}
+              </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-6">Ενσωματώσεις</h3>

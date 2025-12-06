@@ -59,6 +59,23 @@ from .api_door import (
     door_open as api_door_open,
     door_pulse as api_door_pulse,
 )
+from .api_users import (
+    user_list,
+    user_create,
+    user_detail,
+    user_update,
+    user_delete,
+    user_toggle_active,
+)
+from .api_export_import import (
+    export_clients_csv,
+    export_clients_template,
+    import_clients_csv,
+    export_obligation_profiles_csv,
+    export_obligation_types_csv,
+    export_client_obligations_csv,
+    import_client_obligations_csv,
+)
 
 # New Completion Views
 from .completion.completion_views import (
@@ -245,6 +262,16 @@ urlpatterns = [
     path("api/test/", api_auth.api_test, name="api_test"),
 
     # ==================================================
+    # USER MANAGEMENT ENDPOINTS (Admin only)
+    # ==================================================
+    path("api/v1/users/", user_list, name="api_user_list"),
+    path("api/v1/users/create/", user_create, name="api_user_create"),
+    path("api/v1/users/<int:user_id>/", user_detail, name="api_user_detail"),
+    path("api/v1/users/<int:user_id>/update/", user_update, name="api_user_update"),
+    path("api/v1/users/<int:user_id>/delete/", user_delete, name="api_user_delete"),
+    path("api/v1/users/<int:user_id>/toggle-active/", user_toggle_active, name="api_user_toggle_active"),
+
+    # ==================================================
     # OBLIGATION COMPLETION & FILE MANAGEMENT VIEWS
     # ==================================================
     # Obligation List & Management
@@ -267,4 +294,20 @@ urlpatterns = [
     # Archive Settings
     path("settings/archive/", archive_settings_view, name="archive_settings"),
     path("settings/archive/create/", archive_config_create, name="archive_config_create"),
+
+    # ==================================================
+    # EXPORT/IMPORT ENDPOINTS
+    # ==================================================
+    # Client Export/Import
+    path("api/v1/export/clients/csv/", export_clients_csv, name="api_export_clients_csv"),
+    path("api/v1/export/clients/template/", export_clients_template, name="api_export_clients_template"),
+    path("api/v1/import/clients/csv/", import_clients_csv, name="api_import_clients_csv"),
+
+    # Obligation Types & Profiles Export
+    path("api/v1/export/obligation-types/csv/", export_obligation_types_csv, name="api_export_obligation_types_csv"),
+    path("api/v1/export/obligation-profiles/csv/", export_obligation_profiles_csv, name="api_export_obligation_profiles_csv"),
+
+    # Client-Obligation Assignment Export/Import
+    path("api/v1/export/client-obligations/csv/", export_client_obligations_csv, name="api_export_client_obligations_csv"),
+    path("api/v1/import/client-obligations/csv/", import_client_obligations_csv, name="api_import_client_obligations_csv"),
 ]

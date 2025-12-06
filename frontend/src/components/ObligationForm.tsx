@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Button } from './Button';
 import { useObligationTypes } from '../hooks/useObligations';
+import { useUsers } from '../hooks/useUsers';
 import type { Client, Obligation, ObligationFormData, ObligationStatus } from '../types';
 
 interface ObligationFormProps {
@@ -46,6 +47,9 @@ export function ObligationForm({
 }: ObligationFormProps) {
   // Fetch obligation types dynamically from API
   const { data: obligationTypes, isLoading: typesLoading } = useObligationTypes();
+  // Fetch users for assignment dropdown
+  const { data: usersData, isLoading: usersLoading } = useUsers();
+  const users = usersData?.users || [];
 
   const [formData, setFormData] = useState<ObligationFormData>({
     client: 0,
@@ -57,6 +61,7 @@ export function ObligationForm({
     completed_date: null,
     time_spent: null,
     notes: '',
+    assigned_to: null,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ObligationFormData, string>>>({});
 
@@ -80,6 +85,7 @@ export function ObligationForm({
         completed_date: obligation.completed_date || null,
         time_spent: obligation.time_spent || null,
         notes: obligation.notes || '',
+        assigned_to: obligation.assigned_to || null,
       });
     }
   }, [obligation]);
@@ -243,6 +249,31 @@ export function ObligationForm({
           {STATUS_OPTIONS.map((status) => (
             <option key={status.value} value={status.value}>
               {status.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Ανάθεση σε */}
+      <div>
+        <label htmlFor="assigned_to" className="block text-sm font-medium text-gray-700 mb-1">
+          Ανάθεση σε
+        </label>
+        <select
+          id="assigned_to"
+          value={formData.assigned_to || ''}
+          onChange={(e) => handleChange('assigned_to', e.target.value ? Number(e.target.value) : null)}
+          disabled={usersLoading}
+          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            usersLoading ? 'bg-gray-100' : ''
+          }`}
+        >
+          <option value="">-- Χωρίς ανάθεση --</option>
+          {users.filter(u => u.is_active).map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.first_name && user.last_name
+                ? `${user.first_name} ${user.last_name}`
+                : user.username}
             </option>
           ))}
         </select>
