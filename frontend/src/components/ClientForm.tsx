@@ -19,6 +19,14 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
     email: '',
     kinito_tilefono: '',
     is_active: true,
+    // GSIS fields
+    doy: '',
+    nomiki_morfi: '',
+    diefthinsi_epixeirisis: '',
+    arithmos_epixeirisis: '',
+    poli_epixeirisis: '',
+    tk_epixeirisis: '',
+    imerominia_enarksis: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({});
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -41,12 +49,19 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
 
       if (result.success && result.data) {
         setFetchedData(result.data);
-        // Αυτόματη συμπλήρωση επωνυμίας
+        // Αυτόματη συμπλήρωση όλων των πεδίων από ΑΑΔΕ
         setFormData(prev => ({
           ...prev,
           eponimia: result.data?.onomasia || prev.eponimia,
+          doy: result.data?.doy_descr || prev.doy,
+          nomiki_morfi: result.data?.legal_form_descr || prev.nomiki_morfi,
+          diefthinsi_epixeirisis: result.data?.postal_address || prev.diefthinsi_epixeirisis,
+          arithmos_epixeirisis: result.data?.postal_address_no || prev.arithmos_epixeirisis,
+          poli_epixeirisis: result.data?.postal_area || prev.poli_epixeirisis,
+          tk_epixeirisis: result.data?.postal_zip_code || prev.tk_epixeirisis,
+          imerominia_enarksis: result.data?.registration_date || prev.imerominia_enarksis,
         }));
-        setLookupMessage({ type: 'success', text: 'Τα στοιχεία βρέθηκαν!' });
+        setLookupMessage({ type: 'success', text: 'Τα στοιχεία βρέθηκαν και συμπληρώθηκαν!' });
       } else {
         setLookupMessage({ type: 'error', text: result.error || 'Δεν βρέθηκαν στοιχεία' });
       }
@@ -67,6 +82,14 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
         email: client.email || '',
         kinito_tilefono: client.kinito_tilefono || '',
         is_active: client.is_active ?? true,
+        // GSIS fields
+        doy: client.doy || '',
+        nomiki_morfi: client.nomiki_morfi || '',
+        diefthinsi_epixeirisis: client.diefthinsi_epixeirisis || '',
+        arithmos_epixeirisis: client.arithmos_epixeirisis || '',
+        poli_epixeirisis: client.poli_epixeirisis || '',
+        tk_epixeirisis: client.tk_epixeirisis || '',
+        imerominia_enarksis: client.imerominia_enarksis || '',
       });
     }
   }, [client]);
