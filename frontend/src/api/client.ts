@@ -186,8 +186,19 @@ export interface GSISStatusResponse {
 export const gsisApi = {
   // Αναζήτηση στοιχείων με ΑΦΜ
   lookupAfm: async (afm: string): Promise<AFMLookupResponse> => {
-    const response = await apiClient.post('/api/v1/afm-lookup/', { afm });
-    return response.data;
+    try {
+      const response = await apiClient.post('/api/v1/afm-lookup/', { afm });
+      return response.data;
+    } catch (error: unknown) {
+      // Extract error message from axios error response
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string } } };
+        if (axiosError.response?.data?.error) {
+          return { success: false, error: axiosError.response.data.error };
+        }
+      }
+      return { success: false, error: 'Σφάλμα επικοινωνίας με τον server' };
+    }
   },
 
   // Κατάσταση ρυθμίσεων GSIS
