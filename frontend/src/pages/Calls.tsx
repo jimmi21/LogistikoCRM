@@ -53,7 +53,6 @@ export default function Calls() {
 
   // Auto-refresh state
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(AUTO_REFRESH_INTERVAL / 1000);
 
   // Modal states

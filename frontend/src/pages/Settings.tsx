@@ -13,7 +13,6 @@ import {
   FileText,
   ChevronRight,
   RefreshCw,
-  Check,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useAuthStore } from '../stores/authStore';
@@ -34,6 +33,16 @@ export default function Settings() {
     email: '',
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState({
+    email_reminders: true,
+    email_overdue: true,
+    new_files: false,
+    missed_calls: true,
+    weekly_summary: false,
+  });
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   // Initialize form with user data
   useEffect(() => {
@@ -63,6 +72,34 @@ export default function Settings() {
       setIsSavingProfile(false);
     }
   };
+
+  // Handle notification settings save
+  const handleSaveNotifications = async () => {
+    setIsSavingNotifications(true);
+    try {
+      // TODO: Implement backend API for notification settings
+      // For now, just store in localStorage as a temporary solution
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+      showToast('success', 'Οι ρυθμίσεις ειδοποιήσεων αποθηκεύτηκαν');
+    } catch (error) {
+      console.error('Notification settings save error:', error);
+      showToast('error', 'Σφάλμα κατά την αποθήκευση');
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  };
+
+  // Load notification settings from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('notificationSettings');
+    if (saved) {
+      try {
+        setNotificationSettings(JSON.parse(saved));
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
 
   const tabs = [
     { id: 'profile' as const, label: 'Προφίλ', icon: User },
@@ -188,19 +225,24 @@ export default function Settings() {
 
               <div className="space-y-4">
                 {[
-                  { title: 'Email υπενθυμίσεων', desc: 'Λήψη email για επερχόμενες υποχρεώσεις', enabled: true },
-                  { title: 'Email για εκπρόθεσμες', desc: 'Ειδοποίηση όταν μια υποχρέωση καθυστερεί', enabled: true },
-                  { title: 'Νέα αρχεία', desc: 'Ειδοποίηση όταν προστίθεται νέο αρχείο', enabled: false },
-                  { title: 'Αναπάντητες κλήσεις', desc: 'Ειδοποίηση για αναπάντητες κλήσεις', enabled: true },
-                  { title: 'Εβδομαδιαία σύνοψη', desc: 'Αναφορά προόδου κάθε Δευτέρα', enabled: false },
-                ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  { key: 'email_reminders' as const, title: 'Email υπενθυμίσεων', desc: 'Λήψη email για επερχόμενες υποχρεώσεις' },
+                  { key: 'email_overdue' as const, title: 'Email για εκπρόθεσμες', desc: 'Ειδοποίηση όταν μια υποχρέωση καθυστερεί' },
+                  { key: 'new_files' as const, title: 'Νέα αρχεία', desc: 'Ειδοποίηση όταν προστίθεται νέο αρχείο' },
+                  { key: 'missed_calls' as const, title: 'Αναπάντητες κλήσεις', desc: 'Ειδοποίηση για αναπάντητες κλήσεις' },
+                  { key: 'weekly_summary' as const, title: 'Εβδομαδιαία σύνοψη', desc: 'Αναφορά προόδου κάθε Δευτέρα' },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-gray-900">{item.title}</p>
                       <p className="text-sm text-gray-500">{item.desc}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" defaultChecked={item.enabled} />
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={notificationSettings[item.key]}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                      />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
@@ -208,9 +250,18 @@ export default function Settings() {
               </div>
 
               <div className="pt-6">
-                <Button>
-                  <Save size={18} className="mr-2" />
-                  Αποθήκευση ρυθμίσεων
+                <Button onClick={handleSaveNotifications} disabled={isSavingNotifications}>
+                  {isSavingNotifications ? (
+                    <>
+                      <RefreshCw size={18} className="mr-2 animate-spin" />
+                      Αποθήκευση...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} className="mr-2" />
+                      Αποθήκευση ρυθμίσεων
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
