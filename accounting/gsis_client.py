@@ -22,14 +22,11 @@ logger = logging.getLogger(__name__)
 # GSIS SOAP Endpoint
 GSIS_WSDL_URL = "https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2"
 
-# XML Namespaces
+# XML Namespaces (from working AADE script)
 NAMESPACES = {
-    'soap': 'http://schemas.xmlsoap.org/soap/envelope/',
-    'soap12': 'http://www.w3.org/2003/05/soap-envelope',
     'env': 'http://www.w3.org/2003/05/soap-envelope',
-    'rgws': 'http://gr/gsis/rgwspublic2/RgWsPublic2',
-    'ns2': 'http://gr/gsis/rgwspublic2/RgWsPublic2',
-    'rg': 'http://gr/gsis/rgwspublic2/RgWsPublic2Service',
+    'srvc': 'http://rgwspublic2/RgWsPublic2Service',
+    'rg': 'http://rgwspublic2/RgWsPublic2',
 }
 
 
@@ -126,13 +123,12 @@ class GSISClient:
         Returns:
             SOAP XML string
         """
-        # WS-Security namespace for authentication
-        wsse_ns = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
-
+        # Correct namespaces from working AADE script
         return f'''<?xml version="1.0" encoding="UTF-8"?>
 <env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"
-              xmlns:ns1="{wsse_ns}"
-              xmlns:ns2="http://gr/gsis/rgwspublic2/RgWsPublic2">
+              xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+              xmlns:ns2="http://rgwspublic2/RgWsPublic2Service"
+              xmlns:ns3="http://rgwspublic2/RgWsPublic2">
     <env:Header>
         <ns1:Security>
             <ns1:UsernameToken>
@@ -144,8 +140,8 @@ class GSISClient:
     <env:Body>
         <ns2:rgWsPublic2AfmMethod>
             <ns2:INPUT_REC>
-                <ns2:afm_called_by>{afm_called_by}</ns2:afm_called_by>
-                <ns2:afm_called_for>{afm_called_for}</ns2:afm_called_for>
+                <ns3:afm_called_by>{afm_called_by}</ns3:afm_called_by>
+                <ns3:afm_called_for>{afm_called_for}</ns3:afm_called_for>
             </ns2:INPUT_REC>
         </ns2:rgWsPublic2AfmMethod>
     </env:Body>
@@ -170,100 +166,99 @@ class GSISClient:
             logger.error(f"Failed to parse GSIS XML response: {e}")
             raise GSISError(f"Σφάλμα ανάλυσης XML: {e}")
 
-        # Βρες το body (try SOAP 1.2 first, then SOAP 1.1)
-        body = root.find('.//env:Body', NAMESPACES)
-        if body is None:
-            body = root.find('.//{http://www.w3.org/2003/05/soap-envelope}Body')
-        if body is None:
-            body = root.find('.//soap:Body', NAMESPACES)
-        if body is None:
-            body = root.find('.//{http://schemas.xmlsoap.org/soap/envelope/}Body')
-
-        if body is None:
-            raise GSISError("Δεν βρέθηκε το SOAP Body στην απάντηση")
-
-        # Ελέγξου για SOAP Fault (both SOAP 1.1 and 1.2)
-        fault = root.find('.//{http://www.w3.org/2003/05/soap-envelope}Fault')
-        if fault is None:
-            fault = body.find('.//soap:Fault', NAMESPACES)
-        if fault is None:
-            fault = body.find('.//{http://schemas.xmlsoap.org/soap/envelope/}Fault')
-
-        if fault is not None:
-            fault_string = fault.findtext('faultstring', 'Άγνωστο σφάλμα')
-            raise GSISError(f"SOAP Fault: {fault_string}")
-
-        # Εξαγωγή δεδομένων - ψάξε για τα στοιχεία
-        # Το GSIS επιστρέφει τα δεδομένα σε διάφορα tags
-        data = {}
-
         # Helper function για να βρούμε text από element
-        def get_text(parent, tag, default=''):
-            # Try different namespace combinations
-            el = parent.find(f'.//rgws:{tag}', NAMESPACES)
+        def get_text(element, tag: str, default: str = '') -> str:
+            if element is None:
+                return default
+            el = element.find(tag, NAMESPACES)
             if el is None:
-                el = parent.find(f'.//{{{NAMESPACES["rgws"]}}}{tag}')
+                # Try without namespace prefix
+                el = element.find(f'.//{tag.split(":")[-1]}')
             if el is None:
-                # Try without namespace
-                el = parent.find(f'.//{tag}')
-            if el is None:
-                # Try to find anywhere
-                for elem in parent.iter():
-                    if elem.tag.endswith(tag):
-                        return elem.text or default
-            return el.text if el is not None and el.text else default
+                return default
+            # Check for xsi:nil
+            nil_attr = el.get('{http://www.w3.org/2001/XMLSchema-instance}nil')
+            if nil_attr == 'true':
+                return default
+            return el.text or default
+
+        # Βρες το result (from srvc namespace)
+        result = root.find('.//srvc:result', NAMESPACES)
+        if result is None:
+            # Try without namespace
+            result = root.find('.//{http://rgwspublic2/RgWsPublic2Service}result')
+        if result is None:
+            # Try to find any result element
+            for elem in root.iter():
+                if elem.tag.endswith('result'):
+                    result = elem
+                    break
+
+        if result is None:
+            logger.error(f"No result found in response: {xml_response[:500]}")
+            raise GSISError("Δεν βρέθηκε αποτέλεσμα στην απάντηση")
 
         # Έλεγχος για error code
-        error_code = get_text(body, 'error_code')
-        if error_code and error_code != '':
-            error_msg = get_text(body, 'error_descr', 'Άγνωστο σφάλμα')
-            raise GSISError(error_msg, error_code)
+        error_code = None
+        error_descr = None
+        for elem in result.iter():
+            if elem.tag.endswith('error_code') and elem.text:
+                error_code = elem.text
+            if elem.tag.endswith('error_descr') and elem.text:
+                error_descr = elem.text
+
+        if error_code:
+            raise GSISError(error_descr or 'Άγνωστο σφάλμα', error_code)
+
+        # Βρες το basic_rec
+        basic_rec = None
+        for elem in result.iter():
+            if elem.tag.endswith('basic_rec'):
+                basic_rec = elem
+                break
+
+        if basic_rec is None:
+            raise GSISError("Δεν βρέθηκαν στοιχεία basic_rec")
+
+        # Helper to get text from basic_rec
+        def get_basic(tag: str, default: str = '') -> str:
+            for elem in basic_rec.iter():
+                if elem.tag.endswith(tag):
+                    nil_attr = elem.get('{http://www.w3.org/2001/XMLSchema-instance}nil')
+                    if nil_attr == 'true':
+                        return default
+                    return elem.text or default
+            return default
 
         # Εξαγωγή βασικών στοιχείων
-        afm = get_text(body, 'afm')
-        doy = get_text(body, 'doy')
-        doy_descr = get_text(body, 'doy_descr')
-        onomasia = get_text(body, 'onomasia')
-        legal_form = get_text(body, 'legal_status_descr', '')
-        legal_form_descr = get_text(body, 'legal_status_descr', '')
-
-        # Flags
-        deactivation = get_text(body, 'deactivation_flag', '1')
-        deactivation_descr = get_text(body, 'deactivation_flag_descr', '')
-        firm_flag = get_text(body, 'firm_flag_descr', '')
-
-        # Διεύθυνση
-        postal_address = get_text(body, 'postal_address')
-        postal_address_no = get_text(body, 'postal_address_no')
-        postal_zip_code = get_text(body, 'postal_zip_code')
-        postal_area = get_text(body, 'postal_area_description')
-
-        # Ημερομηνίες
-        registration_date = get_text(body, 'regist_date')
-        stop_date = get_text(body, 'stop_date')
+        afm = get_basic('afm')
+        onomasia = get_basic('onomasia')
+        doy = get_basic('doy')
+        doy_descr = get_basic('doy_descr')
+        legal_form_descr = get_basic('legal_status_descr')
+        deactivation = get_basic('deactivation_flag', '1')
+        deactivation_descr = get_basic('deactivation_flag_descr')
+        firm_flag = get_basic('firm_flag_descr')
+        postal_address = get_basic('postal_address')
+        postal_address_no = get_basic('postal_address_no')
+        postal_zip_code = get_basic('postal_zip_code')
+        postal_area = get_basic('postal_area_description')
+        registration_date = get_basic('regist_date')
+        stop_date = get_basic('stop_date')
 
         # Δραστηριότητες
         activities = []
-        for activity in body.iter():
-            if 'firm_act_descr' in activity.tag:
-                act_data = {}
-                parent = activity.getparent() if hasattr(activity, 'getparent') else None
-                if parent is not None:
-                    for child in parent:
-                        tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                        act_data[tag_name] = child.text
-                    if act_data:
-                        activities.append(act_data)
-
-        # Αν δεν βρήκαμε activities με τον παραπάνω τρόπο, δοκίμασε αλλιώς
-        if not activities:
-            main_activity = get_text(body, 'firm_act_descr')
-            if main_activity:
-                activities.append({
-                    'firm_act_descr': main_activity,
-                    'firm_act_kind': get_text(body, 'firm_act_kind', '1'),
-                    'firm_act_kind_descr': get_text(body, 'firm_act_kind_descr', 'ΚΥΡΙΑ'),
-                })
+        for elem in result.iter():
+            if elem.tag.endswith('firm_act_tab'):
+                for item in elem.iter():
+                    if item.tag.endswith('item'):
+                        act_data = {}
+                        for child in item:
+                            tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                            if child.text:
+                                act_data[tag_name] = child.text
+                        if act_data:
+                            activities.append(act_data)
 
         # Raw data για debugging
         raw_data = {
