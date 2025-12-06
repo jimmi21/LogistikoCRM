@@ -26,7 +26,9 @@ from django.views.decorators.http import require_GET
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
-from rest_framework.response import Response 
+from rest_framework.response import Response
+
+from .permissions import IsVoIPMonitor, IsLocalRequest
 
 from .models import (
     ClientProfile, ClientObligation, MonthlyObligation,
@@ -994,10 +996,15 @@ def voip_call_update(request, call_id):
 class VoIPCallViewSet(viewsets.ModelViewSet):
     """
     REST API ViewSet for VoIP calls
+
+    Authentication (any of these):
+    - Admin user access
+    - X-API-Key header for internal services (Fritz!Box monitor)
+    - Localhost requests (127.0.0.1, ::1) for same-machine services
     """
     queryset = VoIPCall.objects.all()
     serializer_class = VoIPCallSerializer
-    permission_classes = [permissions.IsAdminUser]  # SECURITY: Restrict to admin users only
+    permission_classes = [permissions.IsAdminUser | IsVoIPMonitor | IsLocalRequest]
     filterset_fields = ['direction', 'status', 'client', 'phone_number']
     search_fields = ['phone_number', 'client__eponimia', 'notes']
     ordering_fields = ['started_at', 'duration_seconds']
