@@ -78,7 +78,7 @@ from .api_export_import import (
 )
 
 # New Completion Views
-from .views.completion_views import (
+from .completion.completion_views import (
     obligation_list_view,
     obligation_list_api,
     obligation_complete_single,
