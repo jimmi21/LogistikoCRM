@@ -17,9 +17,10 @@ import {
   Plus,
   Pause,
   Play,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '../components';
-import { useCalls, useMatchCallToClient, useCreateTicketFromCall, useSearchClientsForMatch, type CallsFilters } from '../hooks/useVoIP';
+import { useCalls, useMatchCallToClient, useCreateTicketFromCall, useSearchClientsForMatch, useDeleteCall, type CallsFilters } from '../hooks/useVoIP';
 import type { VoIPCallFull } from '../types';
 
 // Auto-refresh interval in milliseconds (30 seconds)
@@ -379,6 +380,7 @@ export default function Calls() {
                         call={call}
                         onMatchClient={() => handleOpenMatchModal(call)}
                         onCreateTicket={() => handleOpenTicketModal(call)}
+                        onRefetch={refetch}
                       />
                     ))
                   )}
@@ -460,11 +462,26 @@ function CallRow({
   call,
   onMatchClient,
   onCreateTicket,
+  onRefetch,
 }: {
   call: VoIPCallFull;
   onMatchClient: () => void;
   onCreateTicket: () => void;
+  onRefetch: () => void;
 }) {
+  const deleteMutation = useDeleteCall();
+
+  const handleDelete = async () => {
+    if (confirm(`Διαγραφή κλήσης από ${call.phone_number};`)) {
+      try {
+        await deleteMutation.mutateAsync(call.id);
+        onRefetch();
+      } catch (error) {
+        console.error('Error deleting call:', error);
+      }
+    }
+  };
+
   const getCallIcon = () => {
     if (call.status === 'missed') {
       return <PhoneMissed size={18} className="text-red-500" />;
@@ -543,6 +560,14 @@ function CallRow({
               Ticket
             </span>
           )}
+          <button
+            onClick={handleDelete}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+            title="Διαγραφή κλήσης"
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       </td>
     </tr>

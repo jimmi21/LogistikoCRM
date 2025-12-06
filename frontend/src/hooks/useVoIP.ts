@@ -160,6 +160,23 @@ export function useUpdateCallNotes() {
 }
 
 /**
+ * Delete a call
+ */
+export function useDeleteCall() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (callId: number) => {
+      await apiClient.delete(`/api/v1/calls/${callId}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CALLS_KEY] });
+      queryClient.invalidateQueries({ queryKey: [CALLS_STATS_KEY] });
+    },
+  });
+}
+
+/**
  * Search clients for matching to a call
  */
 export function useSearchClientsForMatch(query: string) {
