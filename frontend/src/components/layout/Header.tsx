@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Menu,
   Search,
-  Bell,
   User,
   LogOut,
   Settings,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import DoorButton from '../DoorButton';
+import NotificationDropdown from '../NotificationDropdown';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -77,14 +77,7 @@ export default function Header({ onMenuClick, onSearchClick }: HeaderProps) {
           <DoorButton />
 
           {/* Notifications */}
-          <button
-            className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Ειδοποιήσεις"
-          >
-            <Bell size={20} className="text-gray-600" />
-            {/* Notification badge */}
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
+          <NotificationDropdown />
 
           {/* User dropdown */}
           <div className="relative" ref={dropdownRef}>
