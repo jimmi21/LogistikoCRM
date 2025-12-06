@@ -1,0 +1,86 @@
+{% comment %}
+Recursive folder tree template
+Usage: {% include "accounting/partials/_folder_tree.html" with tree=files_tree path="" %}
+{% endcomment %}
+
+{% for key, value in tree.items %}
+    {% if key == '_files' %}
+        {# Files at this level #}
+        {% for file in value %}
+        <div class="file-item">
+            <i class="bi bi-file-pdf text-danger me-2"></i>
+            <a href="{{ file.url }}" target="_blank">{{ file.name }}</a>
+            <span class="file-size">
+                {% if file.size < 1024 %}
+                    {{ file.size }} B
+                {% elif file.size < 1048576 %}
+                    {{ file.size|divisibleby:1024 }} KB
+                {% else %}
+                    {{ file.size|floatformat:2 }} MB
+                {% endif %}
+            </span>
+            <div class="file-actions">
+                <a href="{{ file.url }}" download class="btn btn-sm btn-link text-primary p-0 me-2" title="Λήψη">
+                    <i class="bi bi-download"></i>
+                </a>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0"
+                        onclick="deleteFile('{{ file.rel_path }}', '{{ file.name }}')" title="Διαγραφή">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    {% elif key == '_folders' %}
+        {# Subfolders #}
+        {% for folder_name, folder_contents in value.items %}
+        <div class="folder-item" onclick="toggleFolder(this)">
+            <span class="folder-icon"><i class="bi bi-chevron-right"></i></span>
+            <i class="bi bi-folder text-warning me-1"></i>
+            <strong>{{ folder_name }}</strong>
+        </div>
+        <div class="folder-contents">
+            {% include "accounting/partials/_folder_tree.html" with tree=folder_contents path=folder_name %}
+        </div>
+        {% endfor %}
+    {% elif key != '_files' and key != '_folders' %}
+        {# Root level folders #}
+        <div class="folder-item" onclick="toggleFolder(this)">
+            <span class="folder-icon"><i class="bi bi-chevron-right"></i></span>
+            <i class="bi bi-folder text-warning me-1"></i>
+            <strong>{{ key }}</strong>
+        </div>
+        <div class="folder-contents">
+            {% if value._files %}
+                {% for file in value._files %}
+                <div class="file-item">
+                    <i class="bi bi-file-pdf text-danger me-2"></i>
+                    <a href="{{ file.url }}" target="_blank">{{ file.name }}</a>
+                    <span class="file-size">
+                        {% widthratio file.size 1024 1 as kb %}
+                        {% if kb < 1 %}
+                            {{ file.size }} B
+                        {% elif kb < 1024 %}
+                            {{ kb }} KB
+                        {% else %}
+                            {% widthratio file.size 1048576 1 as mb %}
+                            {{ mb }} MB
+                        {% endif %}
+                    </span>
+                    <div class="file-actions">
+                        <a href="{{ file.url }}" download class="btn btn-sm btn-link text-primary p-0 me-2" title="Λήψη">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0"
+                                onclick="deleteFile('{{ file.rel_path }}', '{{ file.name }}')" title="Διαγραφή">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% if value._folders %}
+                {% include "accounting/partials/_folder_tree.html" with tree=value._folders path=key %}
+            {% endif %}
+        </div>
+    {% endif %}
+{% endfor %}

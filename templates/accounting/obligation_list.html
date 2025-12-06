@@ -1,0 +1,596 @@
+{% extends "accounting/base.html" %}
+{% load static %}
+
+{% block title %}Υποχρεώσεις - LogistikoCRM{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'accounting:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item active">Υποχρεώσεις</li>
+    </ol>
+</nav>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+        <i class="bi bi-list-check text-primary"></i> Διαχείριση Υποχρεώσεων
+    </h2>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-success" id="btnCompleteSelected" disabled>
+            <i class="bi bi-check-circle"></i> Ολοκλήρωση Επιλεγμένων
+        </button>
+        <button type="button" class="btn btn-primary" id="btnEmailSelected" disabled>
+            <i class="bi bi-envelope"></i> Αποστολή Email
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-primary">{{ stats.total }}</div>
+                <div class="text-muted small">Σύνολο</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-warning">{{ stats.pending }}</div>
+                <div class="text-muted small">Εκκρεμείς</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-success">{{ stats.completed }}</div>
+                <div class="text-muted small">Ολοκληρωμένες</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body py-3">
+                <div class="fs-3 fw-bold text-danger">{{ stats.overdue }}</div>
+                <div class="text-muted small">Καθυστερημένες</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters Card -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form id="filterForm" method="GET" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Μήνας</label>
+                <select name="month" class="form-select">
+                    <option value="">Όλοι</option>
+                    {% for num, name in months %}
+                        <option value="{{ num }}" {% if filters.month == num|stringformat:"d" %}selected{% endif %}>
+                            {{ name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Έτος</label>
+                <select name="year" class="form-select">
+                    <option value="">Όλα</option>
+                    {% for year in years %}
+                        <option value="{{ year }}" {% if filters.year == year|stringformat:"d" %}selected{% endif %}>
+                            {{ year }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Κατάσταση</label>
+                <select name="status" class="form-select">
+                    <option value="">Όλες</option>
+                    <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Εκκρεμεί</option>
+                    <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>Ολοκληρώθηκε</option>
+                    <option value="overdue" {% if filters.status == 'overdue' %}selected{% endif %}>Καθυστερεί</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Τύπος</label>
+                <select name="type" class="form-select">
+                    <option value="">Όλοι</option>
+                    {% for t in obligation_types %}
+                        <option value="{{ t.id }}" {% if filters.type_id == t.id|stringformat:"d" %}selected{% endif %}>
+                            {{ t.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Πελάτης</label>
+                <select name="client" class="form-select">
+                    <option value="">Όλοι</option>
+                    {% for c in clients %}
+                        <option value="{{ c.id }}" {% if filters.client_id == c.id|stringformat:"d" %}selected{% endif %}>
+                            {{ c.eponimia }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="bi bi-funnel"></i> Φίλτρο
+                    </button>
+                    <a href="{% url 'accounting:obligation_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quick Filters -->
+<div class="quick-filters mb-3">
+    <button type="button" class="quick-filter-btn {% if not filters.status %}active{% endif %}"
+            onclick="setQuickFilter('status', '')">Όλες</button>
+    <button type="button" class="quick-filter-btn {% if filters.status == 'pending' %}active{% endif %}"
+            onclick="setQuickFilter('status', 'pending')">
+        <i class="bi bi-clock text-warning"></i> Εκκρεμείς
+    </button>
+    <button type="button" class="quick-filter-btn {% if filters.status == 'overdue' %}active{% endif %}"
+            onclick="setQuickFilter('status', 'overdue')">
+        <i class="bi bi-exclamation-triangle text-danger"></i> Καθυστερημένες
+    </button>
+    <button type="button" class="quick-filter-btn {% if filters.status == 'completed' %}active{% endif %}"
+            onclick="setQuickFilter('status', 'completed')">
+        <i class="bi bi-check-circle text-success"></i> Ολοκληρωμένες
+    </button>
+</div>
+
+<!-- Obligations Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table id="obligationsTable" class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" class="form-check-input" id="selectAll">
+                        </th>
+                        <th>Πελάτης</th>
+                        <th>Τύπος</th>
+                        <th>Περίοδος</th>
+                        <th>Προθεσμία</th>
+                        <th>Κατάσταση</th>
+                        <th>Αρχείο</th>
+                        <th style="width: 180px;">Ενέργειες</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ob in obligations %}
+                    <tr data-id="{{ ob.id }}" class="{% if ob.status == 'overdue' %}table-danger{% elif ob.status == 'completed' %}table-success{% endif %}">
+                        <td>
+                            <input type="checkbox" class="form-check-input row-checkbox" value="{{ ob.id }}">
+                        </td>
+                        <td>
+                            <a href="{% url 'accounting:client_files' ob.client.id %}" class="text-decoration-none">
+                                <strong>{{ ob.client.eponimia }}</strong>
+                            </a>
+                            <div class="small text-muted">{{ ob.client.afm }}</div>
+                        </td>
+                        <td>{{ ob.obligation_type.name }}</td>
+                        <td>{{ ob.month|stringformat:"02d" }}/{{ ob.year }}</td>
+                        <td>
+                            <span class="{% if ob.status != 'completed' %}{% if ob.days_until_deadline < 0 %}text-danger fw-bold{% elif ob.days_until_deadline <= 3 %}text-warning fw-bold{% endif %}{% endif %}">
+                                {{ ob.deadline|date:"d/m/Y" }}
+                            </span>
+                            {% if ob.status != 'completed' %}
+                                {% if ob.days_until_deadline < 0 %}
+                                    <div class="small text-danger">{{ ob.days_until_deadline|abs }} μέρες πριν</div>
+                                {% elif ob.days_until_deadline == 0 %}
+                                    <div class="small text-warning">Σήμερα!</div>
+                                {% else %}
+                                    <div class="small text-muted">σε {{ ob.days_until_deadline }} μέρες</div>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ob.status == 'pending' %}
+                                <span class="badge badge-pending">Εκκρεμεί</span>
+                            {% elif ob.status == 'completed' %}
+                                <span class="badge badge-completed">Ολοκληρώθηκε</span>
+                            {% elif ob.status == 'overdue' %}
+                                <span class="badge badge-overdue">Καθυστερεί</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ob.attachment %}
+                                <a href="{{ ob.attachment.url }}" target="_blank" class="attachment-preview">
+                                    <i class="bi bi-file-pdf text-danger"></i>
+                                    {{ ob.attachment.name|slice:"-20:" }}
+                                </a>
+                            {% else %}
+                                <div class="file-upload-wrapper">
+                                    <span class="file-upload-btn" id="uploadBtn{{ ob.id }}">
+                                        <i class="bi bi-upload"></i> Επιλογή PDF
+                                    </span>
+                                    <input type="file" accept=".pdf"
+                                           onchange="uploadFile({{ ob.id }}, this)"
+                                           id="fileInput{{ ob.id }}">
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                {% if ob.status != 'completed' %}
+                                    <button type="button" class="btn btn-sm btn-success"
+                                            onclick="completeObligation({{ ob.id }})"
+                                            title="Ολοκλήρωση">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                {% endif %}
+                                {% if ob.attachment %}
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            onclick="sendEmail([{{ ob.id }}])"
+                                            title="Αποστολή Email">
+                                        <i class="bi bi-envelope"></i>
+                                    </button>
+                                {% endif %}
+                                <a href="{% url 'admin:accounting_monthlyobligation_change' ob.id %}"
+                                   class="btn btn-sm btn-outline-secondary"
+                                   title="Επεξεργασία">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{% url 'accounting:client_files' ob.client.id %}"
+                                   class="btn btn-sm btn-outline-info"
+                                   title="Αρχεία Πελάτη">
+                                    <i class="bi bi-folder"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            Δεν βρέθηκαν υποχρεώσεις
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Complete Modal -->
+<div class="modal fade" id="completeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-check-circle text-success"></i> Ολοκλήρωση Υποχρέωσης
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="completeForm">
+                    <input type="hidden" id="completeObligationId">
+
+                    <div class="mb-3">
+                        <label class="form-label">Αρχείο PDF (προαιρετικό)</label>
+                        <div class="file-upload-wrapper w-100">
+                            <span class="file-upload-btn w-100 text-center" id="modalUploadBtn">
+                                <i class="bi bi-upload"></i> Επιλογή αρχείου PDF
+                            </span>
+                            <input type="file" accept=".pdf" id="modalFileInput"
+                                   onchange="handleFileUpload(this, null); updateModalFileBtn(this)">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Σημειώσεις</label>
+                        <textarea class="form-control" id="completeNotes" rows="2"
+                                  placeholder="Προαιρετικές σημειώσεις..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Χρόνος εργασίας (ώρες)</label>
+                        <input type="number" class="form-control" id="completeTimeSpent"
+                               step="0.25" min="0" placeholder="π.χ. 1.5">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ακύρωση</button>
+                <button type="button" class="btn btn-success" onclick="submitComplete()">
+                    <i class="bi bi-check-circle"></i> Ολοκλήρωση
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Complete Modal -->
+<div class="modal fade" id="bulkCompleteModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-check-all text-success"></i> Μαζική Ολοκλήρωση
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Επιλέχθηκαν <strong id="bulkCount">0</strong> υποχρεώσεις για ολοκλήρωση.
+                </div>
+
+                <div id="bulkObligationsList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ακύρωση</button>
+                <button type="button" class="btn btn-success" onclick="submitBulkComplete()">
+                    <i class="bi bi-check-all"></i> Ολοκλήρωση Όλων
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Selected obligations
+    let selectedObligations = new Set();
+
+    // DataTable initialization (client-side for now)
+    $(document).ready(function() {
+        // Select all checkbox
+        $('#selectAll').on('change', function() {
+            const checked = this.checked;
+            $('.row-checkbox').each(function() {
+                this.checked = checked;
+                updateSelection(parseInt(this.value), checked);
+            });
+            updateActionButtons();
+        });
+
+        // Individual checkboxes
+        $('.row-checkbox').on('change', function() {
+            updateSelection(parseInt(this.value), this.checked);
+            updateActionButtons();
+        });
+
+        // Bulk complete button
+        $('#btnCompleteSelected').on('click', function() {
+            showBulkCompleteModal();
+        });
+
+        // Email button
+        $('#btnEmailSelected').on('click', function() {
+            sendEmail(Array.from(selectedObligations));
+        });
+    });
+
+    function updateSelection(id, checked) {
+        if (checked) {
+            selectedObligations.add(id);
+        } else {
+            selectedObligations.delete(id);
+        }
+    }
+
+    function updateActionButtons() {
+        const count = selectedObligations.size;
+        $('#btnCompleteSelected').prop('disabled', count === 0);
+        $('#btnEmailSelected').prop('disabled', count === 0);
+    }
+
+    // Quick filter
+    function setQuickFilter(name, value) {
+        const url = new URL(window.location.href);
+        if (value) {
+            url.searchParams.set(name, value);
+        } else {
+            url.searchParams.delete(name);
+        }
+        window.location.href = url.toString();
+    }
+
+    // Single file upload
+    function uploadFile(obligationId, input) {
+        if (!handleFileUpload(input, null)) return;
+
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+
+        showLoading();
+
+        fetch(`{% url 'accounting:obligation_upload_file' 0 %}`.replace('0', obligationId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+            },
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showToast(data.message, 'success');
+                // Reload to show new attachment
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Σφάλμα: ' + error.message, 'error');
+        });
+    }
+
+    // Complete single obligation
+    function completeObligation(obligationId) {
+        document.getElementById('completeObligationId').value = obligationId;
+        document.getElementById('modalFileInput').value = '';
+        document.getElementById('completeNotes').value = '';
+        document.getElementById('completeTimeSpent').value = '';
+        document.getElementById('modalUploadBtn').innerHTML = '<i class="bi bi-upload"></i> Επιλογή αρχείου PDF';
+        document.getElementById('modalUploadBtn').classList.remove('has-file');
+
+        new bootstrap.Modal(document.getElementById('completeModal')).show();
+    }
+
+    function updateModalFileBtn(input) {
+        const btn = document.getElementById('modalUploadBtn');
+        if (input.files.length > 0) {
+            btn.innerHTML = `<i class="bi bi-file-pdf"></i> ${input.files[0].name}`;
+            btn.classList.add('has-file');
+        } else {
+            btn.innerHTML = '<i class="bi bi-upload"></i> Επιλογή αρχείου PDF';
+            btn.classList.remove('has-file');
+        }
+    }
+
+    function submitComplete() {
+        const obligationId = document.getElementById('completeObligationId').value;
+        const formData = new FormData();
+
+        const fileInput = document.getElementById('modalFileInput');
+        if (fileInput.files.length > 0) {
+            formData.append('file', fileInput.files[0]);
+        }
+
+        formData.append('notes', document.getElementById('completeNotes').value);
+        formData.append('time_spent', document.getElementById('completeTimeSpent').value);
+
+        showLoading();
+        bootstrap.Modal.getInstance(document.getElementById('completeModal')).hide();
+
+        fetch(`{% url 'accounting:obligation_complete_single' 0 %}`.replace('0', obligationId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+            },
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Σφάλμα: ' + error.message, 'error');
+        });
+    }
+
+    // Bulk complete
+    function showBulkCompleteModal() {
+        const count = selectedObligations.size;
+        document.getElementById('bulkCount').textContent = count;
+
+        // Build list
+        let html = '<div class="list-group">';
+        document.querySelectorAll('.row-checkbox:checked').forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const client = row.querySelector('td:nth-child(2) strong').textContent;
+            const type = row.querySelector('td:nth-child(3)').textContent;
+            const period = row.querySelector('td:nth-child(4)').textContent;
+            const id = checkbox.value;
+
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${client}</strong> - ${type} (${period})
+                    </div>
+                    <div class="file-upload-wrapper">
+                        <span class="file-upload-btn file-upload-btn-${id}">
+                            <i class="bi bi-upload"></i> PDF
+                        </span>
+                        <input type="file" accept=".pdf" data-obligation-id="${id}"
+                               onchange="handleBulkFileUpload(this)">
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+
+        document.getElementById('bulkObligationsList').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('bulkCompleteModal')).show();
+    }
+
+    function handleBulkFileUpload(input) {
+        const id = input.dataset.obligationId;
+        const btn = document.querySelector(`.file-upload-btn-${id}`);
+
+        if (input.files.length > 0 && handleFileUpload(input, null)) {
+            btn.innerHTML = `<i class="bi bi-file-pdf"></i> ${input.files[0].name.substring(0, 15)}...`;
+            btn.classList.add('has-file');
+        }
+    }
+
+    function submitBulkComplete() {
+        const formData = new FormData();
+
+        // Add obligation IDs
+        selectedObligations.forEach(id => {
+            formData.append('obligation_ids[]', id);
+        });
+
+        // Add files
+        document.querySelectorAll('#bulkObligationsList input[type="file"]').forEach(input => {
+            if (input.files.length > 0) {
+                formData.append(`file_${input.dataset.obligationId}`, input.files[0]);
+            }
+        });
+
+        showLoading();
+        bootstrap.Modal.getInstance(document.getElementById('bulkCompleteModal')).hide();
+
+        fetch('{% url "accounting:obligation_complete_bulk" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+            },
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showToast(`Ολοκληρώθηκαν ${data.completed} υποχρεώσεις`, 'success');
+                if (data.failed > 0) {
+                    showToast(`Απέτυχαν ${data.failed} υποχρεώσεις`, 'warning');
+                }
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Σφάλμα: ' + error.message, 'error');
+        });
+    }
+
+    // Send email
+    function sendEmail(obligationIds) {
+        const ids = obligationIds.join(',');
+        window.location.href = `{% url 'accounting:email_compose' %}?ids=${ids}`;
+    }
+</script>
+{% endblock %}
