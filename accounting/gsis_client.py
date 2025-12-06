@@ -126,12 +126,21 @@ class GSISClient:
         Returns:
             SOAP XML string
         """
-        # Use proper GSIS namespace and element structure
+        # WS-Security namespace for authentication
+        wsse_ns = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+
         return f'''<?xml version="1.0" encoding="UTF-8"?>
 <env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"
-              xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+              xmlns:ns1="{wsse_ns}"
               xmlns:ns2="http://gr/gsis/rgwspublic2/RgWsPublic2">
-    <env:Header/>
+    <env:Header>
+        <ns1:Security>
+            <ns1:UsernameToken>
+                <ns1:Username>{self.username}</ns1:Username>
+                <ns1:Password>{self.password}</ns1:Password>
+            </ns1:UsernameToken>
+        </ns1:Security>
+    </env:Header>
     <env:Body>
         <ns2:rgWsPublic2AfmMethod>
             <ns2:INPUT_REC>
@@ -315,11 +324,11 @@ class GSISClient:
         logger.info(f"Looking up AFM: {afm}")
 
         try:
+            # Authentication is in the SOAP Header (WS-Security), not HTTP Basic Auth
             response = self.session.post(
                 GSIS_WSDL_URL,
                 data=soap_envelope.encode('utf-8'),
                 headers=headers,
-                auth=(self.username, self.password),
                 timeout=30,
             )
 
