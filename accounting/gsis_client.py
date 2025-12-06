@@ -94,18 +94,20 @@ class GSISClient:
     Client για το GSIS Web Service RgWsPublic2.
 
     Χρήση:
-        client = GSISClient(username='...', password='...')
-        info = client.lookup_afm('123456789')
+        client = GSISClient(afm='123456789', username='...', password='...')
+        info = client.lookup_afm('987654321')
     """
 
-    def __init__(self, username: str, password: str):
+    def __init__(self, afm: str, username: str, password: str):
         """
         Αρχικοποίηση του client.
 
         Args:
+            afm: ΑΦΜ του λογιστή (για afm_called_by)
             username: Ειδικός κωδικός λήψης στοιχείων - Username
             password: Ειδικός κωδικός λήψης στοιχείων - Password
         """
+        self.afm = afm
         self.username = username
         self.password = password
         self.session = requests.Session()
@@ -288,9 +290,9 @@ class GSISClient:
         if not afm or len(afm) != 9 or not afm.isdigit():
             raise GSISError("Μη έγκυρο ΑΦΜ. Πρέπει να είναι 9 ψηφία.")
 
-        # Αν δεν δόθηκε afm_called_by, χρησιμοποίησε το username (που είναι συνήθως ΑΦΜ)
+        # Αν δεν δόθηκε afm_called_by, χρησιμοποίησε το ΑΦΜ του λογιστή
         if not afm_called_by:
-            afm_called_by = self.username
+            afm_called_by = self.afm
 
         # Build SOAP request
         soap_envelope = self._build_soap_envelope(afm_called_by, afm)
@@ -360,6 +362,7 @@ def get_gsis_client():
         return None
 
     return GSISClient(
+        afm=settings.afm,
         username=settings.username,
         password=settings.password,
     )

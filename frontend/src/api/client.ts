@@ -180,6 +180,7 @@ export interface AFMLookupResponse {
 export interface GSISStatusResponse {
   configured: boolean;
   active: boolean;
+  afm?: string;
   username?: string;
 }
 
@@ -208,7 +209,7 @@ export const gsisApi = {
   },
 
   // Ενημέρωση ρυθμίσεων GSIS
-  updateSettings: async (data: { username: string; password?: string; is_active?: boolean }) => {
+  updateSettings: async (data: { afm: string; username: string; password?: string; is_active?: boolean }) => {
     const response = await apiClient.post('/api/v1/gsis/settings/', data);
     return response.data;
   },

@@ -130,6 +130,7 @@ def gsis_settings_status(request):
     return Response({
         'configured': True,
         'active': settings.is_active,
+        'afm': settings.afm,
         'username': settings.username,
     })
 
@@ -144,6 +145,7 @@ def gsis_settings_update(request):
 
     Request body:
         {
+            "afm": "123456789",
             "username": "...",
             "password": "...",
             "is_active": true
@@ -157,9 +159,17 @@ def gsis_settings_update(request):
     """
     from settings.models import GSISSettings
 
+    afm = request.data.get('afm', '').strip()
     username = request.data.get('username', '').strip()
     password = request.data.get('password', '').strip()
     is_active = request.data.get('is_active', True)
+
+    # Validate AFM
+    if not afm or len(afm) != 9 or not afm.isdigit():
+        return Response({
+            'success': False,
+            'error': 'Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία.'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     if not username:
         return Response({
@@ -171,6 +181,7 @@ def gsis_settings_update(request):
     settings = GSISSettings.get_settings()
 
     if settings:
+        settings.afm = afm
         settings.username = username
         # Only update password if provided (allow keeping existing)
         if password:
@@ -185,6 +196,7 @@ def gsis_settings_update(request):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         settings = GSISSettings.objects.create(
+            afm=afm,
             username=username,
             password=password,
             is_active=is_active,

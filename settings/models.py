@@ -14,6 +14,11 @@ class GSISSettings(models.Model):
         verbose_name = _('Ρυθμίσεις GSIS')
         verbose_name_plural = _('Ρυθμίσεις GSIS')
 
+    afm = models.CharField(
+        'ΑΦΜ',
+        max_length=9,
+        help_text='Το ΑΦΜ του λογιστή (για την παράμετρο afm_called_by)'
+    )
     username = models.CharField(
         'Όνομα Χρήστη',
         max_length=100,

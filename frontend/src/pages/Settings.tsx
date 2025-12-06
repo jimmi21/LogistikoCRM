@@ -107,6 +107,7 @@ export default function Settings() {
   // GSIS Settings State
   const [gsisConfigured, setGsisConfigured] = useState(false);
   const [gsisActive, setGsisActive] = useState(false);
+  const [gsisAfm, setGsisAfm] = useState('');
   const [gsisUsername, setGsisUsername] = useState('');
   const [gsisPassword, setGsisPassword] = useState('');
   const [gsisLoading, setGsisLoading] = useState(false);
@@ -124,6 +125,9 @@ export default function Settings() {
       const status = await gsisApi.getStatus();
       setGsisConfigured(status.configured);
       setGsisActive(status.active);
+      if (status.afm) {
+        setGsisAfm(status.afm);
+      }
       if (status.username) {
         setGsisUsername(status.username);
       }
@@ -133,6 +137,11 @@ export default function Settings() {
   };
 
   const handleSaveGsisSettings = async () => {
+    // Validate AFM
+    if (!gsisAfm.trim() || gsisAfm.length !== 9 || !/^\d+$/.test(gsisAfm)) {
+      setGsisMessage({ type: 'error', text: 'Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία' });
+      return;
+    }
     if (!gsisUsername.trim()) {
       setGsisMessage({ type: 'error', text: 'Το όνομα χρήστη είναι υποχρεωτικό' });
       return;
@@ -146,7 +155,8 @@ export default function Settings() {
     setGsisMessage(null);
 
     try {
-      const data: { username: string; password?: string; is_active: boolean } = {
+      const data: { afm: string; username: string; password?: string; is_active: boolean } = {
+        afm: gsisAfm,
         username: gsisUsername,
         is_active: true,
       };
@@ -559,6 +569,23 @@ export default function Settings() {
               <p className="text-sm text-gray-600">
                 Εισάγετε τους "Ειδικούς Κωδικούς Λήψης Στοιχείων" που έχετε λάβει από την ΑΑΔΕ.
               </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ΑΦΜ Λογιστή *
+                </label>
+                <input
+                  type="text"
+                  value={gsisAfm}
+                  onChange={(e) => setGsisAfm(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="123456789"
+                  maxLength={9}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Το ΑΦΜ σας (9 ψηφία) - χρησιμοποιείται ως afm_called_by
+                </p>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
