@@ -19,6 +19,7 @@ import {
   Reports,
   Settings,
   ObligationSettings,
+  UserManagement,
 } from './pages';
 
 // Create a client for React Query
@@ -153,6 +154,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ObligationSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/users"
+            element={
+              <ProtectedRoute>
+                <UserManagement />
               </ProtectedRoute>
             }
           />

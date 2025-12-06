@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User,
+  Users,
   Bell,
   Shield,
   Globe,
@@ -214,24 +215,48 @@ export default function Settings() {
 
           {activeTab === 'integrations' && (
             <div className="space-y-6">
-              {/* Quick Link to Obligation Settings */}
-              <Link
-                to="/settings/obligations"
-                className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <FileText size={24} className="text-blue-600" />
+              {/* Quick Links */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Obligation Settings */}
+                <Link
+                  to="/settings/obligations"
+                  className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <FileText size={24} className="text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Υποχρεώσεις</h3>
+                        <p className="text-sm text-gray-500">Τύποι, προφίλ, ομάδες</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Ρυθμίσεις Υποχρεώσεων</h3>
-                      <p className="text-sm text-gray-500">Διαχείριση τύπων, προφίλ και ομάδων υποχρεώσεων</p>
-                    </div>
+                    <ChevronRight className="text-gray-400" size={20} />
                   </div>
-                  <ChevronRight className="text-gray-400" size={20} />
-                </div>
-              </Link>
+                </Link>
+
+                {/* User Management - Only for staff/superuser */}
+                {user?.is_staff && (
+                  <Link
+                    to="/settings/users"
+                    className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-purple-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <Users size={24} className="text-purple-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Χρήστες</h3>
+                          <p className="text-sm text-gray-500">Διαχείριση λογαριασμών</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="text-gray-400" size={20} />
+                    </div>
+                  </Link>
+                )}
+              </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-6">Ενσωματώσεις</h3>
