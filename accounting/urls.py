@@ -8,7 +8,7 @@ Description: Unified and optimized URL routing for the Accounting app.
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from . import views_main as views
 from . import api_auth
 from .api_clients import ClientViewSet
 from .api_obligations import ObligationViewSet, ObligationTypeViewSet
