@@ -25,7 +25,10 @@ GSIS_WSDL_URL = "https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2"
 # XML Namespaces
 NAMESPACES = {
     'soap': 'http://schemas.xmlsoap.org/soap/envelope/',
+    'soap12': 'http://www.w3.org/2003/05/soap-envelope',
+    'env': 'http://www.w3.org/2003/05/soap-envelope',
     'rgws': 'http://gr/gsis/rgwspublic2/RgWsPublic2',
+    'ns2': 'http://gr/gsis/rgwspublic2/RgWsPublic2',
     'rg': 'http://gr/gsis/rgwspublic2/RgWsPublic2Service',
 }
 
@@ -123,19 +126,21 @@ class GSISClient:
         Returns:
             SOAP XML string
         """
+        # Use proper GSIS namespace and element structure
         return f'''<?xml version="1.0" encoding="UTF-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-               xmlns:rgws="http://gr/gsis/rgwspublic2/RgWsPublic2">
-    <soap:Header/>
-    <soap:Body>
-        <rgws:rgWsPublic2AfmMethod>
-            <rgws:INPUT_REC>
-                <rgws:afm_called_by>{afm_called_by}</rgws:afm_called_by>
-                <rgws:afm_called_for>{afm_called_for}</rgws:afm_called_for>
-            </rgws:INPUT_REC>
-        </rgws:rgWsPublic2AfmMethod>
-    </soap:Body>
-</soap:Envelope>'''
+<env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"
+              xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+              xmlns:ns2="http://gr/gsis/rgwspublic2/RgWsPublic2">
+    <env:Header/>
+    <env:Body>
+        <ns2:rgWsPublic2AfmMethod>
+            <ns2:INPUT_REC>
+                <ns2:afm_called_by>{afm_called_by}</ns2:afm_called_by>
+                <ns2:afm_called_for>{afm_called_for}</ns2:afm_called_for>
+            </ns2:INPUT_REC>
+        </ns2:rgWsPublic2AfmMethod>
+    </env:Body>
+</env:Envelope>'''
 
     def _parse_response(self, xml_response: str) -> AFMInfo:
         """
@@ -156,17 +161,22 @@ class GSISClient:
             logger.error(f"Failed to parse GSIS XML response: {e}")
             raise GSISError(f"Σφάλμα ανάλυσης XML: {e}")
 
-        # Βρες το body
-        body = root.find('.//soap:Body', NAMESPACES)
+        # Βρες το body (try SOAP 1.2 first, then SOAP 1.1)
+        body = root.find('.//env:Body', NAMESPACES)
         if body is None:
-            # Try without namespace
+            body = root.find('.//{http://www.w3.org/2003/05/soap-envelope}Body')
+        if body is None:
+            body = root.find('.//soap:Body', NAMESPACES)
+        if body is None:
             body = root.find('.//{http://schemas.xmlsoap.org/soap/envelope/}Body')
 
         if body is None:
             raise GSISError("Δεν βρέθηκε το SOAP Body στην απάντηση")
 
-        # Ελέγξου για SOAP Fault
-        fault = body.find('.//soap:Fault', NAMESPACES)
+        # Ελέγξου για SOAP Fault (both SOAP 1.1 and 1.2)
+        fault = root.find('.//{http://www.w3.org/2003/05/soap-envelope}Fault')
+        if fault is None:
+            fault = body.find('.//soap:Fault', NAMESPACES)
         if fault is None:
             fault = body.find('.//{http://schemas.xmlsoap.org/soap/envelope/}Fault')
 
@@ -297,9 +307,9 @@ class GSISClient:
         # Build SOAP request
         soap_envelope = self._build_soap_envelope(afm_called_by, afm)
 
+        # SOAP 1.2 uses application/soap+xml, SOAPAction in Content-Type
         headers = {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': '"http://gr/gsis/rgwspublic2/RgWsPublic2/rgWsPublic2AfmMethod"',
+            'Content-Type': 'application/soap+xml; charset=utf-8; action="http://gr/gsis/rgwspublic2/RgWsPublic2/rgWsPublic2AfmMethod"',
         }
 
         logger.info(f"Looking up AFM: {afm}")
