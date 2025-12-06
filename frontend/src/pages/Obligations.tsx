@@ -10,7 +10,7 @@ import {
   exportObligationsToExcel,
   useGenerateMonthlyObligations,
 } from '../hooks/useObligations';
-import { useCompleteAndNotify, useBulkCompleteWithNotify, useSendObligationNotice } from '../hooks/useEmail';
+import { useCompleteAndNotify, useBulkCompleteWithDocuments, useSendObligationNotice } from '../hooks/useEmail';
 import { useUploadToObligation } from '../hooks/useDocuments';
 import type { GenerateMonthResult, Client } from '../types';
 import { useClients } from '../hooks/useClients';
@@ -20,6 +20,7 @@ import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { CompleteObligationModal } from '../components/CompleteObligationModal';
+import { BulkCompleteModal } from '../components/BulkCompleteModal';
 import {
   FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
   Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X,
@@ -107,7 +108,7 @@ export default function Obligations() {
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [isBulkCompleteNotifyDialogOpen, setIsBulkCompleteNotifyDialogOpen] = useState(false);
+  const [isBulkCompleteModalOpen, setIsBulkCompleteModalOpen] = useState(false);
 
   // Bulk create form state
   const [bulkCreateForm, setBulkCreateForm] = useState<BulkObligationFormData>({
@@ -140,7 +141,7 @@ export default function Obligations() {
   const bulkDeleteMutation = useBulkDeleteObligations();
   const generateMonthMutation = useGenerateMonthlyObligations();
   const completeAndNotifyMutation = useCompleteAndNotify();
-  const bulkCompleteNotifyMutation = useBulkCompleteWithNotify();
+  const bulkCompleteWithDocsMutation = useBulkCompleteWithDocuments();
   const sendObligationNoticeMutation = useSendObligationNotice();
   const uploadToObligationMutation = useUploadToObligation();
   const queryClient = useQueryClient();
@@ -255,20 +256,6 @@ export default function Obligations() {
     });
   };
 
-  const handleBulkComplete = () => {
-    if (selectedIds.size === 0) return;
-    bulkUpdateMutation.mutate(
-      { obligation_ids: Array.from(selectedIds), status: 'completed' },
-      {
-        onSuccess: () => {
-          setSelectedIds(new Set());
-          setSelectAll(false);
-          // invalidateQueries in hook triggers automatic refetch
-        },
-      }
-    );
-  };
-
   const handleBulkDeleteConfirm = () => {
     if (selectedIds.size === 0) return;
     bulkDeleteMutation.mutate(Array.from(selectedIds), {
@@ -366,13 +353,16 @@ export default function Obligations() {
     setSelectedObligation(null);
   };
 
-  const handleBulkCompleteWithNotify = async (sendNotifications: boolean) => {
+  // Handler for bulk complete with documents modal
+  const handleBulkCompleteWithDocs = async (data: {
+    obligationFiles: { [key: number]: File | null };
+    saveToClientFolders: boolean;
+    sendEmails: boolean;
+    attachToEmails: boolean;
+  }) => {
     if (selectedIds.size === 0) return;
-    await bulkCompleteNotifyMutation.mutateAsync({
-      obligation_ids: Array.from(selectedIds),
-      send_notifications: sendNotifications,
-    });
-    setIsBulkCompleteNotifyDialogOpen(false);
+    await bulkCompleteWithDocsMutation.mutateAsync(data);
+    setIsBulkCompleteModalOpen(false);
     setSelectedIds(new Set());
     setSelectAll(false);
     // invalidateQueries in hook triggers automatic refetch
@@ -382,6 +372,11 @@ export default function Obligations() {
   const getSelectedClient = (): Client | undefined => {
     if (!selectedObligation) return undefined;
     return clients.find((c) => c.id === selectedObligation.client);
+  };
+
+  // Helper to get selected obligations for bulk complete modal
+  const getSelectedObligations = (): Obligation[] => {
+    return obligations.filter((o) => selectedIds.has(o.id));
   };
 
   // Export handler
@@ -630,20 +625,11 @@ export default function Obligations() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={handleBulkComplete}
-                isLoading={bulkUpdateMutation.isPending}
+                onClick={() => setIsBulkCompleteModalOpen(true)}
+                isLoading={bulkCompleteWithDocsMutation.isPending}
               >
                 <CheckSquare className="w-4 h-4 mr-1" />
                 Ολοκλήρωση
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsBulkCompleteNotifyDialogOpen(true)}
-                isLoading={bulkCompleteNotifyMutation.isPending}
-              >
-                <Mail className="w-4 h-4 mr-1" />
-                Ολοκλήρωση + Email
               </Button>
               <Button
                 variant="danger"
@@ -1104,16 +1090,13 @@ export default function Obligations() {
         isLoading={sendObligationNoticeMutation.isPending}
       />
 
-      {/* Bulk Complete with Notifications Dialog */}
-      <ConfirmDialog
-        isOpen={isBulkCompleteNotifyDialogOpen}
-        onClose={() => setIsBulkCompleteNotifyDialogOpen(false)}
-        onConfirm={() => handleBulkCompleteWithNotify(true)}
-        title="Ολοκλήρωση με Email"
-        message={`Θέλετε να ολοκληρώσετε ${selectedIds.size} υποχρεώσεις και να στείλετε email ειδοποίησης στους πελάτες;`}
-        confirmText="Ολοκλήρωση & Αποστολή"
-        cancelText="Ακύρωση"
-        isLoading={bulkCompleteNotifyMutation.isPending}
+      {/* Bulk Complete Modal with Documents */}
+      <BulkCompleteModal
+        isOpen={isBulkCompleteModalOpen}
+        onClose={() => setIsBulkCompleteModalOpen(false)}
+        obligations={getSelectedObligations()}
+        onComplete={handleBulkCompleteWithDocs}
+        isLoading={bulkCompleteWithDocsMutation.isPending}
       />
     </div>
   );
