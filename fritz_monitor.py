@@ -2,7 +2,7 @@
 """
 fritz_monitor.py - PRODUCTION VERSION
 Author: ddiplas
-Version: 3.3 - Fixed API Authentication
+Version: 3.4 - Fixed .env loading for API token
 Date: 2025-12-06
 
 FIXES:
@@ -10,6 +10,7 @@ FIXES:
 - Smart ticket creation (only for missed calls)
 - Extended timeout with retry logic
 - API Key authentication via X-API-Key header
+- Now loads FRITZ_API_TOKEN from .env file (same as Django)
 """
 
 import socket
@@ -20,6 +21,16 @@ import json
 from datetime import datetime, timezone as dt_timezone
 from typing import Optional, Dict, Any
 import time
+import os
+
+# ============================================
+# ENVIRONMENT LOADING - Must be BEFORE any os.environ.get()
+# ============================================
+from dotenv import load_dotenv
+
+# Load .env file from project root
+_dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+_dotenv_loaded = load_dotenv(_dotenv_path)
 
 # ============================================
 # LOGGING CONFIGURATION
@@ -34,7 +45,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 # CONFIGURATION
 # ============================================
-import os
+_DEFAULT_TOKEN = 'change-this-token-in-production'
 
 class Config:
     # Fritz!Box
@@ -44,8 +55,22 @@ class Config:
     # CRM API
     CRM_BASE_URL = 'http://127.0.0.1:8000/accounting/api'
     # API Key for authentication with CRM API
-    # Set via environment variable: export FRITZ_API_TOKEN=your-secret-key
-    FRITZ_API_TOKEN = os.environ.get('FRITZ_API_TOKEN', 'change-this-token-in-production')
+    # Set via environment variable or .env file: FRITZ_API_TOKEN=your-secret-key
+    FRITZ_API_TOKEN = os.environ.get('FRITZ_API_TOKEN', _DEFAULT_TOKEN)
+
+    @classmethod
+    def log_token_status(cls):
+        """Log API token configuration status at startup"""
+        if cls.FRITZ_API_TOKEN == _DEFAULT_TOKEN:
+            logger.warning("⚠️  SECURITY: Using DEFAULT API token! Set FRITZ_API_TOKEN in .env file")
+            logger.warning("⚠️  Create .env file with: FRITZ_API_TOKEN=your-secure-random-token")
+        else:
+            # Show only first 4 chars for security
+            masked = cls.FRITZ_API_TOKEN[:4] + '...' + cls.FRITZ_API_TOKEN[-4:] if len(cls.FRITZ_API_TOKEN) > 8 else '****'
+            if _dotenv_loaded:
+                logger.info(f"✅ API token loaded from .env file: {masked}")
+            else:
+                logger.info(f"✅ API token loaded from environment: {masked}")
 
     # Timeouts & Retries
     API_TIMEOUT = 30
@@ -322,10 +347,11 @@ class VoIPMonitor:
     def run(self):
         """Main monitoring loop"""
         logger.info("=" * 60)
-        logger.info("🚀 Fritz!Box VoIP Monitor - PRODUCTION v3.3")
+        logger.info("🚀 Fritz!Box VoIP Monitor - PRODUCTION v3.4")
         logger.info(f"Fritz: {Config.FRITZ_HOST}:{Config.FRITZ_PORT}")
         logger.info(f"CRM: {Config.CRM_BASE_URL}/voip-calls/")
         logger.info(f"🔐 API Auth: X-API-Key header enabled")
+        Config.log_token_status()  # Show token configuration status
         logger.info(f"🎫 Smart Tickets: Only for MISSED calls")
         logger.info(f"⏰ Timezone: UTC (timezone-aware)")
         logger.info("=" * 60)
