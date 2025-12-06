@@ -39,6 +39,7 @@ export function useObligations(params?: ObligationParams) {
       });
       return response.data;
     },
+    staleTime: 2 * 60 * 1000, // 2 minutes - shorter for frequently changing data
   });
 }
 
@@ -50,6 +51,7 @@ export function useObligation(id: number) {
       return response.data;
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }
 

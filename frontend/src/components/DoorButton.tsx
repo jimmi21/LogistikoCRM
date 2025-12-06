@@ -10,7 +10,7 @@ export default function DoorButton() {
   const handleClick = async () => {
     try {
       // Use pulse mode for electric door locks (momentary on/off)
-      await pulseDoor.mutateAsync();
+      await pulseDoor.mutateAsync(undefined);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
     } catch {
