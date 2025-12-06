@@ -268,6 +268,54 @@ export function useCreateTicket(clientId: number) {
 }
 
 /**
+ * Update ticket
+ */
+export function useUpdateTicket(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      data,
+    }: {
+      ticketId: number;
+      data: {
+        title?: string;
+        description?: string;
+        status?: 'open' | 'in_progress' | 'resolved' | 'closed';
+        priority?: 'low' | 'medium' | 'high' | 'urgent';
+        assigned_to?: number | null;
+      };
+    }) => {
+      const response = await apiClient.patch(`/api/v1/tickets/${ticketId}/`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CLIENT_TICKETS_KEY, clientId] });
+      queryClient.invalidateQueries({ queryKey: [CLIENT_DETAILS_KEY, clientId] });
+    },
+  });
+}
+
+/**
+ * Delete ticket
+ */
+export function useDeleteTicket(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ticketId: number) => {
+      const response = await apiClient.delete(`/api/v1/tickets/${ticketId}/`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CLIENT_TICKETS_KEY, clientId] });
+      queryClient.invalidateQueries({ queryKey: [CLIENT_DETAILS_KEY, clientId] });
+    },
+  });
+}
+
+/**
  * Update client data
  */
 export function useUpdateClientFull(clientId: number) {

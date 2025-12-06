@@ -19,9 +19,9 @@ interface ImportResponse {
 // ============================================
 
 /**
- * Download clients CSV
+ * Download clients Excel file
  */
-export async function downloadClientsCSV() {
+export async function downloadClientsExcel() {
   const response = await apiClient.get('/api/v1/export/clients/csv/', {
     responseType: 'blob',
   });
@@ -33,7 +33,7 @@ export async function downloadClientsCSV() {
 
   // Get filename from Content-Disposition header or use default
   const contentDisposition = response.headers['content-disposition'];
-  let filename = 'clients.csv';
+  let filename = 'Pelates.xlsx';
   if (contentDisposition) {
     const match = contentDisposition.match(/filename="?([^"]+)"?/);
     if (match) filename = match[1];
@@ -46,8 +46,11 @@ export async function downloadClientsCSV() {
   window.URL.revokeObjectURL(url);
 }
 
+// Backwards compatibility alias
+export const downloadClientsCSV = downloadClientsExcel;
+
 /**
- * Download clients template CSV
+ * Download clients template Excel file
  */
 export async function downloadClientsTemplate() {
   const response = await apiClient.get('/api/v1/export/clients/template/', {
@@ -57,7 +60,16 @@ export async function downloadClientsTemplate() {
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
-  link.setAttribute('download', 'clients_template.csv');
+
+  // Get filename from Content-Disposition header or use default
+  const contentDisposition = response.headers['content-disposition'];
+  let filename = 'Template_Pelaton.xlsx';
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+    if (match) filename = match[1];
+  }
+
+  link.setAttribute('download', filename);
   document.body.appendChild(link);
   link.click();
   link.remove();

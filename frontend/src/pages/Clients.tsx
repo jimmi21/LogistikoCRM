@@ -145,7 +145,7 @@ export default function Clients() {
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <FileDown className="w-4 h-4" />
-                  Εξαγωγή πελατών (CSV)
+                  Εξαγωγή πελατών (Excel)
                 </button>
                 <button
                   onClick={async () => {
@@ -160,7 +160,7 @@ export default function Clients() {
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <FileDown className="w-4 h-4" />
-                  Λήψη template CSV
+                  Λήψη template Excel
                 </button>
                 <div className="border-t border-gray-100 my-1" />
                 <button
@@ -171,7 +171,7 @@ export default function Clients() {
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <FileUp className="w-4 h-4" />
-                  Εισαγωγή πελατών (CSV)
+                  Εισαγωγή πελατών (Excel)
                 </button>
               </div>
             )}
@@ -481,12 +481,12 @@ function ImportClientsModal({
             {/* File Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Αρχείο CSV
+                Αρχείο Excel (.xlsx)
               </label>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".xlsx,.xls"
                 onChange={handleFileChange}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />

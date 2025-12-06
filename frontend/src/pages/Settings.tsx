@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User,
@@ -12,15 +12,57 @@ import {
   Save,
   FileText,
   ChevronRight,
+  RefreshCw,
+  Check,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useAuthStore } from '../stores/authStore';
+import { authApi } from '../api/client';
+import { useToast } from '../components/Toast';
 
 type SettingsTab = 'profile' | 'notifications' | 'security' | 'integrations';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
+  const { showToast } = useToast();
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Initialize form with user data
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+      });
+    }
+  }, [user]);
+
+  // Handle profile save
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      const response = await authApi.updateProfile(profileForm);
+      // Update local user state
+      if (response.data) {
+        setUser(response.data);
+      }
+      showToast('success', response.message || 'Το προφίλ αποθηκεύτηκε');
+    } catch (error) {
+      console.error('Profile save error:', error);
+      showToast('error', 'Σφάλμα κατά την αποθήκευση');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const tabs = [
     { id: 'profile' as const, label: 'Προφίλ', icon: User },
@@ -84,7 +126,8 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Όνομα</label>
                     <input
                       type="text"
-                      defaultValue={user?.first_name || ''}
+                      value={profileForm.first_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -92,7 +135,8 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Επώνυμο</label>
                     <input
                       type="text"
-                      defaultValue={user?.last_name || ''}
+                      value={profileForm.last_name}
+                      onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -102,7 +146,8 @@ export default function Settings() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input
                     type="email"
-                    defaultValue={user?.email || ''}
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -119,9 +164,18 @@ export default function Settings() {
                 </div>
 
                 <div className="pt-4">
-                  <Button>
-                    <Save size={18} className="mr-2" />
-                    Αποθήκευση αλλαγών
+                  <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+                    {isSavingProfile ? (
+                      <>
+                        <RefreshCw size={18} className="mr-2 animate-spin" />
+                        Αποθήκευση...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} className="mr-2" />
+                        Αποθήκευση αλλαγών
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

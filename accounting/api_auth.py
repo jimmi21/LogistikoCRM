@@ -153,21 +153,45 @@ def logout_view(request):
         return api_error(f'Invalid token: {str(e)}', status=400)
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile."""
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email']
+
+
 @extend_schema(
     responses={200: UserSerializer},
 )
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def current_user_view(request):
     """
     GET /api/auth/me/
-
     Get the currently authenticated user's information.
+
+    PATCH /api/auth/me/
+    Update the current user's profile (first_name, last_name, email).
 
     Response:
         - success: true
         - data: User object
     """
+    if request.method == 'PATCH':
+        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return api_success(
+                data=UserSerializer(request.user).data,
+                message='Το προφίλ ενημερώθηκε επιτυχώς'
+            )
+        return api_error(
+            'Σφάλμα επικύρωσης',
+            status=400,
+            errors=serializer.errors
+        )
+
     serializer = UserSerializer(request.user)
     return api_success(data=serializer.data)
 

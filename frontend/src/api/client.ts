@@ -81,6 +81,16 @@ export const authApi = {
     const response = await apiClient.post('/api/auth/verify/', { token });
     return response.data;
   },
+
+  getCurrentUser: async () => {
+    const response = await apiClient.get('/api/auth/me/');
+    return response.data;
+  },
+
+  updateProfile: async (data: { first_name?: string; last_name?: string; email?: string }) => {
+    const response = await apiClient.patch('/api/auth/me/', data);
+    return response.data;
+  },
 };
 
 // Clients API functions
