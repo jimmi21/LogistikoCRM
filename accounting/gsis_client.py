@@ -235,10 +235,11 @@ class GSISClient:
         onomasia = get_basic('onomasia')
         doy = get_basic('doy')
         doy_descr = get_basic('doy_descr')
+        legal_form = get_basic('legal_status_descr')  # Νομική μορφή
         legal_form_descr = get_basic('legal_status_descr')
         deactivation = get_basic('deactivation_flag', '1')
         deactivation_descr = get_basic('deactivation_flag_descr')
-        firm_flag = get_basic('firm_flag_descr')
+        firm_flag_str = get_basic('firm_flag_descr')
         postal_address = get_basic('postal_address')
         postal_address_no = get_basic('postal_address_no')
         postal_zip_code = get_basic('postal_zip_code')
@@ -274,8 +275,8 @@ class GSISClient:
             legal_form_descr=legal_form_descr,
             deactivation_flag=deactivation != '1',  # 1 = ενεργό, 2 = απενεργοποιημένο
             deactivation_flag_descr=deactivation_descr,
-            firm_flag=firm_flag.lower() in ['ναι', 'yes', 'true', '1'],
-            firm_flag_descr=firm_flag,
+            firm_flag=firm_flag_str.lower() in ['ναι', 'yes', 'true', '1', 'επιτηδευματιασ'] if firm_flag_str else False,
+            firm_flag_descr=firm_flag_str,
             registration_date=registration_date if registration_date else None,
             stop_date=stop_date if stop_date else None,
             postal_address=postal_address,
