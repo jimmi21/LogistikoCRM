@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404
 
 from .models import VoIPCall, VoIPCallLog, Ticket, ClientProfile
 from .phone_utils import auto_match_call, batch_auto_match_calls, find_client_by_phone
-from .permissions import IsVoIPMonitor
+from .permissions import IsVoIPMonitor, IsLocalRequest
 
 import logging
 
@@ -165,13 +165,14 @@ class VoIPCallViewSet(viewsets.ModelViewSet):
     - POST /api/v1/calls/{id}/match-client/ - Match call to client
     - POST /api/v1/calls/{id}/create-ticket/ - Create ticket from call
 
-    Authentication:
+    Authentication (any of these):
     - JWT/Session authentication for user access
     - X-API-Key header for internal services (Fritz!Box monitor)
+    - Localhost requests (127.0.0.1, ::1) for same-machine services
     """
     queryset = VoIPCall.objects.select_related('client').order_by('-started_at')
     serializer_class = VoIPCallFullSerializer
-    permission_classes = [permissions.IsAuthenticated | IsVoIPMonitor]
+    permission_classes = [permissions.IsAuthenticated | IsVoIPMonitor | IsLocalRequest]
     pagination_class = StandardPagination
 
     def get_queryset(self):
