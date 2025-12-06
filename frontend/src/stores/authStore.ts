@@ -10,15 +10,19 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  rememberMe: boolean;
 
   // Actions
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
   setTokens: (tokens: AuthTokens) => void;
   clearError: () => void;
   checkAuth: () => Promise<boolean>;
 }
+
+// Helper function to get storage based on rememberMe setting
+const getStorage = (rememberMe: boolean) => rememberMe ? localStorage : sessionStorage;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -29,15 +33,28 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      rememberMe: true,
 
-      login: async (username: string, password: string) => {
-        set({ isLoading: true, error: null });
+      login: async (username: string, password: string, rememberMe: boolean = true) => {
+        set({ isLoading: true, error: null, rememberMe });
         try {
           const tokens = await authApi.login(username, password);
 
-          // Store tokens
-          localStorage.setItem('accessToken', tokens.access);
-          localStorage.setItem('refreshToken', tokens.refresh);
+          // Store tokens in appropriate storage
+          const storage = getStorage(rememberMe);
+          storage.setItem('accessToken', tokens.access);
+          storage.setItem('refreshToken', tokens.refresh);
+          storage.setItem('rememberMe', String(rememberMe));
+
+          // Also ensure localStorage is used by persist middleware if rememberMe
+          if (rememberMe) {
+            localStorage.setItem('accessToken', tokens.access);
+            localStorage.setItem('refreshToken', tokens.refresh);
+          } else {
+            // Clear localStorage if not remembering
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+          }
 
           set({
             accessToken: tokens.access,
@@ -45,6 +62,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
             error: null,
+            rememberMe,
           });
         } catch (error) {
           const message = error instanceof Error
@@ -60,14 +78,20 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Clear both storages
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('rememberMe');
+        sessionStorage.removeItem('accessToken');
+        sessionStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('rememberMe');
         set({
           user: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
           error: null,
+          rememberMe: true,
         });
       },
 
@@ -126,9 +150,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        user: state.user,
+        accessToken: state.rememberMe ? state.accessToken : null,
+        refreshToken: state.rememberMe ? state.refreshToken : null,
+        user: state.rememberMe ? state.user : null,
+        rememberMe: state.rememberMe,
       }),
     }
   )

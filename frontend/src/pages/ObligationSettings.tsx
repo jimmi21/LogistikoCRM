@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   List,
@@ -76,6 +76,24 @@ function ObligationTypeModal({ isOpen, onClose, type, profiles, groups }: TypeMo
   });
 
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form data when type changes (for editing different items)
+  useEffect(() => {
+    setFormData({
+      code: type?.code || '',
+      name: type?.name || '',
+      description: type?.description || '',
+      frequency: type?.frequency || 'monthly',
+      deadline_type: type?.deadline_type || 'last_day',
+      deadline_day: type?.deadline_day || null,
+      applicable_months: type?.applicable_months || '',
+      exclusion_group: type?.exclusion_group || null,
+      profile: type?.profile || null,
+      priority: type?.priority || 0,
+      is_active: type?.is_active ?? true,
+    });
+    setError(null);
+  }, [type]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,6 +344,15 @@ function ObligationProfileModal({ isOpen, onClose, profile }: ProfileModalProps)
 
   const [error, setError] = useState<string | null>(null);
 
+  // Reset form data when profile changes
+  useEffect(() => {
+    setFormData({
+      name: profile?.name || '',
+      description: profile?.description || '',
+    });
+    setError(null);
+  }, [profile]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -436,6 +463,16 @@ function ObligationGroupModal({ isOpen, onClose, group, allTypes }: GroupModalPr
   });
 
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form data when group changes
+  useEffect(() => {
+    setFormData({
+      name: group?.name || '',
+      description: group?.description || '',
+      obligation_types: group?.obligation_types || [],
+    });
+    setError(null);
+  }, [group]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -331,3 +331,44 @@ export function useUpdateClientObligationProfile(clientId: number) {
     },
   });
 }
+
+// ============================================
+// BULK ASSIGN OBLIGATIONS
+// ============================================
+
+interface BulkAssignRequest {
+  client_ids: number[];
+  obligation_type_ids?: number[];
+  obligation_profile_ids?: number[];
+  mode?: 'add' | 'replace';
+}
+
+interface BulkAssignResponse {
+  success: boolean;
+  created_count: number;
+  updated_count: number;
+  clients_processed: number;
+  message: string;
+}
+
+/**
+ * Bulk assign obligation types/profiles to multiple clients
+ */
+export function useBulkAssignObligations() {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkAssignResponse, Error, BulkAssignRequest>({
+    mutationFn: async (data) => {
+      const response = await apiClient.post<BulkAssignResponse>(
+        '/api/v1/obligations/bulk-assign/',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate all client obligation profiles
+      queryClient.invalidateQueries({ queryKey: [CLIENT_OBLIGATION_PROFILE_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+}

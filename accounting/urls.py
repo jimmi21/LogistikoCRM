@@ -22,7 +22,8 @@ from .api_obligation_profiles import (
     client_obligation_profile,
     obligation_types_grouped,
     obligation_profiles_list,
-    generate_month_obligations
+    generate_month_obligations,
+    bulk_assign_obligations,
 )
 from .api_obligation_settings import (
     ObligationTypeSettingsViewSet,
@@ -189,6 +190,7 @@ urlpatterns = [
     path("api/v1/obligation-types/grouped/", obligation_types_grouped, name="obligation_types_grouped"),
     path("api/v1/obligation-profiles/", obligation_profiles_list, name="obligation_profiles_list"),
     path("api/v1/obligations/generate-month/", generate_month_obligations, name="generate_month_obligations"),
+    path("api/v1/obligations/bulk-assign/", bulk_assign_obligations, name="bulk_assign_obligations"),
 
     # ============================================
     # DOOR CONTROL API (v1) - JWT authenticated
