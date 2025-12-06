@@ -2,7 +2,7 @@
 """
 fritz_monitor.py - PRODUCTION VERSION
 Author: ddiplas
-Version: 3.4 - Fixed .env loading for API token
+Version: 3.5 - Fixed DISCONNECT event parsing
 Date: 2025-12-06
 
 FIXES:
@@ -11,6 +11,7 @@ FIXES:
 - Extended timeout with retry logic
 - API Key authentication via X-API-Key header
 - Now loads FRITZ_API_TOKEN from .env file (same as Django)
+- Fixed parsing of DISCONNECT events (different format than RING/CALL)
 """
 
 import socket
@@ -214,13 +215,43 @@ class VoIPMonitor:
         logger.info(f"✅ Connected to Fritz!Box at {Config.FRITZ_HOST}:{Config.FRITZ_PORT}")
         return sock
     
-    def parse_call_event(self, line: str) -> Optional[tuple]:
-        """Parse Fritz!Box call event"""
-        pattern = r'(\d{2}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2});(RING|CALL|CONNECT|DISCONNECT);(\d+);(.+);(.+);(.+);'
-        match = re.match(pattern, line)
-        if match:
-            timestamp, event, connection_id, caller, called, line_id = match.groups()
-            return event, connection_id, caller, called
+    def parse_call_event(self, line: str) -> Optional[dict]:
+        """
+        Parse Fritz!Box call event.
+
+        Fritz!Box CallMonitor formats:
+        - RING:       timestamp;RING;connId;caller;called;lineId;
+        - CALL:       timestamp;CALL;connId;extension;called;lineId;
+        - CONNECT:    timestamp;CONNECT;connId;extension;number;
+        - DISCONNECT: timestamp;DISCONNECT;connId;duration;
+        """
+        parts = line.strip().rstrip(';').split(';')
+
+        if len(parts) < 4:
+            return None
+
+        timestamp, event, connection_id = parts[0], parts[1], parts[2]
+
+        if event == 'RING':
+            # RING: timestamp;RING;connId;caller;called;lineId
+            if len(parts) >= 5:
+                return {'event': event, 'connection_id': connection_id, 'caller': parts[3], 'called': parts[4]}
+
+        elif event == 'CALL':
+            # CALL: timestamp;CALL;connId;extension;called;lineId
+            if len(parts) >= 5:
+                return {'event': event, 'connection_id': connection_id, 'caller': parts[3], 'called': parts[4]}
+
+        elif event == 'CONNECT':
+            # CONNECT: timestamp;CONNECT;connId;extension;number
+            return {'event': event, 'connection_id': connection_id}
+
+        elif event == 'DISCONNECT':
+            # DISCONNECT: timestamp;DISCONNECT;connId;duration
+            duration = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+            return {'event': event, 'connection_id': connection_id, 'duration': duration}
+
+        logger.debug(f"Unknown event format: {line}")
         return None
     
     def generate_call_id(self, connection_id: str) -> str:
@@ -347,7 +378,7 @@ class VoIPMonitor:
     def run(self):
         """Main monitoring loop"""
         logger.info("=" * 60)
-        logger.info("🚀 Fritz!Box VoIP Monitor - PRODUCTION v3.4")
+        logger.info("🚀 Fritz!Box VoIP Monitor - PRODUCTION v3.5")
         logger.info(f"Fritz: {Config.FRITZ_HOST}:{Config.FRITZ_PORT}")
         logger.info(f"CRM: {Config.CRM_BASE_URL}/voip-calls/")
         logger.info(f"🔐 API Auth: X-API-Key header enabled")
@@ -365,17 +396,18 @@ class VoIPMonitor:
                     data = sock.recv(1024).decode('utf-8').strip()
                     if not data:
                         continue
-                    
+
                     parsed = self.parse_call_event(data)
                     if not parsed:
                         continue
-                    
-                    event, connection_id, caller, called = parsed
-                    
+
+                    event = parsed['event']
+                    connection_id = parsed['connection_id']
+
                     if event == 'RING':
-                        self.handle_ring(connection_id, caller, called)
+                        self.handle_ring(connection_id, parsed['caller'], parsed['called'])
                     elif event == 'CALL':
-                        self.handle_outgoing_call(connection_id, called)
+                        self.handle_outgoing_call(connection_id, parsed['called'])
                     elif event == 'CONNECT':
                         self.handle_connect(connection_id)
                     elif event == 'DISCONNECT':
