@@ -1,0 +1,385 @@
+{% extends "accounting/base.html" %}
+{% load static %}
+
+{% block title %}Σύνταξη Email - LogistikoCRM{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'accounting:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'accounting:obligation_list' %}">Υποχρεώσεις</a></li>
+        <li class="breadcrumb-item active">Σύνταξη Email</li>
+    </ol>
+</nav>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+        <i class="bi bi-envelope text-primary"></i> Σύνταξη Email
+    </h2>
+</div>
+
+{% if not clients_obligations %}
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i>
+    Δεν επιλέχθηκαν υποχρεώσεις. <a href="{% url 'accounting:obligation_list' %}">Επιστροφή στη λίστα</a>
+</div>
+{% else %}
+
+<!-- Summary -->
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle"></i>
+    <strong>{{ clients_obligations|length }} email{% if clients_obligations|length > 1 %}s{% endif %}</strong>
+    θα αποσταλ{% if clients_obligations|length > 1 %}ούν{% else %}εί{% endif %}
+    σε <strong>{{ clients_obligations|length }}</strong> πελάτ{% if clients_obligations|length > 1 %}ες{% else %}η{% endif %}
+</div>
+
+<!-- Email Template Selection -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-file-text"></i> Επιλογή Προτύπου Email
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <select class="form-select" id="templateSelect">
+                    <option value="">-- Χωρίς πρότυπο --</option>
+                    {% for template in templates %}
+                        <option value="{{ template.id }}"
+                                data-subject="{{ template.subject }}"
+                                data-body="{{ template.body_html }}">
+                            {{ template.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="includeAttachments" checked>
+                    <label class="form-check-label" for="includeAttachments">
+                        Συμπερίληψη συνημμένων αρχείων
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Emails per Client -->
+<form id="emailForm">
+    <input type="hidden" name="obligation_ids" value="{{ obligation_ids }}">
+
+    {% for client_id, data in clients_obligations.items %}
+    <div class="card mb-4 email-card" data-client-id="{{ client_id }}">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-person"></i>
+                <strong>{{ data.client.eponimia }}</strong>
+                <span class="text-muted">({{ data.client.afm }})</span>
+            </div>
+            <div>
+                {% if data.client.email %}
+                    <span class="badge bg-success"><i class="bi bi-envelope-check"></i> {{ data.client.email }}</span>
+                {% else %}
+                    <span class="badge bg-danger"><i class="bi bi-envelope-x"></i> Δεν υπάρχει email</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Obligations -->
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-3">
+                        <i class="bi bi-list-check"></i> Υποχρεώσεις ({{ data.obligations|length }})
+                    </h6>
+                    <ul class="list-group list-group-flush">
+                        {% for ob in data.obligations %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <strong>{{ ob.obligation_type.name }}</strong>
+                                <div class="small text-muted">{{ ob.month|stringformat:"02d" }}/{{ ob.year }}</div>
+                            </div>
+                            {% if ob.status == 'completed' %}
+                                <span class="badge bg-success">Ολοκληρώθηκε</span>
+                            {% else %}
+                                <span class="badge bg-warning">Εκκρεμεί</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <!-- Attachments -->
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-3">
+                        <i class="bi bi-paperclip"></i> Συνημμένα ({{ data.attachments|length }})
+                    </h6>
+                    {% if data.attachments %}
+                        <div class="list-group list-group-flush">
+                            {% for att in data.attachments %}
+                            <label class="list-group-item px-0 d-flex align-items-center">
+                                <input type="checkbox" class="form-check-input me-2 attachment-checkbox"
+                                       name="attachment_{{ client_id }}_{{ att.obligation_id }}"
+                                       value="{{ att.obligation_id }}" checked>
+                                <a href="{{ att.url }}" target="_blank" class="text-decoration-none flex-grow-1">
+                                    <i class="bi bi-file-pdf text-danger"></i> {{ att.filename }}
+                                </a>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted small">Δεν υπάρχουν συνημμένα</p>
+                    {% endif %}
+                </div>
+
+                <!-- Email Content -->
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-3">
+                        <i class="bi bi-envelope"></i> Περιεχόμενο
+                    </h6>
+                    <div class="mb-2">
+                        <label class="form-label small">Θέμα</label>
+                        <input type="text" class="form-control form-control-sm email-subject"
+                               name="subject_{{ client_id }}"
+                               placeholder="Θέμα email...">
+                    </div>
+                    <div>
+                        <label class="form-label small">Μήνυμα</label>
+                        <textarea class="form-control form-control-sm email-body"
+                                  name="body_{{ client_id }}" rows="4"
+                                  placeholder="Κείμενο email..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        onclick="previewEmail({{ client_id }})">
+                    <i class="bi bi-eye"></i> Προεπισκόπηση
+                </button>
+                <button type="button" class="btn btn-sm btn-primary"
+                        onclick="sendSingleEmail({{ client_id }})"
+                        {% if not data.client.email %}disabled{% endif %}>
+                    <i class="bi bi-send"></i> Αποστολή
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Bulk Actions -->
+    <div class="card">
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+                <a href="{% url 'accounting:obligation_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Επιστροφή
+                </a>
+            </div>
+            <div>
+                <button type="button" class="btn btn-lg btn-primary" onclick="sendAllEmails()">
+                    <i class="bi bi-send-fill"></i> Αποστολή Όλων ({{ clients_obligations|length }})
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endif %}
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-eye"></i> Προεπισκόπηση Email
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>Προς:</strong> <span id="previewTo"></span>
+                </div>
+                <div class="mb-3">
+                    <strong>Θέμα:</strong> <span id="previewSubject"></span>
+                </div>
+                <hr>
+                <div id="previewBody" style="white-space: pre-wrap;"></div>
+                <hr>
+                <div id="previewAttachments">
+                    <strong>Συνημμένα:</strong>
+                    <ul id="previewAttachmentsList"></ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Κλείσιμο</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Template selection
+    document.getElementById('templateSelect').addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        const subject = option.dataset.subject || '';
+        const body = option.dataset.body || '';
+
+        // Apply to all email cards
+        document.querySelectorAll('.email-subject').forEach(input => {
+            input.value = subject;
+        });
+        document.querySelectorAll('.email-body').forEach(textarea => {
+            textarea.value = body;
+        });
+    });
+
+    // Toggle attachments
+    document.getElementById('includeAttachments').addEventListener('change', function() {
+        document.querySelectorAll('.attachment-checkbox').forEach(cb => {
+            cb.checked = this.checked;
+        });
+    });
+
+    // Preview email
+    function previewEmail(clientId) {
+        const card = document.querySelector(`[data-client-id="${clientId}"]`);
+        const email = card.querySelector('.badge.bg-success')?.textContent.trim() || 'N/A';
+        const subject = card.querySelector('.email-subject').value || '(Χωρίς θέμα)';
+        const body = card.querySelector('.email-body').value || '(Χωρίς περιεχόμενο)';
+
+        document.getElementById('previewTo').textContent = email;
+        document.getElementById('previewSubject').textContent = subject;
+        document.getElementById('previewBody').textContent = body;
+
+        // Attachments
+        const attachmentsList = card.querySelectorAll('.attachment-checkbox:checked');
+        const listHtml = Array.from(attachmentsList).map(cb => {
+            const label = cb.closest('label');
+            const filename = label.querySelector('a').textContent.trim();
+            return `<li><i class="bi bi-file-pdf text-danger"></i> ${filename}</li>`;
+        }).join('');
+        document.getElementById('previewAttachmentsList').innerHTML = listHtml || '<li class="text-muted">Κανένα</li>';
+
+        new bootstrap.Modal(document.getElementById('previewModal')).show();
+    }
+
+    // Send single email
+    function sendSingleEmail(clientId) {
+        const card = document.querySelector(`[data-client-id="${clientId}"]`);
+        const subject = card.querySelector('.email-subject').value;
+        const body = card.querySelector('.email-body').value;
+        const templateId = document.getElementById('templateSelect').value;
+
+        // Get obligation IDs for this client
+        const obligationIds = [];
+        card.querySelectorAll('.list-group-item[data-obligation-id]').forEach(item => {
+            obligationIds.push(item.dataset.obligationId);
+        });
+
+        // Get selected attachments
+        const attachmentIds = [];
+        if (document.getElementById('includeAttachments').checked) {
+            card.querySelectorAll('.attachment-checkbox:checked').forEach(cb => {
+                attachmentIds.push(cb.value);
+            });
+        }
+
+        const data = {
+            client_id: clientId,
+            obligation_ids: obligationIds.length ? obligationIds : Array.from(card.querySelectorAll('.list-group-item')).map((_, i) => i),
+            template_id: templateId,
+            subject: subject,
+            body: body,
+            include_attachments: document.getElementById('includeAttachments').checked,
+            attachment_ids: attachmentIds,
+        };
+
+        showLoading();
+
+        fetch('{% url "accounting:email_send" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(response => response.json())
+        .then(result => {
+            hideLoading();
+            if (result.success) {
+                showToast(result.message, 'success');
+                card.classList.add('border-success');
+                card.querySelector('.card-footer').innerHTML = `
+                    <div class="text-success text-center">
+                        <i class="bi bi-check-circle"></i> Email εστάλη επιτυχώς
+                    </div>
+                `;
+            } else {
+                showToast(result.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Σφάλμα: ' + error.message, 'error');
+        });
+    }
+
+    // Send all emails
+    function sendAllEmails() {
+        if (!confirm('Θέλετε να αποστείλετε email σε όλους τους πελάτες;')) {
+            return;
+        }
+
+        const obligationIds = '{{ obligation_ids }}'.split(',').filter(Boolean);
+        const templateId = document.getElementById('templateSelect').value;
+
+        const data = {
+            obligation_ids: obligationIds,
+            template_id: templateId,
+            include_attachments: document.getElementById('includeAttachments').checked,
+        };
+
+        showLoading();
+
+        fetch('{% url "accounting:email_send_bulk" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(response => response.json())
+        .then(result => {
+            hideLoading();
+            if (result.success) {
+                let message = `Εστάλησαν ${result.sent} email`;
+                if (result.failed > 0) {
+                    message += `, απέτυχαν ${result.failed}`;
+                }
+                if (result.skipped > 0) {
+                    message += `, παραλείφθηκαν ${result.skipped}`;
+                }
+                showToast(message, result.failed > 0 ? 'warning' : 'success');
+
+                // Update UI
+                setTimeout(() => {
+                    window.location.href = '{% url "accounting:obligation_list" %}';
+                }, 2000);
+            } else {
+                showToast(result.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Σφάλμα: ' + error.message, 'error');
+        });
+    }
+</script>
+{% endblock %}

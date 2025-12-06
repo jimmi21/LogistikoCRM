@@ -1,0 +1,289 @@
+{% extends "accounting/base.html" %}
+{% load static %}
+
+{% block title %}Ρυθμίσεις Αρχειοθέτησης - LogistikoCRM{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'accounting:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item active">Ρυθμίσεις Αρχειοθέτησης</li>
+    </ol>
+</nav>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+        <i class="bi bi-folder-symlink text-primary"></i> Ρυθμίσεις Αρχειοθέτησης
+    </h2>
+</div>
+
+<!-- Current Settings -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-info-circle"></i> Τρέχουσες Ρυθμίσεις Συστήματος
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">ARCHIVE_ROOT (Βάση Αρχειοθέτησης)</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                        <input type="text" class="form-control font-monospace" value="{{ archive_root }}" readonly>
+                    </div>
+                    <div class="form-text">
+                        Ορίζεται στο <code>.env</code> ως <code>ARCHIVE_ROOT</code>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">MEDIA_ROOT (Βάση Media)</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-folder2"></i></span>
+                        <input type="text" class="form-control font-monospace" value="{{ media_root }}" readonly>
+                    </div>
+                    <div class="form-text">
+                        Default αν δεν οριστεί ARCHIVE_ROOT
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-3">
+            <i class="bi bi-lightbulb"></i>
+            <strong>Tip:</strong> Για να αλλάξεις τη βασική διαδρομή, πρόσθεσε στο <code>.env</code>:
+            <pre class="mb-0 mt-2 bg-dark text-light p-2 rounded">ARCHIVE_ROOT=/path/to/your/archive</pre>
+        </div>
+    </div>
+</div>
+
+<!-- Pattern Variables Help -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-braces"></i> Διαθέσιμες Μεταβλητές
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-muted">Μεταβλητές Φακέλου</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Μεταβλητή</th>
+                            <th>Περιγραφή</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for var, desc in pattern_variables.folder %}
+                        <tr>
+                            <td><code>{{ var }}</code></td>
+                            <td>{{ desc }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-muted">Μεταβλητές Αρχείου</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Μεταβλητή</th>
+                            <th>Περιγραφή</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for var, desc in pattern_variables.filename %}
+                        <tr>
+                            <td><code>{{ var }}</code></td>
+                            <td>{{ desc }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-light p-3 rounded mt-3">
+            <strong>Παράδειγμα:</strong>
+            <div class="mt-2">
+                <code>clients/{client_afm}_{client_name}/{year}/{month}/{type_code}/</code>
+                <br>
+                <span class="text-muted">→ clients/123456789_ΕΤΑΙΡΕΙΑ/2025/01/ΦΠΑ/ΦΠΑ_01_2025.pdf</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configurations per Obligation Type -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-gear"></i> Ρυθμίσεις ανά Τύπο Υποχρέωσης</span>
+        {% if unconfigured_types %}
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addConfigModal">
+            <i class="bi bi-plus-lg"></i> Νέα Ρύθμιση
+        </button>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if configs %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Τύπος Υποχρέωσης</th>
+                            <th>Μοτίβο Φακέλου</th>
+                            <th>Μοτίβο Αρχείου</th>
+                            <th style="width: 100px;">Ενέργειες</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for config in configs %}
+                        <tr>
+                            <td>
+                                <strong>{{ config.obligation_type.name }}</strong>
+                                <div class="small text-muted">{{ config.obligation_type.code }}</div>
+                            </td>
+                            <td>
+                                <code class="small">{{ config.folder_pattern }}</code>
+                            </td>
+                            <td>
+                                <code class="small">{{ config.filename_pattern }}</code>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        onclick="editConfig({{ config.id }}, '{{ config.folder_pattern|escapejs }}', '{{ config.filename_pattern|escapejs }}', '{{ config.obligation_type.name|escapejs }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-gear fs-1 d-block mb-2"></i>
+                Δεν υπάρχουν ρυθμίσεις. Θα χρησιμοποιηθεί το default μοτίβο.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Config Modal -->
+<div class="modal fade" id="addConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{% url 'accounting:archive_config_create' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-lg"></i> Νέα Ρύθμιση Αρχειοθέτησης
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Τύπος Υποχρέωσης</label>
+                        <select name="obligation_type_id" class="form-select" required>
+                            <option value="">Επιλέξτε...</option>
+                            {% for t in unconfigured_types %}
+                                <option value="{{ t.id }}">{{ t.name }} ({{ t.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ακύρωση</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-lg"></i> Δημιουργία
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Config Modal -->
+<div class="modal fade" id="editConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="config_id" id="editConfigId">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-pencil"></i> Επεξεργασία: <span id="editConfigTypeName"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Μοτίβο Φακέλου</label>
+                        <input type="text" name="folder_pattern" id="editFolderPattern" class="form-control font-monospace">
+                        <div class="form-text">
+                            π.χ. <code>clients/{client_afm}_{client_name}/{year}/{month}/{type_code}/</code>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Μοτίβο Ονόματος Αρχείου</label>
+                        <input type="text" name="filename_pattern" id="editFilenamePattern" class="form-control font-monospace">
+                        <div class="form-text">
+                            π.χ. <code>{type_code}_{month}_{year}.pdf</code>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Προεπισκόπηση:</strong>
+                        <div id="previewPath" class="mt-2 font-monospace small"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Ακύρωση</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check"></i> Αποθήκευση
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function editConfig(configId, folderPattern, filenamePattern, typeName) {
+        document.getElementById('editConfigId').value = configId;
+        document.getElementById('editFolderPattern').value = folderPattern;
+        document.getElementById('editFilenamePattern').value = filenamePattern;
+        document.getElementById('editConfigTypeName').textContent = typeName;
+
+        updatePreview();
+        new bootstrap.Modal(document.getElementById('editConfigModal')).show();
+    }
+
+    function updatePreview() {
+        const folder = document.getElementById('editFolderPattern').value;
+        const filename = document.getElementById('editFilenamePattern').value;
+
+        // Example substitution
+        let preview = folder + filename;
+        preview = preview
+            .replace('{client_afm}', '123456789')
+            .replace('{client_name}', 'ΕΤΑΙΡΕΙΑ')
+            .replace('{year}', '2025')
+            .replace('{month}', '01')
+            .replace('{type_code}', 'ΦΠΑ');
+
+        document.getElementById('previewPath').textContent = '{{ archive_root }}/' + preview;
+    }
+
+    // Update preview on input
+    document.getElementById('editFolderPattern')?.addEventListener('input', updatePreview);
+    document.getElementById('editFilenamePattern')?.addEventListener('input', updatePreview);
+</script>
+{% endblock %}

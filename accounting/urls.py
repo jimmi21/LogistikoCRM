@@ -59,6 +59,23 @@ from .api_door import (
     door_pulse as api_door_pulse,
 )
 
+# New Completion Views
+from .views.completion_views import (
+    obligation_list_view,
+    obligation_list_api,
+    obligation_complete_single,
+    obligation_complete_bulk,
+    obligation_upload_file,
+    email_compose_view,
+    email_send_view,
+    email_send_bulk_view,
+    client_files_view,
+    file_download,
+    file_delete,
+    archive_settings_view,
+    archive_config_create,
+)
+
 
 app_name = "accounting"
 
@@ -224,4 +241,28 @@ urlpatterns = [
     # ==================================================
     path("api/health/", api_auth.health_check, name="api_health"),
     path("api/test/", api_auth.api_test, name="api_test"),
+
+    # ==================================================
+    # OBLIGATION COMPLETION & FILE MANAGEMENT VIEWS
+    # ==================================================
+    # Obligation List & Management
+    path("obligations/", obligation_list_view, name="obligation_list"),
+    path("obligations/api/", obligation_list_api, name="obligation_list_api"),
+    path("obligations/<int:obligation_id>/complete/", obligation_complete_single, name="obligation_complete_single"),
+    path("obligations/<int:obligation_id>/upload/", obligation_upload_file, name="obligation_upload_file"),
+    path("obligations/complete-bulk/", obligation_complete_bulk, name="obligation_complete_bulk"),
+
+    # Email Composition & Sending
+    path("obligations/email/", email_compose_view, name="email_compose"),
+    path("obligations/email/send/", email_send_view, name="email_send"),
+    path("obligations/email/send-bulk/", email_send_bulk_view, name="email_send_bulk"),
+
+    # Client Files Browser
+    path("client/<int:client_id>/files/", client_files_view, name="client_files"),
+    path("client/<int:client_id>/files/download/<path:file_path>", file_download, name="file_download"),
+    path("client/<int:client_id>/files/delete/", file_delete, name="file_delete"),
+
+    # Archive Settings
+    path("settings/archive/", archive_settings_view, name="archive_settings"),
+    path("settings/archive/create/", archive_config_create, name="archive_config_create"),
 ]
