@@ -1,11 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useClients, useCreateClient, useDeleteClient } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ClientForm, Button } from '../components';
-import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2, Eye } from 'lucide-react';
+import { useToast } from '../components/Toast';
+import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2, Eye, Download, Upload, FileDown, FileUp } from 'lucide-react';
 import type { Client, ClientFormData } from '../types';
+import { downloadClientsCSV, downloadClientsTemplate, useImportClients } from '../hooks/useExportImport';
 
 export default function Clients() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,11 +19,16 @@ export default function Clients() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useClients({ page, page_size: pageSize });
   const createMutation = useCreateClient();
   const deleteMutation = useDeleteClient();
+  const importMutation = useImportClients();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Update client mutation
   const updateMutation = useMutation({
@@ -113,10 +120,67 @@ export default function Clients() {
             <p className="text-sm text-gray-500">{totalCount} συνολικά</p>
           </div>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Νέος Πελάτης
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Export/Import Dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Εξαγωγή/Εισαγωγή
+            </Button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                <button
+                  onClick={async () => {
+                    try {
+                      await downloadClientsCSV();
+                      showToast('success', 'Η εξαγωγή ξεκίνησε');
+                    } catch {
+                      showToast('error', 'Σφάλμα κατά την εξαγωγή');
+                    }
+                    setShowExportMenu(false);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <FileDown className="w-4 h-4" />
+                  Εξαγωγή πελατών (Excel)
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await downloadClientsTemplate();
+                      showToast('success', 'Λήψη template');
+                    } catch {
+                      showToast('error', 'Σφάλμα');
+                    }
+                    setShowExportMenu(false);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <FileDown className="w-4 h-4" />
+                  Λήψη template Excel
+                </button>
+                <div className="border-t border-gray-100 my-1" />
+                <button
+                  onClick={() => {
+                    setIsImportModalOpen(true);
+                    setShowExportMenu(false);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <FileUp className="w-4 h-4" />
+                  Εισαγωγή πελατών (Excel)
+                </button>
+              </div>
+            )}
+          </div>
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Νέος Πελάτης
+          </Button>
+        </div>
       </div>
 
       {/* Search Box */}
@@ -319,6 +383,204 @@ export default function Clients() {
         isLoading={deleteMutation.isPending}
         variant="danger"
       />
+
+      {/* Import Modal */}
+      <ImportClientsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        importMutation={importMutation}
+        showToast={showToast}
+        refetch={refetch}
+      />
+    </div>
+  );
+}
+
+// ============================================
+// IMPORT CLIENTS MODAL COMPONENT
+// ============================================
+
+interface ImportClientsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  importMutation: ReturnType<typeof useImportClients>;
+  showToast: (type: 'success' | 'error' | 'info', message: string) => void;
+  refetch: () => void;
+}
+
+function ImportClientsModal({
+  isOpen,
+  onClose,
+  importMutation,
+  showToast,
+  refetch,
+}: ImportClientsModalProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<'skip' | 'update'>('skip');
+  const [result, setResult] = useState<{
+    created_count: number;
+    updated_count: number;
+    skipped_count?: number;
+    errors: string[];
+    message: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setResult(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!file) {
+      showToast('error', 'Επιλέξτε αρχείο');
+      return;
+    }
+
+    try {
+      const res = await importMutation.mutateAsync({ file, mode });
+      setResult(res);
+      showToast('success', res.message);
+      refetch();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : 'Σφάλμα εισαγωγής';
+      showToast('error', errMsg);
+    }
+  };
+
+  const handleClose = () => {
+    setFile(null);
+    setResult(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
+
+        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Upload className="w-5 h-5 text-blue-600" />
+              Εισαγωγή Πελατών
+            </h3>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 py-4 space-y-4">
+            {/* File Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Αρχείο Excel (.xlsx)
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {file && (
+                <p className="mt-2 text-sm text-gray-500">
+                  Επιλεγμένο: {file.name}
+                </p>
+              )}
+            </div>
+
+            {/* Mode Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Τρόπος εισαγωγής
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="skip"
+                    checked={mode === 'skip'}
+                    onChange={() => setMode('skip')}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Παράλειψη υπαρχόντων (μόνο νέοι πελάτες)
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="update"
+                    checked={mode === 'update'}
+                    onChange={() => setMode('update')}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Ενημέρωση υπαρχόντων (αντικατάσταση δεδομένων)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Result */}
+            {result && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Αποτελέσματα:</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>Δημιουργήθηκαν: {result.created_count}</li>
+                  <li>Ενημερώθηκαν: {result.updated_count}</li>
+                  {result.skipped_count !== undefined && (
+                    <li>Παραλείφθηκαν: {result.skipped_count}</li>
+                  )}
+                </ul>
+                {result.errors.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="text-sm font-medium text-red-600">Σφάλματα:</h5>
+                    <ul className="text-xs text-red-500 mt-1 max-h-32 overflow-y-auto">
+                      {result.errors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <Button variant="secondary" onClick={handleClose}>
+              Κλείσιμο
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={!file || importMutation.isPending}
+            >
+              {importMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Εισαγωγή...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Εισαγωγή
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

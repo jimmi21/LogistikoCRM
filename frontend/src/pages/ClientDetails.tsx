@@ -29,6 +29,7 @@ import {
   X,
   ClipboardList,
   CheckCircle,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '../components';
 import {
@@ -41,6 +42,8 @@ import {
   useUploadDocument,
   useDeleteDocument,
   useCreateTicket,
+  useUpdateTicket,
+  useDeleteTicket,
   useUpdateClientFull,
   useClientObligationProfile,
   useUpdateClientObligationProfile,
@@ -135,6 +138,8 @@ export default function ClientDetails() {
   const uploadMutation = useUploadDocument(clientId);
   const deleteMutation = useDeleteDocument(clientId);
   const createTicketMutation = useCreateTicket(clientId);
+  const updateTicketMutation = useUpdateTicket(clientId);
+  const deleteTicketMutation = useDeleteTicket(clientId);
 
   // Handlers
   const handleSave = useCallback(() => {
@@ -364,6 +369,10 @@ export default function ClientDetails() {
               data={ticketsData}
               isLoading={ticketsLoading}
               onCreate={() => setTicketModalOpen(true)}
+              onUpdate={(ticketId, data) => updateTicketMutation.mutate({ ticketId, data })}
+              onDelete={(ticketId) => deleteTicketMutation.mutate(ticketId)}
+              isUpdating={updateTicketMutation.isPending}
+              isDeleting={deleteTicketMutation.isPending}
             />
           )}
 
@@ -1072,15 +1081,54 @@ function CallsTab({
 // ============================================
 // TICKETS TAB COMPONENT
 // ============================================
+
+const TICKET_STATUS_OPTIONS = [
+  { value: 'open', label: 'Ανοιχτό' },
+  { value: 'in_progress', label: 'Σε εξέλιξη' },
+  { value: 'resolved', label: 'Επιλύθηκε' },
+  { value: 'closed', label: 'Κλειστό' },
+];
+
+const TICKET_PRIORITY_OPTIONS = [
+  { value: 'low', label: 'Χαμηλή' },
+  { value: 'medium', label: 'Μέτρια' },
+  { value: 'high', label: 'Υψηλή' },
+  { value: 'urgent', label: 'Επείγον' },
+];
+
 function TicketsTab({
   data,
   isLoading,
   onCreate,
+  onUpdate,
+  onDelete,
+  isUpdating,
+  isDeleting,
 }: {
   data: { tickets: VoIPTicket[] } | undefined;
   isLoading: boolean;
   onCreate: () => void;
+  onUpdate: (ticketId: number, data: { status?: string; priority?: string }) => void;
+  onDelete: (ticketId: number) => void;
+  isUpdating: boolean;
+  isDeleting: boolean;
 }) {
+  const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const handleStatusChange = (ticketId: number, newStatus: string) => {
+    onUpdate(ticketId, { status: newStatus as 'open' | 'in_progress' | 'resolved' | 'closed' });
+  };
+
+  const handlePriorityChange = (ticketId: number, newPriority: string) => {
+    onUpdate(ticketId, { priority: newPriority as 'low' | 'medium' | 'high' | 'urgent' });
+  };
+
+  const handleDeleteConfirm = (ticketId: number) => {
+    onDelete(ticketId);
+    setConfirmDeleteId(null);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -1122,12 +1170,15 @@ function TicketsTab({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Δημιουργία
                 </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  Ενέργειες
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {data.tickets.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     Δεν υπάρχουν tickets
                   </td>
                 </tr>
@@ -1143,24 +1194,54 @@ function TicketsTab({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded ${
-                          ticket.is_open
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {ticket.status_display || ticket.status}
-                      </span>
+                      {editingTicketId === ticket.id ? (
+                        <select
+                          value={ticket.status}
+                          onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
+                          disabled={isUpdating}
+                          className="text-xs border border-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                        >
+                          {TICKET_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded ${
+                            ticket.is_open
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {ticket.status_display || ticket.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded ${
-                          PRIORITY_COLORS[ticket.priority] || 'bg-gray-100'
-                        }`}
-                      >
-                        {ticket.priority_display || ticket.priority}
-                      </span>
+                      {editingTicketId === ticket.id ? (
+                        <select
+                          value={ticket.priority}
+                          onChange={(e) => handlePriorityChange(ticket.id, e.target.value)}
+                          disabled={isUpdating}
+                          className="text-xs border border-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+                        >
+                          {TICKET_PRIORITY_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded ${
+                            PRIORITY_COLORS[ticket.priority] || 'bg-gray-100'
+                          }`}
+                        >
+                          {ticket.priority_display || ticket.priority}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {ticket.assigned_to_name || '-'}
@@ -1170,6 +1251,53 @@ function TicketsTab({
                       <span className="text-xs text-gray-400 ml-1">
                         ({ticket.days_since_created} μέρες)
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {confirmDeleteId === ticket.id ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-xs text-red-600">Διαγραφή;</span>
+                          <button
+                            onClick={() => handleDeleteConfirm(ticket.id)}
+                            disabled={isDeleting}
+                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                          >
+                            Ναι
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                          >
+                            Όχι
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          {editingTicketId === ticket.id ? (
+                            <button
+                              onClick={() => setEditingTicketId(null)}
+                              className="p-1 text-green-600 hover:bg-green-50 rounded"
+                              title="Κλείσιμο"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setEditingTicketId(ticket.id)}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                              title="Επεξεργασία"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setConfirmDeleteId(ticket.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Διαγραφή"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))

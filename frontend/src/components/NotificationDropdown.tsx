@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, AlertCircle, Clock, Calendar, X, RefreshCw } from 'lucide-react';
-import { useNotifications, Notification } from '../hooks/useNotifications';
+import { useNotifications, type Notification } from '../hooks/useNotifications';
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);

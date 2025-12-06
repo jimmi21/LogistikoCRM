@@ -57,6 +57,8 @@ export interface Obligation {
   status: ObligationStatus;
   completed_date?: string | null;
   completed_by?: number | null;
+  assigned_to?: number | null;  // Foreign key to User
+  assigned_to_name?: string | null;  // from assigned_to.username or full name (read_only)
   notes?: string;
   time_spent?: number | null;
   hourly_rate?: number | null;
@@ -130,6 +132,7 @@ export interface ObligationFormData {
   completed_date?: string | null;
   time_spent?: number | null;
   notes?: string;
+  assigned_to?: number | null;  // FK to User
 }
 
 // Dashboard statistics

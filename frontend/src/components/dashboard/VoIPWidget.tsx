@@ -94,14 +94,6 @@ export default function VoIPWidget() {
 
   const isLoading = callsLoading || ticketsLoading;
 
-  // Format time for display
-  const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('el-GR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       {/* Header */}
