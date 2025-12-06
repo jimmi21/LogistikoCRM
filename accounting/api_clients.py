@@ -61,7 +61,12 @@ class ClientListSerializer(serializers.ModelSerializer):
         model = ClientProfile
         fields = [
             'id', 'afm', 'eponimia', 'email',
-            'kinito_tilefono', 'is_active'
+            'kinito_tilefono', 'is_active',
+            # GSIS fields for edit form population
+            'doy', 'nomiki_morfi',
+            'diefthinsi_epixeirisis', 'arithmos_epixeirisis',
+            'poli_epixeirisis', 'tk_epixeirisis',
+            'imerominia_enarksis',
         ]
 
 

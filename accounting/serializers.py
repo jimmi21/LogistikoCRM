@@ -28,9 +28,14 @@ class ClientSerializer(serializers.ModelSerializer):
             'id', 'afm', 'eponimia', 'email', 'kinito_tilefono',
             'tilefono_oikias_1', 'tilefono_oikias_2',
             'tilefono_epixeirisis_1', 'tilefono_epixeirisis_2',
-            'is_active', 'total_obligations'
+            'is_active', 'total_obligations',
+            # GSIS fields
+            'doy', 'nomiki_morfi',
+            'diefthinsi_epixeirisis', 'arithmos_epixeirisis',
+            'poli_epixeirisis', 'tk_epixeirisis',
+            'imerominia_enarksis',
         ]
-    
+
     def get_total_obligations(self, obj):
         return obj.monthlyobligation_set.count()
 

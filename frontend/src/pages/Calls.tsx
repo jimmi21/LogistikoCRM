@@ -80,7 +80,6 @@ export default function Calls() {
     // Refresh interval
     const refreshInterval = setInterval(() => {
       refetch();
-      setLastRefresh(new Date());
       setSecondsUntilRefresh(AUTO_REFRESH_INTERVAL / 1000);
     }, AUTO_REFRESH_INTERVAL);
 
@@ -93,7 +92,6 @@ export default function Calls() {
   // Manual refresh handler
   const handleManualRefresh = useCallback(() => {
     refetch();
-    setLastRefresh(new Date());
     setSecondsUntilRefresh(AUTO_REFRESH_INTERVAL / 1000);
   }, [refetch]);
 

@@ -180,14 +180,26 @@ export interface AFMLookupResponse {
 export interface GSISStatusResponse {
   configured: boolean;
   active: boolean;
+  afm?: string;
   username?: string;
 }
 
 export const gsisApi = {
   // Αναζήτηση στοιχείων με ΑΦΜ
   lookupAfm: async (afm: string): Promise<AFMLookupResponse> => {
-    const response = await apiClient.post('/api/v1/afm-lookup/', { afm });
-    return response.data;
+    try {
+      const response = await apiClient.post('/api/v1/afm-lookup/', { afm });
+      return response.data;
+    } catch (error: unknown) {
+      // Extract error message from axios error response
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string } } };
+        if (axiosError.response?.data?.error) {
+          return { success: false, error: axiosError.response.data.error };
+        }
+      }
+      return { success: false, error: 'Σφάλμα επικοινωνίας με τον server' };
+    }
   },
 
   // Κατάσταση ρυθμίσεων GSIS
@@ -197,7 +209,7 @@ export const gsisApi = {
   },
 
   // Ενημέρωση ρυθμίσεων GSIS
-  updateSettings: async (data: { username: string; password?: string; is_active?: boolean }) => {
+  updateSettings: async (data: { afm: string; username: string; password?: string; is_active?: boolean }) => {
     const response = await apiClient.post('/api/v1/gsis/settings/', data);
     return response.data;
   },

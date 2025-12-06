@@ -22,6 +22,14 @@ export interface Client {
   tilefono_epixeirisis_2?: string | null;
   total_obligations?: number;
   is_active?: boolean;
+  // GSIS fields
+  doy?: string | null;
+  nomiki_morfi?: string | null;
+  diefthinsi_epixeirisis?: string | null;
+  arithmos_epixeirisis?: string | null;
+  poli_epixeirisis?: string | null;
+  tk_epixeirisis?: string | null;
+  imerominia_enarksis?: string | null;
 }
 
 // Obligation status types
@@ -120,6 +128,14 @@ export interface ClientFormData {
   tilefono_oikias_1?: string;
   tilefono_epixeirisis_1?: string;
   is_active?: boolean;
+  // GSIS fields
+  doy?: string;
+  nomiki_morfi?: string;
+  diefthinsi_epixeirisis?: string;
+  arithmos_epixeirisis?: string;
+  poli_epixeirisis?: string;
+  tk_epixeirisis?: string;
+  imerominia_enarksis?: string;
 }
 
 export interface ObligationFormData {

@@ -19,6 +19,14 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
     email: '',
     kinito_tilefono: '',
     is_active: true,
+    // GSIS fields
+    doy: '',
+    nomiki_morfi: '',
+    diefthinsi_epixeirisis: '',
+    arithmos_epixeirisis: '',
+    poli_epixeirisis: '',
+    tk_epixeirisis: '',
+    imerominia_enarksis: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({});
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -41,12 +49,19 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
 
       if (result.success && result.data) {
         setFetchedData(result.data);
-        // Αυτόματη συμπλήρωση επωνυμίας
+        // Αυτόματη συμπλήρωση όλων των πεδίων από ΑΑΔΕ
         setFormData(prev => ({
           ...prev,
           eponimia: result.data?.onomasia || prev.eponimia,
+          doy: result.data?.doy_descr || prev.doy,
+          nomiki_morfi: result.data?.legal_form_descr || prev.nomiki_morfi,
+          diefthinsi_epixeirisis: result.data?.postal_address || prev.diefthinsi_epixeirisis,
+          arithmos_epixeirisis: result.data?.postal_address_no || prev.arithmos_epixeirisis,
+          poli_epixeirisis: result.data?.postal_area || prev.poli_epixeirisis,
+          tk_epixeirisis: result.data?.postal_zip_code || prev.tk_epixeirisis,
+          imerominia_enarksis: result.data?.registration_date || prev.imerominia_enarksis,
         }));
-        setLookupMessage({ type: 'success', text: 'Τα στοιχεία βρέθηκαν!' });
+        setLookupMessage({ type: 'success', text: 'Τα στοιχεία βρέθηκαν και συμπληρώθηκαν!' });
       } else {
         setLookupMessage({ type: 'error', text: result.error || 'Δεν βρέθηκαν στοιχεία' });
       }
@@ -67,6 +82,14 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
         email: client.email || '',
         kinito_tilefono: client.kinito_tilefono || '',
         is_active: client.is_active ?? true,
+        // GSIS fields
+        doy: client.doy || '',
+        nomiki_morfi: client.nomiki_morfi || '',
+        diefthinsi_epixeirisis: client.diefthinsi_epixeirisis || '',
+        arithmos_epixeirisis: client.arithmos_epixeirisis || '',
+        poli_epixeirisis: client.poli_epixeirisis || '',
+        tk_epixeirisis: client.tk_epixeirisis || '',
+        imerominia_enarksis: client.imerominia_enarksis || '',
       });
     }
   }, [client]);
@@ -236,6 +259,120 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
           placeholder="69xxxxxxxx"
         />
       </div>
+
+      {/* GSIS Fields Section */}
+      {(formData.doy || formData.diefthinsi_epixeirisis || fetchedData) && (
+        <div className="border-t border-gray-200 pt-4 mt-4">
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Στοιχεία από ΑΑΔΕ</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ΔΟΥ */}
+            <div>
+              <label htmlFor="doy" className="block text-sm font-medium text-gray-700 mb-1">
+                Δ.Ο.Υ.
+              </label>
+              <input
+                type="text"
+                id="doy"
+                value={formData.doy}
+                onChange={(e) => handleChange('doy', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="Δ.Ο.Υ."
+              />
+            </div>
+
+            {/* Νομική Μορφή */}
+            <div>
+              <label htmlFor="nomiki_morfi" className="block text-sm font-medium text-gray-700 mb-1">
+                Νομική Μορφή
+              </label>
+              <input
+                type="text"
+                id="nomiki_morfi"
+                value={formData.nomiki_morfi}
+                onChange={(e) => handleChange('nomiki_morfi', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="Νομική Μορφή"
+              />
+            </div>
+
+            {/* Διεύθυνση Επιχείρησης */}
+            <div>
+              <label htmlFor="diefthinsi_epixeirisis" className="block text-sm font-medium text-gray-700 mb-1">
+                Διεύθυνση Επιχείρησης
+              </label>
+              <input
+                type="text"
+                id="diefthinsi_epixeirisis"
+                value={formData.diefthinsi_epixeirisis}
+                onChange={(e) => handleChange('diefthinsi_epixeirisis', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="Οδός"
+              />
+            </div>
+
+            {/* Αριθμός */}
+            <div>
+              <label htmlFor="arithmos_epixeirisis" className="block text-sm font-medium text-gray-700 mb-1">
+                Αριθμός
+              </label>
+              <input
+                type="text"
+                id="arithmos_epixeirisis"
+                value={formData.arithmos_epixeirisis}
+                onChange={(e) => handleChange('arithmos_epixeirisis', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="Αριθμός"
+              />
+            </div>
+
+            {/* Πόλη */}
+            <div>
+              <label htmlFor="poli_epixeirisis" className="block text-sm font-medium text-gray-700 mb-1">
+                Πόλη
+              </label>
+              <input
+                type="text"
+                id="poli_epixeirisis"
+                value={formData.poli_epixeirisis}
+                onChange={(e) => handleChange('poli_epixeirisis', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="Πόλη"
+              />
+            </div>
+
+            {/* Τ.Κ. */}
+            <div>
+              <label htmlFor="tk_epixeirisis" className="block text-sm font-medium text-gray-700 mb-1">
+                Τ.Κ.
+              </label>
+              <input
+                type="text"
+                id="tk_epixeirisis"
+                value={formData.tk_epixeirisis}
+                onChange={(e) => handleChange('tk_epixeirisis', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="Τ.Κ."
+              />
+            </div>
+
+            {/* Ημερομηνία Έναρξης */}
+            <div>
+              <label htmlFor="imerominia_enarksis" className="block text-sm font-medium text-gray-700 mb-1">
+                Ημ/νία Έναρξης
+              </label>
+              <input
+                type="text"
+                id="imerominia_enarksis"
+                value={formData.imerominia_enarksis}
+                onChange={(e) => handleChange('imerominia_enarksis', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                placeholder="ΗΗ/ΜΜ/ΕΕΕΕ"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ενεργός */}
       <div className="flex items-center">
