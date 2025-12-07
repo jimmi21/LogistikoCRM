@@ -206,6 +206,7 @@ export function useBulkCompleteWithNotify() {
  * Bulk complete obligations with individual documents
  */
 export interface BulkCompleteWithDocumentsRequest {
+  obligationIds: number[];
   obligationFiles: { [key: number]: File | null };
   saveToClientFolders: boolean;
   sendEmails: boolean;
@@ -244,9 +245,8 @@ export function useBulkCompleteWithDocuments() {
     ): Promise<BulkCompleteWithDocumentsResult> => {
       const formData = new FormData();
 
-      // Add obligation IDs as JSON array
-      const obligationIds = Object.keys(data.obligationFiles).map(Number);
-      formData.append('obligation_ids', JSON.stringify(obligationIds));
+      // Add obligation IDs as JSON array (from explicit list, not just files)
+      formData.append('obligation_ids', JSON.stringify(data.obligationIds));
 
       // Add individual files for each obligation
       for (const [obligationId, file] of Object.entries(data.obligationFiles)) {

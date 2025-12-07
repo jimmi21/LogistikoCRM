@@ -15,6 +15,7 @@ interface BulkCompleteModalProps {
   onClose: () => void;
   obligations: Obligation[];
   onComplete: (data: {
+    obligationIds: number[];
     obligationFiles: { [key: number]: File | null };
     saveToClientFolders: boolean;
     sendEmails: boolean;
@@ -79,7 +80,10 @@ export function BulkCompleteModal({
 
   const handleSubmit = async () => {
     try {
+      // Pass ALL obligation IDs, not just those with files
+      const obligationIds = obligations.map((o) => o.id);
       await onComplete({
+        obligationIds,
         obligationFiles,
         saveToClientFolders,
         sendEmails,

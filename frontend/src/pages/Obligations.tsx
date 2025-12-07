@@ -355,12 +355,13 @@ export default function Obligations() {
 
   // Handler for bulk complete with documents modal
   const handleBulkCompleteWithDocs = async (data: {
+    obligationIds: number[];
     obligationFiles: { [key: number]: File | null };
     saveToClientFolders: boolean;
     sendEmails: boolean;
     attachToEmails: boolean;
   }) => {
-    if (selectedIds.size === 0) return;
+    if (data.obligationIds.length === 0) return;
     await bulkCompleteWithDocsMutation.mutateAsync(data);
     setIsBulkCompleteModalOpen(false);
     setSelectedIds(new Set());
