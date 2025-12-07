@@ -590,23 +590,27 @@ class MyDataClient:
                 issue_date = self._parse_date(issue_date_str) if issue_date_str else None
 
                 # Get all VAT fields from ΑΑΔΕ
-                # Vat303 = ΦΠΑ Εκροών (output VAT)
-                # Vat333 = ΦΠΑ Εισροών (input VAT)
-                # Vat361 = Καθαρή αξία εκροών (net output)
-                # Vat381 = Καθαρή αξία εισροών (net input)
-                vat303 = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)
-                vat333 = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)
-                vat361 = self._get_xml_text_flexible(vat_elem, 'Vat361', ns)
-                vat381 = self._get_xml_text_flexible(vat_elem, 'Vat381', ns)
+                # ΕΚΡΟΕΣ (Έσοδα/Πωλήσεις):
+                #   Vat303 = Καθαρή αξία εκροών (φορολογητέα αξία)
+                #   Vat333 = ΦΠΑ εκροών
+                # ΕΙΣΡΟΕΣ (Έξοδα/Αγορές):
+                #   Vat361 = Καθαρή αξία εισροών (φορολογητέα αξία)
+                #   Vat381 = ΦΠΑ εισροών
+                vat303 = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)  # Καθαρή εκροών
+                vat333 = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)  # ΦΠΑ εκροών
+                vat361 = self._get_xml_text_flexible(vat_elem, 'Vat361', ns)  # Καθαρή εισροών
+                vat381 = self._get_xml_text_flexible(vat_elem, 'Vat381', ns)  # ΦΠΑ εισροών
 
-                # Check if we have any VAT data
-                has_output = vat303 or vat361
-                has_input = vat333 or vat381
+                # Check if we have ΕΚΡΟΕΣ data (έσοδα)
+                has_ekroes = vat303 or vat333
 
-                if has_output:
-                    # Εκροές (output/sales)
-                    vat_amount = self._parse_decimal(vat303) if vat303 else Decimal('0')
-                    net_value = self._parse_decimal(vat361) if vat361 else Decimal('0')
+                # Check if we have ΕΙΣΡΟΕΣ data (έξοδα)
+                has_eisroes = vat361 or vat381
+
+                if has_ekroes:
+                    # ΕΚΡΟΕΣ (Έσοδα/Πωλήσεις)
+                    net_value = self._parse_decimal(vat303) if vat303 else Decimal('0')
+                    vat_amount = self._parse_decimal(vat333) if vat333 else Decimal('0')
 
                     record = VatInfoRecord(
                         mark=mark,
@@ -624,13 +628,13 @@ class MyDataClient:
                     )
                     records.append(record)
 
-                if has_input:
-                    # Εισροές (input/purchases)
-                    vat_amount = self._parse_decimal(vat333) if vat333 else Decimal('0')
-                    net_value = self._parse_decimal(vat381) if vat381 else Decimal('0')
+                if has_eisroes:
+                    # ΕΙΣΡΟΕΣ (Έξοδα/Αγορές)
+                    net_value = self._parse_decimal(vat361) if vat361 else Decimal('0')
+                    vat_amount = self._parse_decimal(vat381) if vat381 else Decimal('0')
 
                     record = VatInfoRecord(
-                        mark=mark + 1 if mark and has_output else mark,  # Unique mark if both
+                        mark=mark + 1 if mark and has_ekroes else mark,  # Unique mark if both
                         is_cancelled=is_cancelled,
                         issue_date=issue_date,
                         rec_type=2,  # Εισροές
