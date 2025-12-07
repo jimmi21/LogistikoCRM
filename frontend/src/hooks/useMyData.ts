@@ -132,12 +132,23 @@ const MYDATA_KEY = 'mydata';
 /**
  * Get list of clients with myDATA credentials
  */
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 export function useMyDataClients() {
   return useQuery({
     queryKey: [MYDATA_KEY, 'clients'],
     queryFn: async () => {
-      const response = await apiClient.get<MyDataCredentials[]>('/api/mydata/credentials/');
-      return response.data;
+      const response = await apiClient.get<PaginatedResponse<MyDataCredentials> | MyDataCredentials[]>('/api/mydata/credentials/');
+      // Handle both paginated and non-paginated responses
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return response.data.results || [];
     },
     staleTime: 60000, // 1 minute
   });
