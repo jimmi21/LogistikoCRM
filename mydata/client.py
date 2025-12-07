@@ -509,12 +509,30 @@ class MyDataClient:
         2. Summary format with Vat303 (εκροές), Vat333 (εισροές)
 
         Note: ΑΑΔΕ uses namespace, so we need to handle it.
+        Also handles WCF-style double-encoded responses wrapped in <string> element.
         """
+        import html
+
         records = []
         pagination = PaginationInfo(has_more=False)
 
         if not response or not isinstance(response, str):
             return records, pagination
+
+        # Handle WCF-style double-encoded response
+        # Response may be wrapped in: <string xmlns="...">HTML-encoded XML</string>
+        if response.strip().startswith('<string'):
+            try:
+                # Parse the wrapper
+                wrapper_root = ET.fromstring(response)
+                # Get the text content (HTML-encoded XML)
+                inner_xml = wrapper_root.text
+                if inner_xml:
+                    # Decode HTML entities (&lt; -> <, &gt; -> >, etc.)
+                    response = html.unescape(inner_xml)
+                    logger.debug("Decoded WCF-wrapped response")
+            except ET.ParseError:
+                pass  # Fall through to normal parsing
 
         try:
             root = ET.fromstring(response)
