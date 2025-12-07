@@ -574,6 +574,88 @@ class VATRecord(models.Model):
             .order_by('vat_category')
         )
 
+    @classmethod
+    def get_date_range_summary(
+        cls,
+        client,
+        date_from,
+        date_to,
+        rec_type: int = None
+    ) -> dict:
+        """
+        Υπολογίζει summary για εύρος ημερομηνιών.
+
+        Args:
+            client: ClientProfile instance
+            date_from: Από ημερομηνία
+            date_to: Έως ημερομηνία
+            rec_type: 1=Εκροές, 2=Εισροές, None=Όλα
+
+        Returns:
+            Dict με net_value, vat_amount, gross_value, count
+        """
+        from django.db.models import Sum, Count
+
+        qs = cls.objects.filter(
+            client=client,
+            issue_date__gte=date_from,
+            issue_date__lte=date_to,
+            is_cancelled=False
+        )
+
+        if rec_type:
+            qs = qs.filter(rec_type=rec_type)
+
+        result = qs.aggregate(
+            total_net=Sum('net_value'),
+            total_vat=Sum('vat_amount'),
+            record_count=Count('id')
+        )
+
+        return {
+            'net_value': result['total_net'] or Decimal('0.00'),
+            'vat_amount': result['total_vat'] or Decimal('0.00'),
+            'gross_value': (result['total_net'] or Decimal('0.00')) +
+                          (result['total_vat'] or Decimal('0.00')),
+            'count': result['record_count'] or 0
+        }
+
+    @classmethod
+    def get_date_range_by_category(
+        cls,
+        client,
+        date_from,
+        date_to,
+        rec_type: int = None
+    ) -> list:
+        """
+        Breakdown ανά κατηγορία ΦΠΑ για εύρος ημερομηνιών.
+
+        Returns:
+            List of dicts με vat_category, net_value, vat_amount, count
+        """
+        from django.db.models import Sum, Count
+
+        qs = cls.objects.filter(
+            client=client,
+            issue_date__gte=date_from,
+            issue_date__lte=date_to,
+            is_cancelled=False
+        )
+
+        if rec_type:
+            qs = qs.filter(rec_type=rec_type)
+
+        return list(
+            qs.values('vat_category')
+            .annotate(
+                total_net=Sum('net_value'),
+                total_vat=Sum('vat_amount'),
+                record_count=Count('id')
+            )
+            .order_by('vat_category')
+        )
+
 
 # =============================================================================
 # VAT SYNC LOG

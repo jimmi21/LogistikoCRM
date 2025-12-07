@@ -21,9 +21,15 @@ export interface VATCategoryBreakdown {
   count: number;
 }
 
+export type PeriodType = 'month' | 'quarter' | 'year';
+
 export interface VATPeriodSummary {
   year: number;
-  month: number;
+  month: number | null;
+  quarter?: number | null;
+  period_type?: PeriodType;
+  date_from?: string;
+  date_to?: string;
   income_net: string;
   income_vat: string;
   income_gross: string;
@@ -48,7 +54,12 @@ export interface ClientVATDetail {
   };
   period: {
     year: number;
-    month: number;
+    month: number | null;
+    quarter: number | null;
+    period_type: PeriodType;
+    date_from: string;
+    date_to: string;
+    label: string;
   };
   summary: VATPeriodSummary;
   income_by_category: VATCategoryBreakdown[];
@@ -157,17 +168,27 @@ export function useMyDataClients() {
 /**
  * Get VAT detail for a specific client and period
  */
-export function useClientVATDetail(afm: string | null, year?: number, month?: number) {
+export function useClientVATDetail(
+  afm: string | null,
+  year?: number,
+  month?: number,
+  periodType: PeriodType = 'month',
+  quarter?: number
+) {
   return useQuery({
-    queryKey: [MYDATA_KEY, 'client', afm, year, month],
+    queryKey: [MYDATA_KEY, 'client', afm, year, month, periodType, quarter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (year) params.append('year', year.toString());
-      if (month) params.append('month', month.toString());
+      params.append('period_type', periodType);
 
-      const url = params.toString()
-        ? `/api/mydata/client/${afm}/?${params.toString()}`
-        : `/api/mydata/client/${afm}/`;
+      if (periodType === 'month' && month) {
+        params.append('month', month.toString());
+      } else if (periodType === 'quarter' && quarter) {
+        params.append('quarter', quarter.toString());
+      }
+
+      const url = `/api/mydata/client/${afm}/?${params.toString()}`;
 
       const response = await apiClient.get<ClientVATDetail>(url);
       return response.data;
@@ -352,7 +373,7 @@ export function getVATResultLabel(amount: string | number | null | undefined): s
   if (isNaN(num)) return 'Δεν υπάρχουν δεδομένα';
 
   if (num > 0) return 'ΦΠΑ για Καταβολή';
-  if (num < 0) return 'ΦΠΑ προς Επιστροφή';
+  if (num < 0) return 'Πιστωτικό Υπόλοιπο';
   return 'Μηδενικό Υπόλοιπο';
 }
 
@@ -366,8 +387,44 @@ export const GREEK_MONTHS = [
 ];
 
 /**
+ * Greek quarter names
+ */
+export const GREEK_QUARTERS = [
+  '1ο Τρίμηνο (Ιαν-Μαρ)',
+  '2ο Τρίμηνο (Απρ-Ιουν)',
+  '3ο Τρίμηνο (Ιουλ-Σεπ)',
+  '4ο Τρίμηνο (Οκτ-Δεκ)'
+];
+
+/**
  * Get month name in Greek
  */
 export function getMonthName(month: number): string {
   return GREEK_MONTHS[month - 1] || '';
+}
+
+/**
+ * Get quarter name in Greek
+ */
+export function getQuarterName(quarter: number): string {
+  return GREEK_QUARTERS[quarter - 1] || '';
+}
+
+/**
+ * Get period label based on period type
+ */
+export function getPeriodLabel(
+  year: number,
+  month: number | null,
+  quarter: number | null,
+  periodType: PeriodType
+): string {
+  if (periodType === 'year') {
+    return `Έτος ${year}`;
+  } else if (periodType === 'quarter' && quarter) {
+    return `${quarter}ο Τρίμηνο ${year}`;
+  } else if (month) {
+    return `${GREEK_MONTHS[month - 1]} ${year}`;
+  }
+  return '';
 }

@@ -19,7 +19,11 @@ import {
   getVATResultBg,
   getVATResultLabel,
   GREEK_MONTHS,
+  GREEK_QUARTERS,
   getMonthName,
+  getQuarterName,
+  getPeriodLabel,
+  PeriodType,
 } from '../hooks/useMyData';
 
 // VAT category colors for charts
@@ -40,6 +44,8 @@ export default function MyData() {
   const [selectedAfm, setSelectedAfm] = useState<string | null>(null);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [quarter, setQuarter] = useState(Math.ceil((today.getMonth() + 1) / 3));
+  const [periodType, setPeriodType] = useState<PeriodType>('month');
 
   // Queries
   const { data: clients, isLoading: loadingClients, error: clientsError } = useMyDataClients();
@@ -48,7 +54,13 @@ export default function MyData() {
   if (clientsError) {
     console.error('myDATA clients error:', clientsError);
   }
-  const { data: clientDetail, isLoading: loadingDetail, refetch: refetchDetail } = useClientVATDetail(selectedAfm, year, month);
+  const { data: clientDetail, isLoading: loadingDetail, refetch: refetchDetail } = useClientVATDetail(
+    selectedAfm,
+    year,
+    periodType === 'month' ? month : undefined,
+    periodType,
+    periodType === 'quarter' ? quarter : undefined
+  );
   const { data: trendData } = useVATTrend(selectedAfm || undefined, 6);
 
   // Mutations
@@ -69,24 +81,67 @@ export default function MyData() {
     setSelectedAfm(client?.client_afm || null);
   };
 
-  // Handle month navigation
-  const handlePrevMonth = () => {
-    if (month === 1) {
-      setMonth(12);
-      setYear(y => y - 1);
+  // Handle period navigation
+  const handlePrevPeriod = () => {
+    if (periodType === 'month') {
+      if (month === 1) {
+        setMonth(12);
+        setYear(y => y - 1);
+      } else {
+        setMonth(m => m - 1);
+      }
+    } else if (periodType === 'quarter') {
+      if (quarter === 1) {
+        setQuarter(4);
+        setYear(y => y - 1);
+      } else {
+        setQuarter(q => q - 1);
+      }
     } else {
-      setMonth(m => m - 1);
+      // year
+      setYear(y => y - 1);
     }
   };
 
-  const handleNextMonth = () => {
-    if (month === 12) {
-      setMonth(1);
-      setYear(y => y + 1);
+  const handleNextPeriod = () => {
+    if (periodType === 'month') {
+      if (month === 12) {
+        setMonth(1);
+        setYear(y => y + 1);
+      } else {
+        setMonth(m => m + 1);
+      }
+    } else if (periodType === 'quarter') {
+      if (quarter === 4) {
+        setQuarter(1);
+        setYear(y => y + 1);
+      } else {
+        setQuarter(q => q + 1);
+      }
     } else {
-      setMonth(m => m + 1);
+      // year
+      setYear(y => y + 1);
     }
   };
+
+  // Handle period type change
+  const handlePeriodTypeChange = (newType: PeriodType) => {
+    setPeriodType(newType);
+    // When switching types, adjust to current period
+    const now = new Date();
+    if (newType === 'quarter') {
+      setQuarter(Math.ceil((now.getMonth() + 1) / 3));
+    } else if (newType === 'month') {
+      setMonth(now.getMonth() + 1);
+    }
+  };
+
+  // Get current period display label
+  const currentPeriodLabel = periodType === 'year'
+    ? `${year}`
+    : periodType === 'quarter'
+    ? `${quarter}ο Τρίμηνο ${year}`
+    : `${getMonthName(month)} ${year}`;
 
   // Handle sync
   const handleSync = async () => {
@@ -183,24 +238,58 @@ export default function MyData() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Περίοδος
             </label>
+            {/* Period Type Selector */}
+            <div className="flex gap-1 mb-2">
+              <button
+                onClick={() => handlePeriodTypeChange('month')}
+                className={`flex-1 py-1.5 px-2 text-sm rounded-lg transition-colors ${
+                  periodType === 'month'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Μήνας
+              </button>
+              <button
+                onClick={() => handlePeriodTypeChange('quarter')}
+                className={`flex-1 py-1.5 px-2 text-sm rounded-lg transition-colors ${
+                  periodType === 'quarter'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Τρίμηνο
+              </button>
+              <button
+                onClick={() => handlePeriodTypeChange('year')}
+                className={`flex-1 py-1.5 px-2 text-sm rounded-lg transition-colors ${
+                  periodType === 'year'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Έτος
+              </button>
+            </div>
+            {/* Period Navigation */}
             <div className="flex items-center gap-2">
               <button
-                onClick={handlePrevMonth}
+                onClick={handlePrevPeriod}
                 className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                title="Προηγούμενος μήνας"
+                title={periodType === 'month' ? 'Προηγούμενος μήνας' : periodType === 'quarter' ? 'Προηγούμενο τρίμηνο' : 'Προηγούμενο έτος'}
               >
                 <ChevronLeft size={20} />
               </button>
               <div className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 rounded-lg">
                 <Calendar size={16} className="text-gray-400" />
                 <span className="font-medium">
-                  {getMonthName(month)} {year}
+                  {currentPeriodLabel}
                 </span>
               </div>
               <button
-                onClick={handleNextMonth}
+                onClick={handleNextPeriod}
                 className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                title="Επόμενος μήνας"
+                title={periodType === 'month' ? 'Επόμενος μήνας' : periodType === 'quarter' ? 'Επόμενο τρίμηνο' : 'Επόμενο έτος'}
               >
                 <ChevronRight size={20} />
               </button>
@@ -240,7 +329,7 @@ export default function MyData() {
                 ΑΠΟΤΕΛΕΣΜΑ ΦΠΑ
               </div>
               <div className="text-xs text-gray-400 mb-4">
-                {getMonthName(month).toUpperCase()} {year}
+                {currentPeriodLabel.toUpperCase()}
               </div>
 
               {loadingDetail ? (
@@ -462,7 +551,7 @@ export default function MyData() {
               <ul className="list-disc list-inside space-y-1 text-blue-700">
                 <li>Τα δεδομένα προέρχονται από τα ηλεκτρονικά βιβλία της ΑΑΔΕ</li>
                 <li>Θετικό αποτέλεσμα = ΦΠΑ για καταβολή (χρωστάτε)</li>
-                <li>Αρνητικό αποτέλεσμα = ΦΠΑ προς επιστροφή/συμψηφισμό</li>
+                <li>Αρνητικό αποτέλεσμα = Πιστωτικό υπόλοιπο (προς επιστροφή/συμψηφισμό)</li>
                 <li>Τα δεδομένα είναι read-only - δεν γίνεται υποβολή στην ΑΑΔΕ</li>
               </ul>
             </div>
