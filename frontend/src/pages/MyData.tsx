@@ -42,7 +42,12 @@ export default function MyData() {
   const [month, setMonth] = useState(today.getMonth() + 1);
 
   // Queries
-  const { data: clients, isLoading: loadingClients } = useMyDataClients();
+  const { data: clients, isLoading: loadingClients, error: clientsError } = useMyDataClients();
+
+  // Debug: log error if any
+  if (clientsError) {
+    console.error('myDATA clients error:', clientsError);
+  }
   const { data: clientDetail, isLoading: loadingDetail, refetch: refetchDetail } = useClientVATDetail(selectedAfm, year, month);
   const { data: trendData } = useVATTrend(selectedAfm || undefined, 6);
 
@@ -147,6 +152,10 @@ export default function MyData() {
             </label>
             {loadingClients ? (
               <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+            ) : clientsError ? (
+              <div className="text-red-500 text-sm p-2">
+                Σφάλμα φόρτωσης: {(clientsError as Error).message || 'Άγνωστο σφάλμα'}
+              </div>
             ) : clients && clients.length > 0 ? (
               <select
                 className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
