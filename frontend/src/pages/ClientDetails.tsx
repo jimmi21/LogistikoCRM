@@ -705,7 +705,7 @@ function InfoTab({
           /* Display existing credentials */
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <FieldRow label="User ID (ΑΦΜ)">
+              <FieldRow label="User ID">
                 <span className="font-mono">{myDataCreds.user_id}</span>
               </FieldRow>
               <FieldRow label="Subscription Key">
@@ -813,15 +813,14 @@ function InfoTab({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  User ID (ΑΦΜ) *
+                  User ID *
                 </label>
                 <input
                   type="text"
                   value={myDataUserId}
                   onChange={(e) => setMyDataUserId(e.target.value)}
-                  placeholder="Το ΑΦΜ του πελάτη"
+                  placeholder="Όνομα χρήστη myDATA"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  maxLength={9}
                 />
               </div>
               <div>

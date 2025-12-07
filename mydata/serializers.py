@@ -31,6 +31,9 @@ class MyDataCredentialsSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.eponimia', read_only=True)
     has_credentials = serializers.BooleanField(read_only=True)
     environment = serializers.SerializerMethodField()
+    # Write-only fields for creating/updating credentials
+    user_id = serializers.CharField(write_only=True, required=False)
+    subscription_key = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = MyDataCredentials
@@ -39,6 +42,8 @@ class MyDataCredentialsSerializer(serializers.ModelSerializer):
             'client',
             'client_afm',
             'client_name',
+            'user_id',
+            'subscription_key',
             'has_credentials',
             'is_sandbox',
             'environment',
