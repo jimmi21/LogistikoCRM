@@ -376,8 +376,8 @@ class MyDataClient:
         if not date_str:
             return None
 
-        # Try different formats
-        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+        # Try different formats (including ISO datetime with T)
+        for fmt in ('%Y-%m-%d', '%Y-%m-%dT%H:%M:%S', '%d/%m/%Y', '%d-%m-%Y'):
             try:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
