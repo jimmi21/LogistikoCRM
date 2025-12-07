@@ -594,18 +594,26 @@ class MyDataClient:
                 #   Vat303 = Καθαρή αξία εκροών (φορολογητέα αξία)
                 #   Vat333 = ΦΠΑ εκροών
                 # ΕΙΣΡΟΕΣ (Έξοδα/Αγορές):
-                #   Vat361 = Καθαρή αξία εισροών (φορολογητέα αξία)
-                #   Vat381 = ΦΠΑ εισροών
+                #   Vat361 / VatUnclassified361 = Καθαρή αξία εισροών
+                #   Vat381 / VatUnclassified381 = ΦΠΑ εισροών
                 vat303 = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)  # Καθαρή εκροών
                 vat333 = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)  # ΦΠΑ εκροών
-                vat361 = self._get_xml_text_flexible(vat_elem, 'Vat361', ns)  # Καθαρή εισροών
-                vat381 = self._get_xml_text_flexible(vat_elem, 'Vat381', ns)  # ΦΠΑ εισροών
+
+                # Εισροές - try both classified and unclassified
+                vat361 = self._get_xml_text_flexible(vat_elem, 'Vat361', ns)
+                vat381 = self._get_xml_text_flexible(vat_elem, 'Vat381', ns)
+                vat_unclass_361 = self._get_xml_text_flexible(vat_elem, 'VatUnclassified361', ns)
+                vat_unclass_381 = self._get_xml_text_flexible(vat_elem, 'VatUnclassified381', ns)
+
+                # Combine classified and unclassified for εισροές
+                eisroes_net = vat361 or vat_unclass_361
+                eisroes_vat = vat381 or vat_unclass_381
 
                 # Check if we have ΕΚΡΟΕΣ data (έσοδα)
                 has_ekroes = vat303 or vat333
 
                 # Check if we have ΕΙΣΡΟΕΣ data (έξοδα)
-                has_eisroes = vat361 or vat381
+                has_eisroes = eisroes_net or eisroes_vat
 
                 if has_ekroes:
                     # ΕΚΡΟΕΣ (Έσοδα/Πωλήσεις)
@@ -630,8 +638,8 @@ class MyDataClient:
 
                 if has_eisroes:
                     # ΕΙΣΡΟΕΣ (Έξοδα/Αγορές)
-                    net_value = self._parse_decimal(vat361) if vat361 else Decimal('0')
-                    vat_amount = self._parse_decimal(vat381) if vat381 else Decimal('0')
+                    net_value = self._parse_decimal(eisroes_net) if eisroes_net else Decimal('0')
+                    vat_amount = self._parse_decimal(eisroes_vat) if eisroes_vat else Decimal('0')
 
                     record = VatInfoRecord(
                         mark=mark + 1 if mark and has_ekroes else mark,  # Unique mark if both
