@@ -164,7 +164,7 @@ export default function MyData() {
             ) : (
               <div className="text-gray-500 text-sm p-2">
                 Δεν υπάρχουν πελάτες με myDATA credentials.
-                Προσθέστε από το Django Admin.
+                Προσθέστε από την καρτέλα πελάτη → Στοιχεία → myDATA ΑΑΔΕ.
               </div>
             )}
           </div>
