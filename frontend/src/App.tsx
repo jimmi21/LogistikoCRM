@@ -21,6 +21,7 @@ import {
   Settings,
   ObligationSettings,
   UserManagement,
+  MyData,
 } from './pages';
 
 // Create a client for React Query
@@ -157,6 +158,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mydata"
+            element={
+              <ProtectedRoute>
+                <MyData />
               </ProtectedRoute>
             }
           />
