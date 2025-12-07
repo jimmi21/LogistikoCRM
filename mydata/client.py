@@ -376,8 +376,8 @@ class MyDataClient:
         if not date_str:
             return None
 
-        # Try different formats
-        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+        # Try different formats (including ISO datetime with T)
+        for fmt in ('%Y-%m-%d', '%Y-%m-%dT%H:%M:%S', '%d/%m/%Y', '%d-%m-%Y'):
             try:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
@@ -509,12 +509,30 @@ class MyDataClient:
         2. Summary format with Vat303 (εκροές), Vat333 (εισροές)
 
         Note: ΑΑΔΕ uses namespace, so we need to handle it.
+        Also handles WCF-style double-encoded responses wrapped in <string> element.
         """
+        import html
+
         records = []
         pagination = PaginationInfo(has_more=False)
 
         if not response or not isinstance(response, str):
             return records, pagination
+
+        # Handle WCF-style double-encoded response
+        # Response may be wrapped in: <string xmlns="...">HTML-encoded XML</string>
+        if response.strip().startswith('<string'):
+            try:
+                # Parse the wrapper
+                wrapper_root = ET.fromstring(response)
+                # Get the text content (HTML-encoded XML)
+                inner_xml = wrapper_root.text
+                if inner_xml:
+                    # Decode HTML entities (&lt; -> <, &gt; -> >, etc.)
+                    response = html.unescape(inner_xml)
+                    logger.debug("Decoded WCF-wrapped response")
+            except ET.ParseError:
+                pass  # Fall through to normal parsing
 
         try:
             root = ET.fromstring(response)
@@ -571,77 +589,75 @@ class MyDataClient:
                     issue_date_str = self._get_xml_text_flexible(vat_elem, 'issueDate', ns)
                 issue_date = self._parse_date(issue_date_str) if issue_date_str else None
 
-                # Check for Vat303/Vat333 format (summary format from ΑΑΔΕ)
-                vat303 = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)  # Εκροές (output)
-                vat333 = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)  # Εισροές (input)
+                # Get all VAT fields from ΑΑΔΕ
+                # ΕΚΡΟΕΣ (Έσοδα/Πωλήσεις):
+                #   Vat303 = Καθαρή αξία εκροών (φορολογητέα αξία)
+                #   Vat333 = ΦΠΑ εκροών
+                # ΕΙΣΡΟΕΣ (Έξοδα/Αγορές):
+                #   Vat361 / VatUnclassified361 = Καθαρή αξία εισροών
+                #   Vat381 / VatUnclassified381 = ΦΠΑ εισροών
+                vat303 = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)  # Καθαρή εκροών
+                vat333 = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)  # ΦΠΑ εκροών
 
-                if vat303 or vat333:
-                    # Summary format - create records from Vat303 (output) and Vat333 (input)
-                    # Values from ΑΑΔΕ are in cents, convert to euros
-                    if vat303:
-                        vat303_amount = Decimal(vat303) / 100 if vat303 else Decimal('0')
-                        record = VatInfoRecord(
-                            mark=mark,
-                            is_cancelled=is_cancelled,
-                            issue_date=issue_date,
-                            rec_type=1,  # Εκροές
-                            inv_type='VAT303',
-                            vat_category=1,  # Default 24%
-                            vat_exemption_category='',
-                            net_value=vat303_amount / Decimal('0.24') if vat303_amount else Decimal('0'),
-                            vat_amount=vat303_amount,
-                            counter_vat_number='',
-                            vat_offset_amount=None,
-                            deductions_amount=None,
-                        )
-                        records.append(record)
+                # Εισροές - try both classified and unclassified
+                vat361 = self._get_xml_text_flexible(vat_elem, 'Vat361', ns)
+                vat381 = self._get_xml_text_flexible(vat_elem, 'Vat381', ns)
+                vat_unclass_361 = self._get_xml_text_flexible(vat_elem, 'VatUnclassified361', ns)
+                vat_unclass_381 = self._get_xml_text_flexible(vat_elem, 'VatUnclassified381', ns)
 
-                    if vat333:
-                        vat333_amount = Decimal(vat333) / 100 if vat333 else Decimal('0')
-                        record = VatInfoRecord(
-                            mark=mark + 1 if mark else 0,  # Unique mark
-                            is_cancelled=is_cancelled,
-                            issue_date=issue_date,
-                            rec_type=2,  # Εισροές
-                            inv_type='VAT333',
-                            vat_category=1,  # Default 24%
-                            vat_exemption_category='',
-                            net_value=vat333_amount / Decimal('0.24') if vat333_amount else Decimal('0'),
-                            vat_amount=vat333_amount,
-                            counter_vat_number='',
-                            vat_offset_amount=None,
-                            deductions_amount=None,
-                        )
-                        records.append(record)
-                else:
-                    # Detailed format - original parsing
+                # Combine classified and unclassified for εισροές
+                eisroes_net = vat361 or vat_unclass_361
+                eisroes_vat = vat381 or vat_unclass_381
+
+                # Check if we have ΕΚΡΟΕΣ data (έσοδα)
+                has_ekroes = vat303 or vat333
+
+                # Check if we have ΕΙΣΡΟΕΣ data (έξοδα)
+                has_eisroes = eisroes_net or eisroes_vat
+
+                if has_ekroes:
+                    # ΕΚΡΟΕΣ (Έσοδα/Πωλήσεις)
+                    net_value = self._parse_decimal(vat303) if vat303 else Decimal('0')
+                    vat_amount = self._parse_decimal(vat333) if vat333 else Decimal('0')
+
                     record = VatInfoRecord(
                         mark=mark,
                         is_cancelled=is_cancelled,
                         issue_date=issue_date,
-                        rec_type=int(self._get_xml_text_flexible(vat_elem, 'RecType', ns) or '0'),
-                        inv_type=self._get_xml_text_flexible(vat_elem, 'InvType', ns) or '',
-                        vat_category=int(self._get_xml_text_flexible(vat_elem, 'VatCategory', ns) or '0'),
-                        vat_exemption_category=self._get_xml_text_flexible(
-                            vat_elem, 'VatExemptionCategory', ns
-                        ) or '',
-                        net_value=self._parse_decimal(
-                            self._get_xml_text_flexible(vat_elem, 'NetValue', ns)
-                        ),
-                        vat_amount=self._parse_decimal(
-                            self._get_xml_text_flexible(vat_elem, 'VatAmount', ns)
-                        ),
-                        counter_vat_number=self._get_xml_text_flexible(
-                            vat_elem, 'counterVatNumber', ns
-                        ) or '',
-                        vat_offset_amount=self._parse_decimal(
-                            self._get_xml_text_flexible(vat_elem, 'VatOffsetAmount', ns)
-                        ) if self._get_xml_text_flexible(vat_elem, 'VatOffsetAmount', ns) else None,
-                        deductions_amount=self._parse_decimal(
-                            self._get_xml_text_flexible(vat_elem, 'deductionsAmount', ns)
-                        ) if self._get_xml_text_flexible(vat_elem, 'deductionsAmount', ns) else None,
+                        rec_type=1,  # Εκροές
+                        inv_type='ΕΚΡΟΕΣ',
+                        vat_category=1,  # Default 24%
+                        vat_exemption_category='',
+                        net_value=net_value,
+                        vat_amount=vat_amount,
+                        counter_vat_number='',
+                        vat_offset_amount=None,
+                        deductions_amount=None,
                     )
                     records.append(record)
+
+                if has_eisroes:
+                    # ΕΙΣΡΟΕΣ (Έξοδα/Αγορές)
+                    net_value = self._parse_decimal(eisroes_net) if eisroes_net else Decimal('0')
+                    vat_amount = self._parse_decimal(eisroes_vat) if eisroes_vat else Decimal('0')
+
+                    record = VatInfoRecord(
+                        mark=mark + 1 if mark and has_ekroes else mark,  # Unique mark if both
+                        is_cancelled=is_cancelled,
+                        issue_date=issue_date,
+                        rec_type=2,  # Εισροές
+                        inv_type='ΕΙΣΡΟΕΣ',
+                        vat_category=1,  # Default 24%
+                        vat_exemption_category='',
+                        net_value=net_value,
+                        vat_amount=vat_amount,
+                        counter_vat_number='',
+                        vat_offset_amount=None,
+                        deductions_amount=None,
+                    )
+                    records.append(record)
+
+                # Skip records with no VAT data (empty invoices/cancelled)
 
             except Exception as e:
                 logger.error(f"Error parsing VatInfo element: {e}")
