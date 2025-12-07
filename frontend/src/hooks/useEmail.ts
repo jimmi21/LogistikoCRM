@@ -211,6 +211,7 @@ export interface BulkCompleteWithDocumentsRequest {
   saveToClientFolders: boolean;
   sendEmails: boolean;
   attachToEmails: boolean;
+  templateId?: number | null;
 }
 
 export interface BulkCompleteWithDocumentsResult {
@@ -259,6 +260,9 @@ export function useBulkCompleteWithDocuments() {
       formData.append('save_to_folders', String(data.saveToClientFolders));
       formData.append('send_emails', String(data.sendEmails));
       formData.append('attach_to_emails', String(data.attachToEmails));
+      if (data.templateId) {
+        formData.append('template_id', String(data.templateId));
+      }
 
       const response = await apiClient.post<BulkCompleteWithDocumentsResult>(
         '/api/v1/obligations/bulk-complete-with-documents/',
@@ -297,6 +301,81 @@ export function useEmailHistory(filters?: {
         { params: filters }
       );
       return response.data;
+    },
+  });
+}
+
+// ============================================
+// EMAIL TEMPLATE CRUD OPERATIONS
+// ============================================
+
+export interface EmailTemplateFormData {
+  name: string;
+  description?: string;
+  subject: string;
+  body_html: string;
+  obligation_type?: number | null;
+  is_active?: boolean;
+}
+
+/**
+ * Create a new email template
+ */
+export function useCreateEmailTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: EmailTemplateFormData): Promise<EmailTemplate> => {
+      const response = await apiClient.post<EmailTemplate>(
+        '/api/v1/email/templates/',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [EMAIL_TEMPLATES_KEY] });
+    },
+  });
+}
+
+/**
+ * Update an existing email template
+ */
+export function useUpdateEmailTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: Partial<EmailTemplateFormData>;
+    }): Promise<EmailTemplate> => {
+      const response = await apiClient.put<EmailTemplate>(
+        `/api/v1/email/templates/${id}/`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [EMAIL_TEMPLATES_KEY] });
+    },
+  });
+}
+
+/**
+ * Delete an email template
+ */
+export function useDeleteEmailTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number): Promise<void> => {
+      await apiClient.delete(`/api/v1/email/templates/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [EMAIL_TEMPLATES_KEY] });
     },
   });
 }

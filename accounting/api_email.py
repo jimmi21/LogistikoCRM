@@ -712,6 +712,7 @@ def bulk_complete_with_documents(request):
         save_to_folders: boolean (default: true)
         send_emails: boolean (default: false)
         attach_to_emails: boolean (default: false)
+        template_id: integer (optional) - Email template to use, otherwise auto-select
     """
     from django.utils import timezone
     import json
@@ -748,6 +749,22 @@ def bulk_complete_with_documents(request):
     attach_to_emails = request.data.get('attach_to_emails', 'false')
     if isinstance(attach_to_emails, str):
         attach_to_emails = attach_to_emails.lower() == 'true'
+
+    # Parse optional template_id for email
+    template_id = request.data.get('template_id')
+    if isinstance(template_id, str) and template_id:
+        try:
+            template_id = int(template_id)
+        except ValueError:
+            template_id = None
+
+    # Get override template if specified
+    override_template = None
+    if template_id:
+        try:
+            override_template = EmailTemplate.objects.get(id=template_id, is_active=True)
+        except EmailTemplate.DoesNotExist:
+            pass  # Will fallback to auto-select
 
     # Get obligations
     obligations = MonthlyObligation.objects.filter(
@@ -824,7 +841,8 @@ def bulk_complete_with_documents(request):
                     'message': 'Ο πελάτης δεν έχει email'
                 })
             else:
-                template = EmailTemplate.get_template_for_obligation(obligation)
+                # Use override template if specified, otherwise auto-select
+                template = override_template or EmailTemplate.get_template_for_obligation(obligation)
                 if template:
                     # Collect attachments only if attach_to_emails is true
                     attachments = []

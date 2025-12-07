@@ -360,6 +360,7 @@ export default function Obligations() {
     saveToClientFolders: boolean;
     sendEmails: boolean;
     attachToEmails: boolean;
+    templateId?: number | null;
   }) => {
     if (data.obligationIds.length === 0) return;
     await bulkCompleteWithDocsMutation.mutateAsync(data);

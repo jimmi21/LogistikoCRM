@@ -5,9 +5,10 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { CheckCircle, File, X, AlertCircle, Mail, FolderPlus, Paperclip, Plus } from 'lucide-react';
+import { CheckCircle, File, X, AlertCircle, Mail, FolderPlus, Paperclip, Plus, FileText } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { useEmailTemplates } from '../hooks/useEmail';
 import type { Obligation } from '../types';
 
 interface BulkCompleteModalProps {
@@ -20,6 +21,7 @@ interface BulkCompleteModalProps {
     saveToClientFolders: boolean;
     sendEmails: boolean;
     attachToEmails: boolean;
+    templateId?: number | null;
   }) => Promise<void>;
   isLoading?: boolean;
 }
@@ -38,8 +40,12 @@ export function BulkCompleteModal({
   const [saveToClientFolders, setSaveToClientFolders] = useState(true);
   const [sendEmails, setSendEmails] = useState(false);
   const [attachToEmails, setAttachToEmails] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+
+  // Fetch email templates
+  const { data: templates } = useEmailTemplates();
 
   const validateFile = useCallback((file: File): string | null => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -88,6 +94,7 @@ export function BulkCompleteModal({
         saveToClientFolders,
         sendEmails,
         attachToEmails,
+        templateId: sendEmails ? selectedTemplateId : null,
       });
       handleClose();
     } catch (err) {
@@ -100,6 +107,7 @@ export function BulkCompleteModal({
     setSaveToClientFolders(true);
     setSendEmails(false);
     setAttachToEmails(false);
+    setSelectedTemplateId(null);
     setError(null);
     onClose();
   };
@@ -243,7 +251,29 @@ export function BulkCompleteModal({
           </label>
 
           {sendEmails && (
-            <div className="mt-3 pl-6">
+            <div className="mt-3 pl-6 space-y-3">
+              {/* Template selection */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-gray-700 mb-1">
+                  <FileText className="w-4 h-4 text-gray-400" />
+                  Πρότυπο Email
+                </label>
+                <select
+                  value={selectedTemplateId || ''}
+                  onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Αυτόματη επιλογή (βάσει τύπου υποχρέωσης)</option>
+                  {templates?.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                      {template.obligation_type_name && ` (${template.obligation_type_name})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Attach to emails */}
               {hasAnyFiles && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -256,7 +286,7 @@ export function BulkCompleteModal({
                   <span className="text-sm text-gray-700">Επισύναψη εγγράφων στα emails</span>
                 </label>
               )}
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500">
                 Θα σταλεί email μόνο σε πελάτες που έχουν διεύθυνση email.
               </p>
             </div>
