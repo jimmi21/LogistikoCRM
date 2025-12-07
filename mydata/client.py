@@ -209,7 +209,7 @@ class MyDataClient:
 
     # API URLs
     PROD_BASE_URL = "https://mydatapi.aade.gr/myDATA"
-    SANDBOX_BASE_URL = "https://mydataapidev.aade.gr/myDATA"
+    SANDBOX_BASE_URL = "https://mydataapidev.aade.gr"
 
     # VAT Categories reference
     VAT_CATEGORIES = {
