@@ -19,11 +19,7 @@ import {
   getVATResultBg,
   getVATResultLabel,
   GREEK_MONTHS,
-  GREEK_QUARTERS,
   getMonthName,
-  getQuarterName,
-  getPeriodLabel,
-  PeriodType,
 } from '../hooks/useMyData';
 
 // VAT category colors for charts
@@ -44,8 +40,6 @@ export default function MyData() {
   const [selectedAfm, setSelectedAfm] = useState<string | null>(null);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
-  const [quarter, setQuarter] = useState(Math.ceil((today.getMonth() + 1) / 3));
-  const [periodType, setPeriodType] = useState<PeriodType>('month');
 
   // Queries
   const { data: clients, isLoading: loadingClients, error: clientsError } = useMyDataClients();
@@ -57,9 +51,7 @@ export default function MyData() {
   const { data: clientDetail, isLoading: loadingDetail, refetch: refetchDetail } = useClientVATDetail(
     selectedAfm,
     year,
-    periodType === 'month' ? month : undefined,
-    periodType,
-    periodType === 'quarter' ? quarter : undefined
+    month
   );
   const { data: trendData } = useVATTrend(selectedAfm || undefined, 6);
 
@@ -82,66 +74,26 @@ export default function MyData() {
   };
 
   // Handle period navigation
-  const handlePrevPeriod = () => {
-    if (periodType === 'month') {
-      if (month === 1) {
-        setMonth(12);
-        setYear(y => y - 1);
-      } else {
-        setMonth(m => m - 1);
-      }
-    } else if (periodType === 'quarter') {
-      if (quarter === 1) {
-        setQuarter(4);
-        setYear(y => y - 1);
-      } else {
-        setQuarter(q => q - 1);
-      }
-    } else {
-      // year
+  const handlePrevMonth = () => {
+    if (month === 1) {
+      setMonth(12);
       setYear(y => y - 1);
-    }
-  };
-
-  const handleNextPeriod = () => {
-    if (periodType === 'month') {
-      if (month === 12) {
-        setMonth(1);
-        setYear(y => y + 1);
-      } else {
-        setMonth(m => m + 1);
-      }
-    } else if (periodType === 'quarter') {
-      if (quarter === 4) {
-        setQuarter(1);
-        setYear(y => y + 1);
-      } else {
-        setQuarter(q => q + 1);
-      }
     } else {
-      // year
-      setYear(y => y + 1);
+      setMonth(m => m - 1);
     }
   };
 
-  // Handle period type change
-  const handlePeriodTypeChange = (newType: PeriodType) => {
-    setPeriodType(newType);
-    // When switching types, adjust to current period
-    const now = new Date();
-    if (newType === 'quarter') {
-      setQuarter(Math.ceil((now.getMonth() + 1) / 3));
-    } else if (newType === 'month') {
-      setMonth(now.getMonth() + 1);
+  const handleNextMonth = () => {
+    if (month === 12) {
+      setMonth(1);
+      setYear(y => y + 1);
+    } else {
+      setMonth(m => m + 1);
     }
   };
 
   // Get current period display label
-  const currentPeriodLabel = periodType === 'year'
-    ? `${year}`
-    : periodType === 'quarter'
-    ? `${quarter}ο Τρίμηνο ${year}`
-    : `${getMonthName(month)} ${year}`;
+  const currentPeriodLabel = `${getMonthName(month)} ${year}`;
 
   // Handle sync
   const handleSync = async () => {
@@ -238,45 +190,12 @@ export default function MyData() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Περίοδος
             </label>
-            {/* Period Type Selector */}
-            <div className="flex gap-1 mb-2">
-              <button
-                onClick={() => handlePeriodTypeChange('month')}
-                className={`flex-1 py-1.5 px-2 text-sm rounded-lg transition-colors ${
-                  periodType === 'month'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                Μήνας
-              </button>
-              <button
-                onClick={() => handlePeriodTypeChange('quarter')}
-                className={`flex-1 py-1.5 px-2 text-sm rounded-lg transition-colors ${
-                  periodType === 'quarter'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                Τρίμηνο
-              </button>
-              <button
-                onClick={() => handlePeriodTypeChange('year')}
-                className={`flex-1 py-1.5 px-2 text-sm rounded-lg transition-colors ${
-                  periodType === 'year'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                Έτος
-              </button>
-            </div>
             {/* Period Navigation */}
             <div className="flex items-center gap-2">
               <button
-                onClick={handlePrevPeriod}
+                onClick={handlePrevMonth}
                 className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                title={periodType === 'month' ? 'Προηγούμενος μήνας' : periodType === 'quarter' ? 'Προηγούμενο τρίμηνο' : 'Προηγούμενο έτος'}
+                title="Προηγούμενος μήνας"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -287,9 +206,9 @@ export default function MyData() {
                 </span>
               </div>
               <button
-                onClick={handleNextPeriod}
+                onClick={handleNextMonth}
                 className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                title={periodType === 'month' ? 'Επόμενος μήνας' : periodType === 'quarter' ? 'Επόμενο τρίμηνο' : 'Επόμενο έτος'}
+                title="Επόμενος μήνας"
               >
                 <ChevronRight size={20} />
               </button>
