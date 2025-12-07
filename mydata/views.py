@@ -136,6 +136,26 @@ class MyDataCredentialsViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    @action(detail=False, methods=['get'], url_path='by-client/(?P<client_id>[^/.]+)')
+    def by_client(self, request, client_id=None):
+        """
+        Get credentials for a specific client by client ID.
+
+        GET /api/mydata/credentials/by-client/{client_id}/
+        """
+        try:
+            credentials = MyDataCredentials.objects.select_related('client').get(
+                client_id=client_id,
+                is_active=True
+            )
+            serializer = self.get_serializer(credentials)
+            return Response(serializer.data)
+        except MyDataCredentials.DoesNotExist:
+            return Response(
+                {'error': 'Δεν βρέθηκαν credentials για αυτόν τον πελάτη'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
     @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
         """Verify credentials by making a test API call."""

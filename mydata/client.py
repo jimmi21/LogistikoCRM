@@ -504,25 +504,11 @@ class MyDataClient:
         """
         Parse XML response από RequestVatInfo.
 
-        Expected format:
-        <RequestedVatInfo>
-            <continuationToken>
-                <nextPartitionKey>...</nextPartitionKey>
-                <nextRowKey>...</nextRowKey>
-            </continuationToken>
-            <VatInfo>
-                <mark>123456</mark>
-                <isCancelled>false</isCancelled>
-                <issueDate>2025-01-15</issueDate>
-                <RecType>1</RecType>
-                <InvType>1.1</InvType>
-                <VatCategory>1</VatCategory>
-                <NetValue>1000.00</NetValue>
-                <VatAmount>240.00</VatAmount>
-                ...
-            </VatInfo>
-            ...
-        </RequestedVatInfo>
+        Handles both formats:
+        1. Detailed format with RecType, VatCategory, NetValue, VatAmount
+        2. Summary format with Vat303 (εκροές), Vat333 (εισροές)
+
+        Note: ΑΑΔΕ uses namespace, so we need to handle it.
         """
         records = []
         pagination = PaginationInfo(has_more=False)
@@ -537,11 +523,25 @@ class MyDataClient:
             logger.debug(f"Response preview: {response[:500]}")
             return records, pagination
 
-        # Parse continuation token (pagination)
-        continuation = root.find('continuationToken')
+        # Define namespace (ΑΑΔΕ uses this)
+        ns = {'aade': 'http://www.aade.gr/myDATA/invoice/v1.0'}
+
+        # Try with namespace first, then without
+        vat_info_elements = root.findall('aade:VatInfo', ns)
+        if not vat_info_elements:
+            vat_info_elements = root.findall('VatInfo')
+        if not vat_info_elements:
+            # Try finding all elements with local name VatInfo
+            vat_info_elements = [elem for elem in root.iter() if elem.tag.endswith('VatInfo')]
+
+        # Parse continuation token (pagination) - try both with and without namespace
+        continuation = root.find('aade:continuationToken', ns)
+        if continuation is None:
+            continuation = root.find('continuationToken')
+
         if continuation is not None:
-            next_partition = self._get_xml_text(continuation, 'nextPartitionKey')
-            next_row = self._get_xml_text(continuation, 'nextRowKey')
+            next_partition = self._get_xml_text_flexible(continuation, 'nextPartitionKey', ns)
+            next_row = self._get_xml_text_flexible(continuation, 'nextRowKey', ns)
 
             if next_partition or next_row:
                 pagination = PaginationInfo(
@@ -551,45 +551,124 @@ class MyDataClient:
                 )
 
         # Parse VatInfo elements
-        for vat_elem in root.findall('VatInfo'):
+        for vat_elem in vat_info_elements:
             try:
-                record = VatInfoRecord(
-                    mark=int(self._get_xml_text(vat_elem, 'mark', '0')),
-                    is_cancelled=self._parse_bool(
-                        self._get_xml_text(vat_elem, 'isCancelled', 'false')
-                    ),
-                    issue_date=self._parse_date(
-                        self._get_xml_text(vat_elem, 'issueDate')
-                    ),
-                    rec_type=int(self._get_xml_text(vat_elem, 'RecType', '0')),
-                    inv_type=self._get_xml_text(vat_elem, 'InvType', ''),
-                    vat_category=int(self._get_xml_text(vat_elem, 'VatCategory', '0')),
-                    vat_exemption_category=self._get_xml_text(
-                        vat_elem, 'VatExemptionCategory'
-                    ),
-                    net_value=self._parse_decimal(
-                        self._get_xml_text(vat_elem, 'NetValue')
-                    ),
-                    vat_amount=self._parse_decimal(
-                        self._get_xml_text(vat_elem, 'VatAmount')
-                    ),
-                    counter_vat_number=self._get_xml_text(
-                        vat_elem, 'counterVatNumber'
-                    ),
-                    vat_offset_amount=self._parse_decimal(
-                        self._get_xml_text(vat_elem, 'VatOffsetAmount')
-                    ) if self._get_xml_text(vat_elem, 'VatOffsetAmount') else None,
-                    deductions_amount=self._parse_decimal(
-                        self._get_xml_text(vat_elem, 'deductionsAmount')
-                    ) if self._get_xml_text(vat_elem, 'deductionsAmount') else None,
-                )
-                records.append(record)
+                # Get Mark (try both cases)
+                mark_str = self._get_xml_text_flexible(vat_elem, 'Mark', ns)
+                if not mark_str:
+                    mark_str = self._get_xml_text_flexible(vat_elem, 'mark', ns)
+                mark = int(mark_str) if mark_str else 0
+
+                # Get IsCancelled
+                is_cancelled_str = self._get_xml_text_flexible(vat_elem, 'IsCancelled', ns)
+                if not is_cancelled_str:
+                    is_cancelled_str = self._get_xml_text_flexible(vat_elem, 'isCancelled', ns)
+                is_cancelled = self._parse_bool(is_cancelled_str or 'false')
+
+                # Get IssueDate
+                issue_date_str = self._get_xml_text_flexible(vat_elem, 'IssueDate', ns)
+                if not issue_date_str:
+                    issue_date_str = self._get_xml_text_flexible(vat_elem, 'issueDate', ns)
+                issue_date = self._parse_date(issue_date_str) if issue_date_str else None
+
+                # Check for Vat303/Vat333 format (summary format from ΑΑΔΕ)
+                vat303 = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)  # Εκροές (output)
+                vat333 = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)  # Εισροές (input)
+
+                if vat303 or vat333:
+                    # Summary format - create records from Vat303 (output) and Vat333 (input)
+                    # Values from ΑΑΔΕ are in cents, convert to euros
+                    if vat303:
+                        vat303_amount = Decimal(vat303) / 100 if vat303 else Decimal('0')
+                        record = VatInfoRecord(
+                            mark=mark,
+                            is_cancelled=is_cancelled,
+                            issue_date=issue_date,
+                            rec_type=1,  # Εκροές
+                            inv_type='VAT303',
+                            vat_category=1,  # Default 24%
+                            vat_exemption_category='',
+                            net_value=vat303_amount / Decimal('0.24') if vat303_amount else Decimal('0'),
+                            vat_amount=vat303_amount,
+                            counter_vat_number='',
+                            vat_offset_amount=None,
+                            deductions_amount=None,
+                        )
+                        records.append(record)
+
+                    if vat333:
+                        vat333_amount = Decimal(vat333) / 100 if vat333 else Decimal('0')
+                        record = VatInfoRecord(
+                            mark=mark + 1 if mark else 0,  # Unique mark
+                            is_cancelled=is_cancelled,
+                            issue_date=issue_date,
+                            rec_type=2,  # Εισροές
+                            inv_type='VAT333',
+                            vat_category=1,  # Default 24%
+                            vat_exemption_category='',
+                            net_value=vat333_amount / Decimal('0.24') if vat333_amount else Decimal('0'),
+                            vat_amount=vat333_amount,
+                            counter_vat_number='',
+                            vat_offset_amount=None,
+                            deductions_amount=None,
+                        )
+                        records.append(record)
+                else:
+                    # Detailed format - original parsing
+                    record = VatInfoRecord(
+                        mark=mark,
+                        is_cancelled=is_cancelled,
+                        issue_date=issue_date,
+                        rec_type=int(self._get_xml_text_flexible(vat_elem, 'RecType', ns) or '0'),
+                        inv_type=self._get_xml_text_flexible(vat_elem, 'InvType', ns) or '',
+                        vat_category=int(self._get_xml_text_flexible(vat_elem, 'VatCategory', ns) or '0'),
+                        vat_exemption_category=self._get_xml_text_flexible(
+                            vat_elem, 'VatExemptionCategory', ns
+                        ) or '',
+                        net_value=self._parse_decimal(
+                            self._get_xml_text_flexible(vat_elem, 'NetValue', ns)
+                        ),
+                        vat_amount=self._parse_decimal(
+                            self._get_xml_text_flexible(vat_elem, 'VatAmount', ns)
+                        ),
+                        counter_vat_number=self._get_xml_text_flexible(
+                            vat_elem, 'counterVatNumber', ns
+                        ) or '',
+                        vat_offset_amount=self._parse_decimal(
+                            self._get_xml_text_flexible(vat_elem, 'VatOffsetAmount', ns)
+                        ) if self._get_xml_text_flexible(vat_elem, 'VatOffsetAmount', ns) else None,
+                        deductions_amount=self._parse_decimal(
+                            self._get_xml_text_flexible(vat_elem, 'deductionsAmount', ns)
+                        ) if self._get_xml_text_flexible(vat_elem, 'deductionsAmount', ns) else None,
+                    )
+                    records.append(record)
 
             except Exception as e:
                 logger.error(f"Error parsing VatInfo element: {e}")
+                logger.debug(f"Element: {ET.tostring(vat_elem, encoding='unicode')[:500]}")
                 continue
 
         return records, pagination
+
+    def _get_xml_text_flexible(self, elem, tag: str, ns: dict) -> Optional[str]:
+        """Get text from XML element, trying with namespace and without."""
+        # Try with namespace
+        child = elem.find(f'aade:{tag}', ns)
+        if child is not None and child.text:
+            return child.text.strip()
+
+        # Try without namespace
+        child = elem.find(tag)
+        if child is not None and child.text:
+            return child.text.strip()
+
+        # Try finding by local name (handles any namespace)
+        for c in elem:
+            if c.tag.endswith(tag) or c.tag == tag:
+                if c.text:
+                    return c.text.strip()
+
+        return None
 
     def fetch_all_vat_info(
         self,

@@ -9,7 +9,6 @@ import {
   Ticket,
   Mail,
   BarChart3,
-  Building2,
   Settings,
   X,
   ChevronLeft,
@@ -41,7 +40,6 @@ const navItems: NavItem[] = [
   { to: '/emails', icon: <Mail size={20} />, label: 'Αλληλογραφία' },
   { to: '/mydata', icon: <FileText size={20} />, label: 'myDATA ΦΠΑ' },
   { to: '/reports', icon: <BarChart3 size={20} />, label: 'Αναφορές' },
-  { to: '/mydata', icon: <Building2 size={20} />, label: 'myDATA ΦΠΑ' },
   { to: '/settings', icon: <Settings size={20} />, label: 'Ρυθμίσεις' },
 ];
 
