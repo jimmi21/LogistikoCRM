@@ -221,4 +221,158 @@ export const gsisApi = {
   },
 };
 
+// myDATA API - ΦΠΑ από ΑΑΔΕ
+export interface VATRecord {
+  id: number;
+  afm: string;
+  period_year: number;
+  period_month: number;
+  rec_type: number;  // 1=Εκροές, 2=Εισροές
+  vat_category: number;
+  amount: number;
+  vat_amount: number;
+  mark?: string;
+  invoice_date?: string;
+  counterpart_afm?: string;
+  fetched_at: string;
+}
+
+export interface VATSummary {
+  income_total: number;
+  income_vat: number;
+  expense_total: number;
+  expense_vat: number;
+  vat_due: number;
+  record_count: number;
+}
+
+export interface ClientVATInfo {
+  afm: string;
+  client_name: string;
+  has_credentials: boolean;
+  last_sync?: string;
+  summary: VATSummary;
+  by_category: Array<{
+    vat_category: number;
+    rec_type: number;
+    total_amount: number;
+    total_vat: number;
+    count: number;
+  }>;
+}
+
+export interface MyDataDashboardResponse {
+  period: {
+    year: number;
+    month: number;
+  };
+  totals: VATSummary;
+  clients: ClientVATInfo[];
+  sync_status: {
+    total_clients: number;
+    synced_clients: number;
+    pending_clients: number;
+    failed_clients: number;
+  };
+}
+
+export interface TrendData {
+  period: string;
+  income: number;
+  expense: number;
+  vat_due: number;
+}
+
+export const mydataApi = {
+  // Dashboard overview
+  getDashboard: async (year?: number, month?: number): Promise<MyDataDashboardResponse> => {
+    const params: Record<string, number> = {};
+    if (year) params.year = year;
+    if (month) params.month = month;
+    const response = await apiClient.get('/api/mydata/dashboard/', { params });
+    return response.data;
+  },
+
+  // Monthly trend data for charts
+  getTrend: async (months: number = 6): Promise<TrendData[]> => {
+    const response = await apiClient.get('/api/mydata/trend/', { params: { months } });
+    return response.data;
+  },
+
+  // Client VAT details
+  getClientVAT: async (afm: string, year?: number, month?: number): Promise<ClientVATInfo> => {
+    const params: Record<string, number> = {};
+    if (year) params.year = year;
+    if (month) params.month = month;
+    const response = await apiClient.get(`/api/mydata/client/${afm}/`, { params });
+    return response.data;
+  },
+
+  // VAT Records
+  getRecords: async (params?: {
+    afm?: string;
+    year?: number;
+    month?: number;
+    rec_type?: number;
+    page?: number;
+  }) => {
+    const response = await apiClient.get('/api/mydata/records/', { params });
+    return response.data;
+  },
+
+  // Get records summary
+  getRecordsSummary: async (params?: { afm?: string; year?: number; month?: number }) => {
+    const response = await apiClient.get('/api/mydata/records/summary/', { params });
+    return response.data;
+  },
+
+  // Get records by VAT category
+  getRecordsByCategory: async (params?: { afm?: string; year?: number; month?: number }) => {
+    const response = await apiClient.get('/api/mydata/records/by_category/', { params });
+    return response.data;
+  },
+
+  // Credentials management
+  credentials: {
+    getAll: async () => {
+      const response = await apiClient.get('/api/mydata/credentials/');
+      return response.data;
+    },
+
+    get: async (id: number) => {
+      const response = await apiClient.get(`/api/mydata/credentials/${id}/`);
+      return response.data;
+    },
+
+    create: async (data: { client: number; mydata_user_id: string; mydata_subscription_key: string }) => {
+      const response = await apiClient.post('/api/mydata/credentials/', data);
+      return response.data;
+    },
+
+    update: async (id: number, data: { mydata_user_id?: string; mydata_subscription_key?: string; is_active?: boolean }) => {
+      const response = await apiClient.post(`/api/mydata/credentials/${id}/update_credentials/`, data);
+      return response.data;
+    },
+
+    verify: async (id: number) => {
+      const response = await apiClient.post(`/api/mydata/credentials/${id}/verify/`);
+      return response.data;
+    },
+
+    sync: async (id: number, year?: number, month?: number) => {
+      const data: Record<string, number> = {};
+      if (year) data.year = year;
+      if (month) data.month = month;
+      const response = await apiClient.post(`/api/mydata/credentials/${id}/sync/`, data);
+      return response.data;
+    },
+  },
+
+  // Sync logs
+  getLogs: async (params?: { client?: number; page?: number }) => {
+    const response = await apiClient.get('/api/mydata/logs/', { params });
+    return response.data;
+  },
+};
+
 export default apiClient;
