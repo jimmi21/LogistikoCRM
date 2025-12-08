@@ -48,7 +48,11 @@ export default function MyData() {
   if (clientsError) {
     console.error('myDATA clients error:', clientsError);
   }
-  const { data: clientDetail, isLoading: loadingDetail, refetch: refetchDetail } = useClientVATDetail(selectedAfm, year, month);
+  const { data: clientDetail, isLoading: loadingDetail, refetch: refetchDetail } = useClientVATDetail(
+    selectedAfm,
+    year,
+    month
+  );
   const { data: trendData } = useVATTrend(selectedAfm || undefined, 6);
 
   // Mutations
@@ -69,7 +73,7 @@ export default function MyData() {
     setSelectedAfm(client?.client_afm || null);
   };
 
-  // Handle month navigation
+  // Handle period navigation
   const handlePrevMonth = () => {
     if (month === 1) {
       setMonth(12);
@@ -87,6 +91,9 @@ export default function MyData() {
       setMonth(m => m + 1);
     }
   };
+
+  // Get current period display label
+  const currentPeriodLabel = `${getMonthName(month)} ${year}`;
 
   // Handle sync
   const handleSync = async () => {
@@ -183,6 +190,7 @@ export default function MyData() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Περίοδος
             </label>
+            {/* Period Navigation */}
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePrevMonth}
@@ -194,7 +202,7 @@ export default function MyData() {
               <div className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 rounded-lg">
                 <Calendar size={16} className="text-gray-400" />
                 <span className="font-medium">
-                  {getMonthName(month)} {year}
+                  {currentPeriodLabel}
                 </span>
               </div>
               <button
@@ -240,7 +248,7 @@ export default function MyData() {
                 ΑΠΟΤΕΛΕΣΜΑ ΦΠΑ
               </div>
               <div className="text-xs text-gray-400 mb-4">
-                {getMonthName(month).toUpperCase()} {year}
+                {currentPeriodLabel.toUpperCase()}
               </div>
 
               {loadingDetail ? (
@@ -462,7 +470,7 @@ export default function MyData() {
               <ul className="list-disc list-inside space-y-1 text-blue-700">
                 <li>Τα δεδομένα προέρχονται από τα ηλεκτρονικά βιβλία της ΑΑΔΕ</li>
                 <li>Θετικό αποτέλεσμα = ΦΠΑ για καταβολή (χρωστάτε)</li>
-                <li>Αρνητικό αποτέλεσμα = ΦΠΑ προς επιστροφή/συμψηφισμό</li>
+                <li>Αρνητικό αποτέλεσμα = Πιστωτικό υπόλοιπο (προς επιστροφή/συμψηφισμό)</li>
                 <li>Τα δεδομένα είναι read-only - δεν γίνεται υποβολή στην ΑΑΔΕ</li>
               </ul>
             </div>
