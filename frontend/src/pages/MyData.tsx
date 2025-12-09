@@ -14,6 +14,8 @@ import {
   Euro,
   ArrowUpRight,
   ArrowDownRight,
+  BarChart3,
+  Calculator,
 } from 'lucide-react';
 import { Button, VATPeriodCalculator } from '../components';
 import { mydataApi, type MyDataDashboardResponse, type TrendData } from '../api/client';
@@ -44,12 +46,16 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// Tab types
+type TabType = 'overview' | 'calculator';
+
 export default function MyData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [dashboard, setDashboard] = useState<MyDataDashboardResponse | null>(null);
   const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
 
   // Period selection
   const now = new Date();
@@ -165,13 +171,46 @@ export default function MyData() {
           <h1 className="text-2xl font-bold text-gray-900">myDATA - ΦΠΑ</h1>
           <p className="text-gray-500 mt-1">Δεδομένα από ΑΑΔΕ Ηλεκτρονικά Βιβλία</p>
         </div>
-        <Button onClick={handleSyncAll} disabled={syncing}>
-          <RefreshCw size={18} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Συγχρονισμός...' : 'Συγχρονισμός όλων'}
-        </Button>
+        {activeTab === 'overview' && (
+          <Button onClick={handleSyncAll} disabled={syncing}>
+            <RefreshCw size={18} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Συγχρονισμός...' : 'Συγχρονισμός όλων'}
+          </Button>
+        )}
       </div>
 
-      {/* Period Selector */}
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'overview'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <BarChart3 size={18} />
+            Επισκόπηση
+          </button>
+          <button
+            onClick={() => setActiveTab('calculator')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'calculator'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Calculator size={18} />
+            Υπολογισμός Περιόδου
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' ? (
+        <>
+          {/* Period Selector */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="flex items-center justify-between">
           <button
@@ -435,9 +474,11 @@ export default function MyData() {
           </table>
         </div>
       </div>
-
-      {/* VAT Period Calculator */}
-      <VATPeriodCalculator />
+        </>
+      ) : (
+        /* Calculator Tab */
+        <VATPeriodCalculator />
+      )}
     </div>
   );
 }
