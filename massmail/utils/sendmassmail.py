@@ -53,7 +53,10 @@ class SendMassmail(threading.Thread, SingleInstance):
     def run(self):
         while not apps.ready:
             time.sleep(0.01)  # wait for django to start
-        massmail_settings = MassmailSettings.objects.get(id=1)
+        try:
+            massmail_settings = MassmailSettings.objects.get(id=1)
+        except MassmailSettings.DoesNotExist:
+            return  # No settings configured, skip massmail
         if not settings.MAILING or settings.TESTING:
             return
 
