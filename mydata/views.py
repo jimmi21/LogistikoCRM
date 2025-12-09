@@ -136,16 +136,16 @@ def build_date_range_summary(client, date_from, date_to) -> dict:
     expense = VATRecord.get_date_range_summary(client, date_from, date_to, rec_type=2)
 
     return {
-        'income_net': income['net_value'],
-        'income_vat': income['vat_amount'],
-        'income_gross': income['gross_value'],
+        'income_net': float(income['net_value']),
+        'income_vat': float(income['vat_amount']),
+        'income_gross': float(income['gross_value']),
         'income_count': income['count'],
-        'expense_net': expense['net_value'],
-        'expense_vat': expense['vat_amount'],
-        'expense_gross': expense['gross_value'],
+        'expense_net': float(expense['net_value']),
+        'expense_vat': float(expense['vat_amount']),
+        'expense_gross': float(expense['gross_value']),
         'expense_count': expense['count'],
-        'net_difference': income['net_value'] - expense['net_value'],
-        'vat_difference': income['vat_amount'] - expense['vat_amount'],
+        'net_difference': float(income['net_value'] - expense['net_value']),
+        'vat_difference': float(income['vat_amount'] - expense['vat_amount']),
     }
 
 
@@ -158,8 +158,8 @@ def build_date_range_category_breakdown(client, date_from, date_to, rec_type: in
             'vat_category': item['vat_category'],
             'vat_rate': get_vat_rate_for_category(item['vat_category']),
             'vat_rate_display': get_vat_rate_display(item['vat_category']),
-            'net_value': item['total_net'] or Decimal('0.00'),
-            'vat_amount': item['total_vat'] or Decimal('0.00'),
+            'net_value': float(item['total_net'] or 0),
+            'vat_amount': float(item['total_vat'] or 0),
             'count': item['record_count'] or 0,
         }
         for item in breakdown
