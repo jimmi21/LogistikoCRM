@@ -123,6 +123,7 @@ export interface AuthTokens {
 export interface ClientFormData {
   afm: string;
   eponimia: string;
+  eidos_ipoxreou: 'individual' | 'professional' | 'company';
   email?: string;
   kinito_tilefono?: string;
   tilefono_oikias_1?: string;
@@ -438,11 +439,12 @@ export interface TicketsListResponse {
   stats: TicketsStats;
 }
 
-// Taxpayer Types (Είδος Υπόχρεου)
+// Taxpayer Types (Είδος Υπόχρεου) - matches Django model choices
 export const TAXPAYER_TYPES = [
-  { value: 'fysiko', label: 'Φυσικό Πρόσωπο' },
-  { value: 'nomiko', label: 'Νομικό Πρόσωπο' },
-];
+  { value: 'individual', label: 'Ιδιώτης' },
+  { value: 'professional', label: 'Επαγγελματίας' },
+  { value: 'company', label: 'Εταιρεία' },
+] as const;
 
 // Book Categories (Κατηγορία Βιβλίων)
 export const BOOK_CATEGORIES = [

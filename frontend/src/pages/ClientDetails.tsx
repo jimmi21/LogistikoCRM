@@ -17,6 +17,7 @@ import {
   Clock,
   Calendar,
   Building,
+  Building2,
   MapPin,
   CreditCard,
   Key,
@@ -30,6 +31,9 @@ import {
   ClipboardList,
   CheckCircle,
   Pencil,
+  Shield,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { Button } from '../components';
 import {
@@ -47,6 +51,11 @@ import {
   useUpdateClientFull,
   useClientObligationProfile,
   useUpdateClientObligationProfile,
+  useClientMyDataCredentials,
+  useSaveMyDataCredentials,
+  useVerifyMyDataCredentials,
+  useSyncMyDataVAT,
+  type MyDataCredentialsData,
 } from '../hooks/useClientDetails';
 import { useObligationTypesGrouped } from '../hooks/useObligations';
 import type { ClientFull, ClientDocument, VoIPTicket, ObligationGroup } from '../types';
@@ -305,6 +314,7 @@ export default function ClientDetails() {
           {activeTab === 'info' && (
             <InfoTab
               client={currentData as ClientFull}
+              clientId={clientId}
               isEditing={isEditing}
               onFieldChange={handleFieldChange}
             />
@@ -427,13 +437,58 @@ export default function ClientDetails() {
 // ============================================
 function InfoTab({
   client,
+  clientId,
   isEditing,
   onFieldChange,
 }: {
   client: ClientFull;
+  clientId: number;
   isEditing: boolean;
   onFieldChange: (field: keyof ClientFull, value: unknown) => void;
 }) {
+  // myDATA credentials state
+  const [showMyDataForm, setShowMyDataForm] = useState(false);
+  const [myDataUserId, setMyDataUserId] = useState('');
+  const [myDataSubscriptionKey, setMyDataSubscriptionKey] = useState('');
+  const [myDataIsSandbox, setMyDataIsSandbox] = useState(true);
+
+  // myDATA hooks
+  const { data: myDataCreds, isLoading: myDataLoading } = useClientMyDataCredentials(clientId);
+  const saveMyDataMutation = useSaveMyDataCredentials(clientId);
+  const verifyMyDataMutation = useVerifyMyDataCredentials(clientId);
+  const syncMyDataMutation = useSyncMyDataVAT(clientId);
+
+  // Initialize form when credentials load
+  useEffect(() => {
+    if (myDataCreds) {
+      setMyDataUserId(myDataCreds.user_id || '');
+      setMyDataSubscriptionKey(myDataCreds.subscription_key || '');
+      setMyDataIsSandbox(myDataCreds.is_sandbox ?? true);
+    }
+  }, [myDataCreds]);
+
+  const handleSaveMyDataCredentials = () => {
+    saveMyDataMutation.mutate({
+      user_id: myDataUserId,
+      subscription_key: myDataSubscriptionKey,
+      is_sandbox: myDataIsSandbox,
+    }, {
+      onSuccess: () => setShowMyDataForm(false),
+    });
+  };
+
+  const handleVerifyMyData = () => {
+    if (myDataCreds?.id) {
+      verifyMyDataMutation.mutate(myDataCreds.id);
+    }
+  };
+
+  const handleSyncMyData = () => {
+    if (myDataCreds?.id) {
+      syncMyDataMutation.mutate({ credentialsId: myDataCreds.id, days: 30 });
+    }
+  };
+
   // Helper to get string value from client field
   const getStringValue = (field: keyof ClientFull): string => {
     const value = client[field];
@@ -621,6 +676,221 @@ function InfoTab({
             {isEditing ? renderField('kodikos_gemi') : '••••••••'}
           </FieldRow>
         </div>
+      </section>
+
+      {/* myDATA ΑΑΔΕ Section */}
+      <section>
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
+          <Building2 className="w-5 h-5 text-blue-600" />
+          myDATA ΑΑΔΕ
+          {myDataCreds?.is_verified && (
+            <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700">
+              <ShieldCheck className="w-3 h-3" />
+              Επιβεβαιωμένο
+            </span>
+          )}
+          {myDataCreds && !myDataCreds.is_verified && (
+            <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded bg-yellow-100 text-yellow-700">
+              <ShieldAlert className="w-3 h-3" />
+              Μη επιβεβαιωμένο
+            </span>
+          )}
+        </h3>
+
+        {myDataLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
+          </div>
+        ) : myDataCreds && !showMyDataForm ? (
+          /* Display existing credentials */
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <FieldRow label="User ID">
+                <span className="font-mono">{myDataCreds.user_id}</span>
+              </FieldRow>
+              <FieldRow label="Subscription Key">
+                <span className="font-mono">••••••••{myDataCreds.subscription_key?.slice(-4)}</span>
+              </FieldRow>
+              <FieldRow label="Περιβάλλον">
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                  myDataCreds.is_sandbox
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                  {myDataCreds.is_sandbox ? 'Sandbox (Test)' : 'Production'}
+                </span>
+              </FieldRow>
+              <FieldRow label="Κατάσταση">
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                  myDataCreds.is_active
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {myDataCreds.is_active ? 'Ενεργό' : 'Ανενεργό'}
+                </span>
+              </FieldRow>
+              <FieldRow label="Τελευταίο Sync">
+                {myDataCreds.last_sync_at
+                  ? new Date(myDataCreds.last_sync_at).toLocaleString('el-GR')
+                  : 'Ποτέ'}
+              </FieldRow>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowMyDataForm(true)}
+              >
+                <Pencil className="w-4 h-4 mr-1" />
+                Επεξεργασία
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleVerifyMyData}
+                disabled={verifyMyDataMutation.isPending}
+              >
+                {verifyMyDataMutation.isPending ? (
+                  <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Shield className="w-4 h-4 mr-1" />
+                )}
+                Επαλήθευση
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSyncMyData}
+                disabled={syncMyDataMutation.isPending || !myDataCreds.is_verified}
+                title={!myDataCreds.is_verified ? 'Απαιτείται επαλήθευση credentials' : ''}
+              >
+                {syncMyDataMutation.isPending ? (
+                  <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                )}
+                Sync Δεδομένων
+              </Button>
+              <Link
+                to="/mydata"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Προβολή ΦΠΑ
+              </Link>
+            </div>
+
+            {/* Verification result */}
+            {verifyMyDataMutation.isSuccess && (
+              <div className={`p-3 rounded-lg text-sm ${
+                verifyMyDataMutation.data.is_verified
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {verifyMyDataMutation.data.is_verified
+                  ? 'Τα credentials επαληθεύτηκαν επιτυχώς!'
+                  : `Αποτυχία επαλήθευσης: ${verifyMyDataMutation.data.error || 'Άγνωστο σφάλμα'}`}
+              </div>
+            )}
+
+            {/* Sync result */}
+            {syncMyDataMutation.isSuccess && (
+              <div className="p-3 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm">
+                Ο συγχρονισμός ολοκληρώθηκε επιτυχώς!
+              </div>
+            )}
+            {syncMyDataMutation.isError && (
+              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
+                Σφάλμα συγχρονισμού: {(syncMyDataMutation.error as Error)?.message || 'Άγνωστο σφάλμα'}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Form for new/edit credentials */
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  User ID *
+                </label>
+                <input
+                  type="text"
+                  value={myDataUserId}
+                  onChange={(e) => setMyDataUserId(e.target.value)}
+                  placeholder="Όνομα χρήστη myDATA"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Subscription Key *
+                </label>
+                <input
+                  type="password"
+                  value={myDataSubscriptionKey}
+                  onChange={(e) => setMyDataSubscriptionKey(e.target.value)}
+                  placeholder="Από το myAADE portal"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={myDataIsSandbox}
+                  onChange={(e) => setMyDataIsSandbox(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  Sandbox (Test περιβάλλον)
+                </span>
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveMyDataCredentials}
+                disabled={!myDataUserId || !myDataSubscriptionKey || saveMyDataMutation.isPending}
+              >
+                {saveMyDataMutation.isPending ? (
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Αποθήκευση
+              </Button>
+              {myDataCreds && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowMyDataForm(false);
+                    setMyDataUserId(myDataCreds.user_id || '');
+                    setMyDataSubscriptionKey(myDataCreds.subscription_key || '');
+                    setMyDataIsSandbox(myDataCreds.is_sandbox ?? true);
+                  }}
+                >
+                  Ακύρωση
+                </Button>
+              )}
+            </div>
+            {saveMyDataMutation.isError && (
+              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
+                Σφάλμα αποθήκευσης: {(saveMyDataMutation.error as Error)?.message || 'Άγνωστο σφάλμα'}
+              </div>
+            )}
+            <div className="p-3 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm">
+              <p className="font-medium mb-1">Οδηγίες:</p>
+              <ol className="list-decimal list-inside space-y-1 text-xs">
+                <li>Συνδεθείτε στο <a href="https://mydata.aade.gr" target="_blank" rel="noopener noreferrer" className="underline">mydata.aade.gr</a></li>
+                <li>Πηγαίνετε στο "Διαχείριση Εγγραφής" → "Διαπιστευτήρια"</li>
+                <li>Αντιγράψτε το Subscription Key</li>
+                <li>Για test χρησιμοποιήστε το Sandbox περιβάλλον</li>
+              </ol>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Meta Info */}

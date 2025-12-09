@@ -70,7 +70,7 @@ class ClientProfile(models.Model):
     trapeza = models.CharField('Τράπεζα', max_length=100, blank=True, null=True, default='')
     iban = models.CharField('IBAN', max_length=34, blank=True, null=True, default='')
     
-    eidos_ipoxreou = models.CharField('Είδος Υπόχρεου', max_length=20, choices=TAXPAYER_TYPE_CHOICES)
+    eidos_ipoxreou = models.CharField('Είδος Υπόχρεου', max_length=20, choices=TAXPAYER_TYPE_CHOICES, default='professional')
     katigoria_vivlion = models.CharField('Κατηγορία Βιβλίων', max_length=10, choices=BOOK_CATEGORY_CHOICES, blank=True, null=True, default='')
     nomiki_morfi = models.CharField('Νομική Μορφή', max_length=100, blank=True, null=True, default='')
     agrotis = models.BooleanField('Αγρότης', default=False)

@@ -95,10 +95,22 @@ class Command(BaseCommand):
             action='store_true',
             help='Αναλυτική έξοδος'
         )
+        parser.add_argument(
+            '--clear',
+            action='store_true',
+            default=True,
+            help='Διαγραφή παλιών records πριν το sync (default: True)'
+        )
+        parser.add_argument(
+            '--no-clear',
+            action='store_true',
+            help='Να μην διαγράψει τα παλιά records'
+        )
 
     def handle(self, *args, **options):
         self.dry_run = options['dry_run']
         self.verbose = options['verbose']
+        self.clear_before_sync = options['clear'] and not options['no_clear']
 
         # Validate arguments
         if not options['client'] and not options['all']:
@@ -266,8 +278,21 @@ class Command(BaseCommand):
         created = 0
         updated = 0
         errors = 0
+        deleted = 0
 
         try:
+            # Clear existing records for this period if requested
+            if self.clear_before_sync and not self.dry_run:
+                deleted = VATRecord.objects.filter(
+                    client=client,
+                    issue_date__gte=date_from,
+                    issue_date__lte=date_to
+                ).delete()[0]
+                if deleted > 0:
+                    self.stdout.write(
+                        self.style.WARNING(f"  Διαγράφηκαν {deleted} παλιά records")
+                    )
+
             # Get API client
             api_client = credentials.get_api_client()
 

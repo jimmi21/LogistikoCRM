@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from django.db.models import Count, Q
-from datetime import timedelta
+from datetime import datetime, timedelta
 from calendar import monthrange
 from collections import defaultdict
 
@@ -139,9 +139,9 @@ def dashboard_calendar(request):
         month = today.month
 
     # Get first and last day of month
-    first_day = timezone.datetime(year, month, 1).date()
+    first_day = datetime(year, month, 1).date()
     last_day_num = monthrange(year, month)[1]
-    last_day = timezone.datetime(year, month, last_day_num).date()
+    last_day = datetime(year, month, last_day_num).date()
 
     # Get all obligations for this month range
     obligations = MonthlyObligation.objects.filter(
@@ -203,7 +203,12 @@ def dashboard_recent_activity(request):
 
     Returns recent activity for dashboard
     """
-    limit = int(request.query_params.get('limit', 10))
+    try:
+        limit = int(request.query_params.get('limit', 10))
+        if limit < 1 or limit > 100:
+            limit = 10
+    except (ValueError, TypeError):
+        limit = 10
 
     # Recent completed obligations
     recent_completed = MonthlyObligation.objects.filter(

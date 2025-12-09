@@ -26,6 +26,7 @@ import {
   type TicketsFilters,
 } from '../hooks/useTickets';
 import { useUsers } from '../hooks/useUsers';
+import { useClients } from '../hooks/useClients';
 import type { TicketFull } from '../types';
 
 // Status filter options
@@ -96,10 +97,12 @@ export default function Tickets() {
 
   // Data fetching
   const { data, isLoading, isError, refetch } = useTickets(filters);
+  const { data: clientsData } = useClients({ page_size: 1000 }); // Get all clients for dropdown
+  const clients = clientsData?.results || [];
 
   // Handlers
   const handleFilterChange = useCallback(
-    (key: keyof TicketsFilters, value: string | boolean | undefined) => {
+    (key: keyof TicketsFilters, value: string | boolean | number | undefined) => {
       setFilters((prev) => ({
         ...prev,
         [key]: value || undefined,
@@ -243,7 +246,7 @@ export default function Tickets() {
             <Filter size={18} />
             <span>Φίλτρα</span>
           </button>
-          {(filters.status || filters.priority || filters.search || filters.open_only) && (
+          {(filters.status || filters.priority || filters.search || filters.open_only || filters.client_id) && (
             <button
               onClick={handleClearFilters}
               className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -282,6 +285,21 @@ export default function Tickets() {
                   {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Πελάτης</label>
+                <select
+                  value={filters.client_id || ''}
+                  onChange={(e) => handleFilterChange('client_id', e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  <option value="">Όλοι</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.eponimia} ({client.afm})
                     </option>
                   ))}
                 </select>
@@ -406,6 +424,7 @@ export default function Tickets() {
             setCreateModalOpen(false);
             refetch();
           }}
+          clients={clients}
         />
       )}
 
@@ -418,6 +437,7 @@ export default function Tickets() {
             setSelectedTicket(null);
           }}
           onRefetch={refetch}
+          clients={clients}
         />
       )}
     </div>
@@ -541,13 +561,16 @@ function TicketRow({
 function CreateTicketModal({
   onClose,
   onSuccess,
+  clients,
 }: {
   onClose: () => void;
   onSuccess: () => void;
+  clients: Array<{ id: number; eponimia: string; afm: string }>;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [clientId, setClientId] = useState<number | null>(null);
   const createMutation = useCreateTicket();
 
   const handleSubmit = async () => {
@@ -556,6 +579,7 @@ function CreateTicketModal({
         title,
         description,
         priority,
+        client: clientId || undefined,
       });
       onSuccess();
     } catch (error) {
@@ -585,6 +609,24 @@ function CreateTicketModal({
               placeholder="Σύντομη περιγραφή του θέματος"
               autoFocus
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Πελάτης
+            </label>
+            <select
+              value={clientId || ''}
+              onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+            >
+              <option value="">-- Χωρίς πελάτη --</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.eponimia} ({client.afm})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -644,10 +686,12 @@ function TicketDetailModal({
   ticket,
   onClose,
   onRefetch,
+  clients,
 }: {
   ticket: TicketFull;
   onClose: () => void;
   onRefetch: () => void;
+  clients: Array<{ id: number; eponimia: string; afm: string }>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(ticket.title);
@@ -656,6 +700,7 @@ function TicketDetailModal({
   const [priority, setPriority] = useState(ticket.priority);
   const [notes, setNotes] = useState(ticket.notes || '');
   const [assignedTo, setAssignedTo] = useState<number | null>(ticket.assigned_to || null);
+  const [clientId, setClientId] = useState<number | null>(ticket.client?.id || null);
 
   // Fetch users for assignment dropdown
   const { data: usersData, isLoading: usersLoading } = useUsers();
@@ -669,7 +714,7 @@ function TicketDetailModal({
     try {
       await updateMutation.mutateAsync({
         id: ticket.id,
-        data: { title, description, status, priority, notes, assigned_to: assignedTo },
+        data: { title, description, status, priority, notes, assigned_to: assignedTo, client_id: clientId },
       });
       setIsEditing(false);
       onRefetch();
@@ -724,7 +769,30 @@ function TicketDetailModal({
           </div>
 
           {/* Client and Call info */}
-          {(ticket.client || ticket.call) && (
+          {isEditing ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Πελάτης</label>
+              <select
+                value={clientId || ''}
+                onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              >
+                <option value="">-- Χωρίς πελάτη --</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.eponimia} ({client.afm})
+                  </option>
+                ))}
+              </select>
+              {ticket.call && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
+                  <Phone size={14} className="text-gray-400" />
+                  <span className="font-mono">{ticket.call.phone_number}</span>
+                  <span>({ticket.call.direction_display})</span>
+                </div>
+              )}
+            </div>
+          ) : (ticket.client || ticket.call) ? (
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               {ticket.client && (
                 <div className="flex items-center gap-2">
@@ -748,7 +816,7 @@ function TicketDetailModal({
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* Title */}
           <div>
