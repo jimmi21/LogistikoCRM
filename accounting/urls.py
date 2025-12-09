@@ -310,6 +310,11 @@ urlpatterns = [
     path("settings/archive/create/", archive_config_create, name="archive_config_create"),
 
     # ==================================================
+    # myDATA API (VAT from AADE)
+    # ==================================================
+    path("api/mydata/", include("mydata.urls")),
+
+    # ==================================================
     # EXPORT/IMPORT ENDPOINTS
     # ==================================================
     # Client Export/Import
