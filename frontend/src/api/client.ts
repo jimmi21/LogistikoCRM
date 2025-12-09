@@ -261,6 +261,59 @@ export interface ClientVATInfo {
   }>;
 }
 
+// Response from /api/mydata/client/{afm}/ endpoint
+export interface ClientVATDetailResponse {
+  client: {
+    afm: string;
+    name: string;
+  };
+  credentials: {
+    has_credentials: boolean;
+    is_verified: boolean;
+    last_sync: string | null;
+  };
+  period: {
+    year: number;
+    month: number | null;
+    quarter: number | null;
+    period_type: string;
+    date_from: string;
+    date_to: string;
+    label: string;
+  };
+  summary: {
+    income_net: number;
+    income_vat: number;
+    income_count: number;
+    expense_net: number;
+    expense_vat: number;
+    expense_count: number;
+    vat_difference: number;
+    year?: number;
+    month?: number;
+    quarter?: number;
+    period_type?: string;
+    date_from?: string;
+    date_to?: string;
+  };
+  income_by_category: Array<{
+    vat_category: number;
+    vat_rate: number;
+    vat_rate_display: string;
+    net_value: number;
+    vat_amount: number;
+    count: number;
+  }>;
+  expense_by_category: Array<{
+    vat_category: number;
+    vat_rate: number;
+    vat_rate_display: string;
+    net_value: number;
+    vat_amount: number;
+    count: number;
+  }>;
+}
+
 export interface MyDataDashboardResponse {
   period: {
     year: number;
@@ -300,7 +353,7 @@ export const mydataApi = {
   },
 
   // Client VAT details
-  getClientVAT: async (afm: string, year?: number, month?: number): Promise<ClientVATInfo> => {
+  getClientVAT: async (afm: string, year?: number, month?: number): Promise<ClientVATDetailResponse> => {
     const params: Record<string, number> = {};
     if (year) params.year = year;
     if (month) params.month = month;

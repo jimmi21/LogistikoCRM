@@ -15,50 +15,13 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Button, VATPeriodCalculator } from '../components';
-import { mydataApi, clientsApi } from '../api/client';
+import { mydataApi, clientsApi, type ClientVATDetailResponse } from '../api/client';
 
 // Types
 interface Client {
   id: number;
   afm: string;
   eponimia: string;
-}
-
-interface CategoryBreakdown {
-  vat_category: number;
-  vat_rate: number;
-  vat_rate_display: string;
-  net_value: number;
-  vat_amount: number;
-  count: number;
-}
-
-interface ClientVATData {
-  client: {
-    afm: string;
-    name: string;
-  };
-  credentials: {
-    has_credentials: boolean;
-    is_verified: boolean;
-    last_sync: string | null;
-  };
-  period: {
-    year: number;
-    month: number;
-    label: string;
-  };
-  summary: {
-    income_net: number;
-    income_vat: number;
-    income_count: number;
-    expense_net: number;
-    expense_vat: number;
-    expense_count: number;
-    vat_difference: number;
-  };
-  income_by_category: CategoryBreakdown[];
-  expense_by_category: CategoryBreakdown[];
 }
 
 // Greek month names
@@ -105,7 +68,7 @@ export default function MyData() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [clientData, setClientData] = useState<ClientVATData | null>(null);
+  const [clientData, setClientData] = useState<ClientVATDetailResponse | null>(null);
 
   // Fetch clients on mount
   useEffect(() => {
