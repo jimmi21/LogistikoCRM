@@ -15,7 +15,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
-import { Button } from '../components';
+import { Button, VATPeriodCalculator } from '../components';
 import { mydataApi, type MyDataDashboardResponse, type TrendData } from '../api/client';
 
 // VAT category labels
@@ -435,6 +435,9 @@ export default function MyData() {
           </table>
         </div>
       </div>
+
+      {/* VAT Period Calculator */}
+      <VATPeriodCalculator />
     </div>
   );
 }

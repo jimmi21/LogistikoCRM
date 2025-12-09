@@ -8,3 +8,4 @@ export { CompleteObligationModal } from './CompleteObligationModal';
 export { BulkCompleteModal } from './BulkCompleteModal';
 export { DocumentUploadModal } from './DocumentUploadModal';
 export { SendEmailModal } from './SendEmailModal';
+export { default as VATPeriodCalculator } from './VATPeriodCalculator';
