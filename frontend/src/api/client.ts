@@ -373,6 +373,72 @@ export const mydataApi = {
     const response = await apiClient.get('/api/mydata/logs/', { params });
     return response.data;
   },
+
+  // VAT Period Results - Υπολογισμός ΦΠΑ ανά περίοδο
+  periods: {
+    getAll: async (params?: {
+      client?: number;
+      afm?: string;
+      period_type?: 'monthly' | 'quarterly';
+      year?: number;
+    }) => {
+      const response = await apiClient.get('/api/mydata/periods/', { params });
+      return response.data;
+    },
+
+    get: async (id: number) => {
+      const response = await apiClient.get(`/api/mydata/periods/${id}/`);
+      return response.data;
+    },
+
+    create: async (data: {
+      client: number;
+      period_type: 'monthly' | 'quarterly';
+      year: number;
+      period: number;
+      previous_credit?: number;
+    }) => {
+      const response = await apiClient.post('/api/mydata/periods/', data);
+      return response.data;
+    },
+
+    calculate: async (id: number, syncFirst: boolean = false) => {
+      const response = await apiClient.post(`/api/mydata/periods/${id}/calculate/`, {
+        sync_first: syncFirst,
+      });
+      return response.data;
+    },
+
+    lock: async (id: number) => {
+      const response = await apiClient.post(`/api/mydata/periods/${id}/lock/`);
+      return response.data;
+    },
+
+    unlock: async (id: number) => {
+      const response = await apiClient.post(`/api/mydata/periods/${id}/unlock/`);
+      return response.data;
+    },
+
+    setCredit: async (id: number, previousCredit: number) => {
+      const response = await apiClient.post(`/api/mydata/periods/${id}/set_credit/`, {
+        previous_credit: previousCredit,
+      });
+      return response.data;
+    },
+  },
+
+  // Quick calculator
+  calculator: async (params: {
+    client_id?: number;
+    afm?: string;
+    period_type: 'monthly' | 'quarterly';
+    year: number;
+    period: number;
+    recalculate?: boolean;
+  }) => {
+    const response = await apiClient.get('/api/mydata/calculator/', { params });
+    return response.data;
+  },
 };
 
 export default apiClient;

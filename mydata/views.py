@@ -806,3 +806,294 @@ class MonthlyTrendView(APIView):
             9: 'Σεπ', 10: 'Οκτ', 11: 'Νοε', 12: 'Δεκ'
         }
         return names.get(month, str(month))
+
+
+# =============================================================================
+# VAT PERIOD RESULT - Υπολογισμός ΦΠΑ ανά περίοδο
+# =============================================================================
+
+class VATPeriodResultViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet για διαχείριση VATPeriodResult.
+
+    Endpoints:
+    - GET /periods/ - Λίστα περιόδων
+    - POST /periods/ - Δημιουργία νέας περιόδου
+    - GET /periods/{id}/ - Λεπτομέρειες περιόδου
+    - POST /periods/{id}/calculate/ - Υπολογισμός ΦΠΑ
+    - POST /periods/{id}/lock/ - Κλείδωμα περιόδου
+    - POST /periods/{id}/unlock/ - Ξεκλείδωμα περιόδου
+    - POST /periods/{id}/set_credit/ - Ορισμός πιστωτικού
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        from .models import VATPeriodResult
+
+        qs = VATPeriodResult.objects.select_related('client', 'locked_by')
+
+        # Filter by client
+        client_id = self.request.query_params.get('client')
+        if client_id:
+            qs = qs.filter(client_id=client_id)
+
+        # Filter by AFM
+        afm = self.request.query_params.get('afm')
+        if afm:
+            qs = qs.filter(client__afm=afm)
+
+        # Filter by period type
+        period_type = self.request.query_params.get('period_type')
+        if period_type in ['monthly', 'quarterly']:
+            qs = qs.filter(period_type=period_type)
+
+        # Filter by year
+        year = self.request.query_params.get('year')
+        if year:
+            qs = qs.filter(year=int(year))
+
+        return qs.order_by('-year', '-period')
+
+    def get_serializer_class(self):
+        from .serializers import VATPeriodResultSerializer, VATPeriodResultDetailSerializer
+
+        if self.action == 'retrieve':
+            return VATPeriodResultDetailSerializer
+        return VATPeriodResultSerializer
+
+    def perform_create(self, serializer):
+        """Δημιουργία νέας περιόδου με κληρονομιά πιστωτικού."""
+        instance = serializer.save()
+        # Αυτόματη κληρονομιά πιστωτικού από προηγούμενη περίοδο
+        instance.inherit_credit_from_previous(save=True)
+
+    @action(detail=True, methods=['post'])
+    def calculate(self, request, pk=None):
+        """
+        Υπολογίζει το ΦΠΑ για την περίοδο από τα VATRecords.
+
+        Optionally syncs missing months first.
+        """
+        from .models import VATPeriodResult
+
+        period = self.get_object()
+
+        if period.is_locked:
+            return Response(
+                {'error': 'Η περίοδος είναι κλειδωμένη'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Optional: sync missing months first
+        sync_first = request.data.get('sync_first', False)
+        if sync_first:
+            self._sync_period_months(period)
+
+        # Calculate from records
+        result = period.calculate_from_records(save=True)
+
+        return Response({
+            'success': True,
+            'message': 'Ο υπολογισμός ολοκληρώθηκε',
+            'result': result,
+            'period': self.get_serializer(period).data
+        })
+
+    def _sync_period_months(self, period):
+        """Sync all months in the period."""
+        try:
+            credentials = period.client.mydata_credentials
+            if not credentials.has_credentials:
+                return
+
+            for month in period.months_in_period:
+                from datetime import date
+                import calendar
+
+                # Calculate date range for month
+                first_day = date(period.year, month, 1)
+                last_day = date(period.year, month, calendar.monthrange(period.year, month)[1])
+
+                # Sync this month
+                from .services import sync_vat_records_for_client
+                sync_vat_records_for_client(
+                    client=period.client,
+                    date_from=first_day,
+                    date_to=last_day
+                )
+
+                # Track synced month
+                if month not in period.months_synced:
+                    period.months_synced.append(month)
+
+            period.save(update_fields=['months_synced'])
+        except Exception as e:
+            logger.error(f"Error syncing period months: {e}")
+
+    @action(detail=True, methods=['post'])
+    def lock(self, request, pk=None):
+        """Κλειδώνει την περίοδο."""
+        period = self.get_object()
+
+        if period.is_locked:
+            return Response(
+                {'error': 'Η περίοδος είναι ήδη κλειδωμένη'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        period.lock(user=request.user)
+
+        return Response({
+            'success': True,
+            'message': f'Η περίοδος {period.get_period_display()} κλειδώθηκε',
+            'period': self.get_serializer(period).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def unlock(self, request, pk=None):
+        """Ξεκλειδώνει την περίοδο (admin only)."""
+        period = self.get_object()
+
+        if not period.is_locked:
+            return Response(
+                {'error': 'Η περίοδος δεν είναι κλειδωμένη'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Only admin can unlock
+        if not request.user.is_staff:
+            return Response(
+                {'error': 'Μόνο διαχειριστές μπορούν να ξεκλειδώσουν περιόδους'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        period.unlock()
+
+        return Response({
+            'success': True,
+            'message': f'Η περίοδος {period.get_period_display()} ξεκλειδώθηκε',
+            'period': self.get_serializer(period).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def set_credit(self, request, pk=None):
+        """
+        Ορίζει χειροκίνητα το πιστωτικό υπόλοιπο.
+
+        Χρήση για αρχικό πιστωτικό ή διορθώσεις.
+        """
+        period = self.get_object()
+
+        if period.is_locked:
+            return Response(
+                {'error': 'Η περίοδος είναι κλειδωμένη'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        credit = request.data.get('previous_credit')
+        if credit is None:
+            return Response(
+                {'error': 'Απαιτείται το πεδίο previous_credit'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            period.previous_credit = Decimal(str(credit))
+            period.save(update_fields=['previous_credit', 'updated_at'])
+
+            # Recalculate with new credit
+            period.calculate_from_records(save=True)
+
+            return Response({
+                'success': True,
+                'message': f'Το πιστωτικό ορίστηκε σε {period.previous_credit}€',
+                'period': self.get_serializer(period).data
+            })
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'Μη έγκυρο ποσό'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class VATPeriodCalculatorView(APIView):
+    """
+    Quick calculator view για υπολογισμό ΦΠΑ περιόδου.
+
+    GET /api/mydata/calculator/?client_id=1&period_type=quarterly&year=2025&period=1
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .models import VATPeriodResult
+
+        client_id = request.query_params.get('client_id')
+        afm = request.query_params.get('afm')
+        period_type = request.query_params.get('period_type', 'monthly')
+        year = request.query_params.get('year')
+        period = request.query_params.get('period')
+
+        # Validate required params
+        if not (client_id or afm):
+            return Response(
+                {'error': 'Απαιτείται client_id ή afm'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not year or not period:
+            return Response(
+                {'error': 'Απαιτούνται year και period'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get client
+        try:
+            if client_id:
+                client = ClientProfile.objects.get(pk=client_id)
+            else:
+                client = ClientProfile.objects.get(afm=afm)
+        except ClientProfile.DoesNotExist:
+            return Response(
+                {'error': 'Ο πελάτης δεν βρέθηκε'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get or create period result
+        period_result, created = VATPeriodResult.get_or_create_for_period(
+            client=client,
+            period_type=period_type,
+            year=int(year),
+            period=int(period)
+        )
+
+        # If new or request wants recalculation
+        if created or request.query_params.get('recalculate'):
+            period_result.calculate_from_records(save=True)
+
+        # Build response
+        return Response({
+            'client': {
+                'id': client.pk,
+                'afm': client.afm,
+                'name': client.eponimia,
+            },
+            'period': {
+                'type': period_result.period_type,
+                'year': period_result.year,
+                'period': period_result.period,
+                'display': period_result.get_period_display(),
+                'start_date': period_result.period_start_date.isoformat(),
+                'end_date': period_result.period_end_date.isoformat(),
+            },
+            'vat_output': str(period_result.vat_output),
+            'vat_input': str(period_result.vat_input),
+            'vat_difference': str(period_result.vat_difference),
+            'previous_credit': str(period_result.previous_credit),
+            'final_result': str(period_result.final_result),
+            'credit_to_next': str(period_result.credit_to_next),
+            'is_locked': period_result.is_locked,
+            'locked_at': period_result.locked_at.isoformat() if period_result.locked_at else None,
+            'last_calculated_at': period_result.last_calculated_at.isoformat() if period_result.last_calculated_at else None,
+            'months_synced': period_result.months_synced,
+            'created': created,
+        })

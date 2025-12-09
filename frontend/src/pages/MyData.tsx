@@ -3,24 +3,20 @@ import {
   RefreshCw, ChevronLeft, ChevronRight, AlertCircle, CheckCircle,
   TrendingUp, TrendingDown, Minus, Info, Building2, Calendar
 } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  PieChart, Pie, Cell
-} from 'recharts';
-import { Button } from '../components';
-import {
-  useMyDataClients,
-  useClientVATDetail,
-  useVATTrend,
-  useSyncVAT,
-  formatCurrency,
-  formatVATResult,
-  getVATResultColor,
-  getVATResultBg,
-  getVATResultLabel,
-  GREEK_MONTHS,
-  getMonthName,
-} from '../hooks/useMyData';
+import { Button, VATPeriodCalculator } from '../components';
+import { mydataApi, type MyDataDashboardResponse, type TrendData } from '../api/client';
+
+// VAT category labels
+const VAT_CATEGORIES: Record<number, string> = {
+  1: '24%',
+  2: '13%',
+  3: '6%',
+  4: '17%',
+  5: '9%',
+  6: '4%',
+  7: '0%',
+  8: 'Απαλλαγή',
+};
 
 // VAT category colors for charts
 const VAT_COLORS: Record<number, string> = {
@@ -462,21 +458,85 @@ export default function MyData() {
             </div>
           )}
 
-          {/* Info Box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Πληροφορίες myDATA</p>
-              <ul className="list-disc list-inside space-y-1 text-blue-700">
-                <li>Τα δεδομένα προέρχονται από τα ηλεκτρονικά βιβλία της ΑΑΔΕ</li>
-                <li>Θετικό αποτέλεσμα = ΦΠΑ για καταβολή (χρωστάτε)</li>
-                <li>Αρνητικό αποτέλεσμα = Πιστωτικό υπόλοιπο (προς επιστροφή/συμψηφισμό)</li>
-                <li>Τα δεδομένα είναι read-only - δεν γίνεται υποβολή στην ΑΑΔΕ</li>
-              </ul>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Clients Table */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Πελάτες - ΦΠΑ Μήνα</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Πελάτης</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">ΑΦΜ</th>
+                <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Εκροές</th>
+                <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Εισροές</th>
+                <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">ΦΠΑ</th>
+                <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase">Κατάσταση</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {dashboard?.clients && dashboard.clients.length > 0 ? (
+                dashboard.clients.map((client, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FileText size={16} className="text-blue-600" />
+                        </div>
+                        <span className="font-medium text-gray-900">{client.client_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600 font-mono">{client.afm}</td>
+                    <td className="px-6 py-4 text-right text-green-600 font-medium">
+                      {formatCurrency(client.summary?.income_total || 0)}
+                    </td>
+                    <td className="px-6 py-4 text-right text-red-600 font-medium">
+                      {formatCurrency(client.summary?.expense_total || 0)}
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold">
+                      <span className={client.summary?.vat_due >= 0 ? 'text-yellow-600' : 'text-blue-600'}>
+                        {formatCurrency(Math.abs(client.summary?.vat_due || 0))}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {client.has_credentials ? (
+                        client.last_sync ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                            <CheckCircle size={12} />
+                            Ενημερωμένο
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">
+                            <Clock size={12} />
+                            Εκκρεμεί
+                          </span>
+                        )
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                          <AlertCircle size={12} />
+                          Χωρίς credentials
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                    <FileText size={48} className="mx-auto mb-4 text-gray-300" />
+                    <p>Δεν υπάρχουν δεδομένα για αυτή την περίοδο</p>
+                    <p className="text-sm mt-2">Προσθέστε credentials για τους πελάτες σας στις Ρυθμίσεις</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* VAT Period Calculator */}
+      <VATPeriodCalculator />
     </div>
   );
 }
