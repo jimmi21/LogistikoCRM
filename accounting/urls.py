@@ -239,11 +239,6 @@ urlpatterns = [
     path("api/v1/gsis/test/", gsis_test_connection, name="api_v1_gsis_test"),
 
     # ============================================
-    # myDATA API - ΦΠΑ από ΑΑΔΕ
-    # ============================================
-    path("api/mydata/", include("mydata.urls")),
-
-    # ============================================
     # EMAIL API (v1)
     # ============================================
     path("api/v1/email/templates/", email_templates, name="api_v1_email_templates"),
@@ -321,11 +316,6 @@ urlpatterns = [
     # Archive Settings
     path("settings/archive/", archive_settings_view, name="archive_settings"),
     path("settings/archive/create/", archive_config_create, name="archive_config_create"),
-
-    # ==================================================
-    # myDATA API (VAT from AADE)
-    # ==================================================
-    path("api/mydata/", include("mydata.urls")),
 
     # ==================================================
     # EXPORT/IMPORT ENDPOINTS
