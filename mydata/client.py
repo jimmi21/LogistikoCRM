@@ -479,6 +479,14 @@ class MyDataClient:
 
             response = self._make_request('GET', '/RequestVatInfo', params=params)
 
+            # === DEBUG: Δες το raw response ΠΡΙΝ το parsing ===
+            print(f"\n{'='*60}")
+            print(f"[DEBUG] RAW API RESPONSE (first 2000 chars):")
+            print(f"{'='*60}")
+            print(response[:2000] if response else "EMPTY RESPONSE")
+            print(f"{'='*60}\n")
+            # === END DEBUG ===
+
             # Parse XML response
             records, pagination = self._parse_vat_info_response(response)
 
