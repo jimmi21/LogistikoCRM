@@ -132,6 +132,30 @@ class MyDataCredentials(models.Model):
         help_text='Εσωτερικές σημειώσεις'
     )
 
+    # Initial credit balance (one-time setup)
+    initial_credit_balance = models.DecimalField(
+        verbose_name='Αρχικό Πιστωτικό Υπόλοιπο',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Πιστωτικό υπόλοιπο κατά την έναρξη χρήσης του συστήματος'
+    )
+
+    # Date when initial credit was set (to know which period to apply it)
+    initial_credit_period_year = models.IntegerField(
+        verbose_name='Έτος Αρχικού Πιστωτικού',
+        null=True,
+        blank=True,
+        help_text='Από ποιο έτος εφαρμόζεται το αρχικό πιστωτικό'
+    )
+
+    initial_credit_period = models.IntegerField(
+        verbose_name='Περίοδος Αρχικού Πιστωτικού',
+        null=True,
+        blank=True,
+        help_text='Από ποια περίοδο εφαρμόζεται (μήνας ή τρίμηνο)'
+    )
+
     class Meta:
         verbose_name = 'myDATA Credentials'
         verbose_name_plural = 'myDATA Credentials'
@@ -1142,15 +1166,43 @@ class VATPeriodResult(models.Model):
         ).first()
 
     def inherit_credit_from_previous(self, save: bool = True):
-        """Παίρνει το πιστωτικό από την προηγούμενη περίοδο."""
+        """
+        Παίρνει το πιστωτικό από την προηγούμενη περίοδο.
+
+        Αν δεν υπάρχει προηγούμενη περίοδος, ελέγχει αν υπάρχει
+        αρχικό πιστωτικό στα credentials του πελάτη.
+        """
         if self.is_locked:
             raise ValidationError("Δεν μπορείτε να τροποποιήσετε κλειδωμένη περίοδο")
 
         previous = self.get_previous_period()
         if previous and previous.credit_to_next > 0:
             self.previous_credit = previous.credit_to_next
-            if save:
-                self.save(update_fields=['previous_credit', 'updated_at'])
+        else:
+            # Check for initial credit from client credentials
+            try:
+                creds = self.client.mydata_credentials
+                if creds.initial_credit_balance > 0:
+                    # Check if this is the first period or the designated period
+                    should_apply = False
+
+                    if creds.initial_credit_period_year and creds.initial_credit_period:
+                        # Apply only to specific period
+                        if (self.year == creds.initial_credit_period_year and
+                            self.period == creds.initial_credit_period):
+                            should_apply = True
+                    else:
+                        # Apply to first period (no previous exists)
+                        if previous is None:
+                            should_apply = True
+
+                    if should_apply:
+                        self.previous_credit = creds.initial_credit_balance
+            except MyDataCredentials.DoesNotExist:
+                pass
+
+        if save and self.previous_credit > 0:
+            self.save(update_fields=['previous_credit', 'updated_at'])
 
         return self.previous_credit
 

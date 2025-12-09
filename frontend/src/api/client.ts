@@ -366,6 +366,20 @@ export const mydataApi = {
       const response = await apiClient.post(`/api/mydata/credentials/${id}/sync/`, data);
       return response.data;
     },
+
+    setInitialCredit: async (id: number, data: {
+      initial_credit_balance: number;
+      initial_credit_period_year?: number;
+      initial_credit_period?: number;
+    }) => {
+      const response = await apiClient.post(`/api/mydata/credentials/${id}/set_initial_credit/`, data);
+      return response.data;
+    },
+
+    getByClient: async (clientId: number) => {
+      const response = await apiClient.get(`/api/mydata/credentials/by-client/${clientId}/`);
+      return response.data;
+    },
   },
 
   // Sync logs

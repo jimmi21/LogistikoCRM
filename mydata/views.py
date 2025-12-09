@@ -270,6 +270,46 @@ class MyDataCredentialsViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'])
+    def set_initial_credit(self, request, pk=None):
+        """
+        Ορίζει το αρχικό πιστωτικό υπόλοιπο.
+
+        Body:
+        - initial_credit_balance: Decimal amount
+        - initial_credit_period_year: Year (optional)
+        - initial_credit_period: Period/Month (optional)
+        """
+        credentials = self.get_object()
+
+        try:
+            balance = Decimal(str(request.data.get('initial_credit_balance', 0)))
+            if balance < 0:
+                return Response(
+                    {'error': 'Το πιστωτικό δεν μπορεί να είναι αρνητικό'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            credentials.initial_credit_balance = balance
+            credentials.initial_credit_period_year = request.data.get('initial_credit_period_year')
+            credentials.initial_credit_period = request.data.get('initial_credit_period')
+            credentials.save(update_fields=[
+                'initial_credit_balance',
+                'initial_credit_period_year',
+                'initial_credit_period'
+            ])
+
+            return Response({
+                'success': True,
+                'message': f'Το αρχικό πιστωτικό ορίστηκε σε {balance}€',
+                'initial_credit_balance': str(balance),
+            })
+        except (ValueError, TypeError) as e:
+            return Response(
+                {'error': f'Μη έγκυρο ποσό: {e}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=True, methods=['post'])
     def sync(self, request, pk=None):
         """Trigger VAT sync for this client."""
         from django.core.management import call_command
@@ -1070,28 +1110,32 @@ class VATPeriodCalculatorView(APIView):
         if created or request.query_params.get('recalculate'):
             period_result.calculate_from_records(save=True)
 
-        # Build response
+        # Build response - flat structure matching frontend interface
+        final_result = float(period_result.final_result)
         return Response({
-            'client': {
-                'id': client.pk,
-                'afm': client.afm,
-                'name': client.eponimia,
-            },
-            'period': {
-                'type': period_result.period_type,
-                'year': period_result.year,
-                'period': period_result.period,
-                'display': period_result.get_period_display(),
-                'start_date': period_result.period_start_date.isoformat(),
-                'end_date': period_result.period_end_date.isoformat(),
-            },
-            'vat_output': str(period_result.vat_output),
-            'vat_input': str(period_result.vat_input),
-            'vat_difference': str(period_result.vat_difference),
-            'previous_credit': str(period_result.previous_credit),
-            'final_result': str(period_result.final_result),
-            'credit_to_next': str(period_result.credit_to_next),
+            'id': period_result.pk,  # Important: needed for lock/unlock operations
+            # Client info (flat)
+            'client': client.pk,
+            'client_afm': client.afm,
+            'client_name': client.eponimia,
+            # Period info (flat)
+            'period_type': period_result.period_type,
+            'year': period_result.year,
+            'period': period_result.period,
+            'period_display': period_result.get_period_display(),
+            'period_start_date': period_result.period_start_date.isoformat(),
+            'period_end_date': period_result.period_end_date.isoformat(),
+            # VAT values (as numbers for frontend)
+            'vat_output': float(period_result.vat_output),
+            'vat_input': float(period_result.vat_input),
+            'vat_difference': float(period_result.vat_difference),
+            'previous_credit': float(period_result.previous_credit),
+            'final_result': final_result,
+            'credit_to_next': float(period_result.credit_to_next),
+            # Status flags
             'is_locked': period_result.is_locked,
+            'is_payable': final_result > 0,
+            'is_credit': final_result < 0,
             'locked_at': period_result.locked_at.isoformat() if period_result.locked_at else None,
             'last_calculated_at': period_result.last_calculated_at.isoformat() if period_result.last_calculated_at else None,
             'months_synced': period_result.months_synced,
