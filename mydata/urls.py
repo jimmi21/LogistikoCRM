@@ -15,9 +15,16 @@ API Endpoints:
     /api/mydata/logs/                 - VATSyncLog list
     /api/mydata/logs/{id}/            - VATSyncLog detail
 
+    /api/mydata/periods/              - VATPeriodResult CRUD
+    /api/mydata/periods/{id}/calculate/  - Υπολογισμός ΦΠΑ
+    /api/mydata/periods/{id}/lock/       - Κλείδωμα περιόδου
+    /api/mydata/periods/{id}/unlock/     - Ξεκλείδωμα περιόδου
+    /api/mydata/periods/{id}/set_credit/ - Ορισμός πιστωτικού
+
     /api/mydata/dashboard/            - Dashboard overview
     /api/mydata/client/{afm}/         - Client detail
     /api/mydata/trend/                - Monthly trend data
+    /api/mydata/calculator/           - Quick VAT period calculator
 """
 
 from django.urls import path, include
@@ -30,6 +37,8 @@ from .views import (
     MyDataDashboardView,
     ClientVATDetailView,
     MonthlyTrendView,
+    VATPeriodResultViewSet,
+    VATPeriodCalculatorView,
 )
 
 app_name = 'mydata'
@@ -39,6 +48,7 @@ router = DefaultRouter()
 router.register(r'credentials', MyDataCredentialsViewSet, basename='credentials')
 router.register(r'records', VATRecordViewSet, basename='records')
 router.register(r'logs', VATSyncLogViewSet, basename='logs')
+router.register(r'periods', VATPeriodResultViewSet, basename='periods')
 
 # URL patterns
 urlpatterns = [
@@ -49,4 +59,5 @@ urlpatterns = [
     path('dashboard/', MyDataDashboardView.as_view(), name='dashboard'),
     path('client/<str:afm>/', ClientVATDetailView.as_view(), name='client-detail'),
     path('trend/', MonthlyTrendView.as_view(), name='trend'),
+    path('calculator/', VATPeriodCalculatorView.as_view(), name='calculator'),
 ]

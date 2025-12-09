@@ -265,3 +265,57 @@ class MultiClientSummarySerializer(serializers.Serializer):
 
     # Per-client breakdown
     clients = ClientVATSummarySerializer(many=True)
+
+
+# =============================================================================
+# VAT PERIOD RESULT SERIALIZERS
+# =============================================================================
+
+class VATPeriodResultSerializer(serializers.ModelSerializer):
+    """Serializer για VATPeriodResult - βασική λίστα."""
+
+    client_afm = serializers.CharField(source='client.afm', read_only=True)
+    client_name = serializers.CharField(source='client.eponimia', read_only=True)
+    period_display = serializers.CharField(source='get_period_display', read_only=True)
+    is_payable = serializers.BooleanField(read_only=True)
+    is_credit = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        from .models import VATPeriodResult
+        model = VATPeriodResult
+        fields = [
+            'id', 'client', 'client_afm', 'client_name',
+            'period_type', 'year', 'period', 'period_display',
+            'vat_output', 'vat_input', 'vat_difference',
+            'previous_credit', 'final_result', 'credit_to_next',
+            'is_locked', 'locked_at', 'is_payable', 'is_credit',
+            'last_calculated_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'vat_output', 'vat_input', 'vat_difference',
+            'final_result', 'credit_to_next',
+            'is_locked', 'locked_at', 'last_calculated_at',
+            'created_at', 'updated_at'
+        ]
+
+
+class VATPeriodResultDetailSerializer(VATPeriodResultSerializer):
+    """Detailed serializer για VATPeriodResult."""
+
+    locked_by_name = serializers.SerializerMethodField()
+    months_in_period = serializers.ListField(read_only=True)
+    period_start_date = serializers.DateField(read_only=True)
+    period_end_date = serializers.DateField(read_only=True)
+
+    class Meta(VATPeriodResultSerializer.Meta):
+        fields = VATPeriodResultSerializer.Meta.fields + [
+            'locked_by', 'locked_by_name',
+            'months_synced', 'months_in_period',
+            'period_start_date', 'period_end_date',
+            'notes'
+        ]
+
+    def get_locked_by_name(self, obj):
+        if obj.locked_by:
+            return obj.locked_by.get_full_name() or obj.locked_by.username
+        return None

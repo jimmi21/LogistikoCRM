@@ -753,3 +753,368 @@ class VATSyncLog(models.Model):
             'records_fetched', 'records_created', 'records_updated',
             'records_skipped', 'records_failed'
         ])
+
+
+# =============================================================================
+# VAT PERIOD RESULT - Υπολογισμός ΦΠΑ ανά περίοδο
+# =============================================================================
+
+class VATPeriodResult(models.Model):
+    """
+    Αποτέλεσμα ΦΠΑ για συγκεκριμένη περίοδο (μήνα ή τρίμηνο).
+
+    Παρακολουθεί:
+    - ΦΠΑ Εκροών/Εισροών από τα VATRecord
+    - Πιστωτικό υπόλοιπο από προηγούμενη περίοδο
+    - Τελικό αποτέλεσμα (απόδοση ή μεταφορά πιστωτικού)
+    - Κλείδωμα περιόδου μετά την υποβολή
+    """
+
+    PERIOD_TYPE_CHOICES = [
+        ('monthly', 'Μηνιαίο'),
+        ('quarterly', 'Τριμηνιαίο'),
+    ]
+
+    # Link to client
+    client = models.ForeignKey(
+        'accounting.ClientProfile',
+        on_delete=models.CASCADE,
+        related_name='vat_period_results',
+        verbose_name='Πελάτης'
+    )
+
+    # Period definition
+    period_type = models.CharField(
+        verbose_name='Τύπος Περιόδου',
+        max_length=10,
+        choices=PERIOD_TYPE_CHOICES,
+        default='monthly'
+    )
+
+    year = models.IntegerField(
+        verbose_name='Έτος',
+        validators=[MinValueValidator(2020), MaxValueValidator(2100)]
+    )
+
+    # For monthly: 1-12, for quarterly: 1-4
+    period = models.IntegerField(
+        verbose_name='Περίοδος',
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        help_text='Μήνας (1-12) ή Τρίμηνο (1-4)'
+    )
+
+    # Calculated VAT values (from VATRecords)
+    vat_output = models.DecimalField(
+        verbose_name='ΦΠΑ Εκροών',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Σύνολο ΦΠΑ από πωλήσεις'
+    )
+
+    vat_input = models.DecimalField(
+        verbose_name='ΦΠΑ Εισροών',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Σύνολο ΦΠΑ από αγορές'
+    )
+
+    # Difference before credit adjustment
+    vat_difference = models.DecimalField(
+        verbose_name='Διαφορά ΦΠΑ',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Εκροές - Εισροές'
+    )
+
+    # Credit handling
+    previous_credit = models.DecimalField(
+        verbose_name='Πιστωτικό Προηγούμενης',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Πιστωτικό υπόλοιπο από προηγούμενη περίοδο'
+    )
+
+    # Final result (positive = pay, negative = credit to next)
+    final_result = models.DecimalField(
+        verbose_name='Τελικό Αποτέλεσμα',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Θετικό = προς απόδοση, Αρνητικό = πιστωτικό'
+    )
+
+    # Credit to carry forward
+    credit_to_next = models.DecimalField(
+        verbose_name='Πιστωτικό προς Μεταφορά',
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Πιστωτικό που μεταφέρεται στην επόμενη περίοδο'
+    )
+
+    # Lock status
+    is_locked = models.BooleanField(
+        verbose_name='Κλειδωμένο',
+        default=False,
+        help_text='True αν η περίοδος έχει υποβληθεί/κλειδωθεί'
+    )
+
+    locked_at = models.DateTimeField(
+        verbose_name='Ημ/νία Κλειδώματος',
+        null=True,
+        blank=True
+    )
+
+    locked_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='locked_vat_periods',
+        verbose_name='Κλειδώθηκε από'
+    )
+
+    # Sync tracking
+    last_calculated_at = models.DateTimeField(
+        verbose_name='Τελευταίος Υπολογισμός',
+        null=True,
+        blank=True
+    )
+
+    months_synced = models.JSONField(
+        verbose_name='Συγχρονισμένοι Μήνες',
+        default=list,
+        blank=True,
+        help_text='Λίστα μηνών που έχουν synced data'
+    )
+
+    # Notes
+    notes = models.TextField(
+        verbose_name='Σημειώσεις',
+        blank=True,
+        default=''
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Δημιουργία')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Ενημέρωση')
+
+    class Meta:
+        verbose_name = 'Αποτέλεσμα ΦΠΑ Περιόδου'
+        verbose_name_plural = 'Αποτελέσματα ΦΠΑ Περιόδων'
+        ordering = ['-year', '-period']
+        unique_together = [['client', 'period_type', 'year', 'period']]
+        indexes = [
+            models.Index(fields=['client', 'year', 'period']),
+            models.Index(fields=['client', 'period_type', '-year', '-period']),
+            models.Index(fields=['is_locked', '-year', '-period']),
+        ]
+
+    def __str__(self):
+        period_str = self.get_period_display()
+        status = "🔒" if self.is_locked else "📝"
+        return f"{self.client.eponimia} | {period_str} | {self.final_result}€ {status}"
+
+    # =========================================================================
+    # PROPERTIES
+    # =========================================================================
+
+    def get_period_display(self) -> str:
+        """Human-readable period string."""
+        if self.period_type == 'monthly':
+            months = ['', 'Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαι', 'Ιουν',
+                     'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
+            return f"{months[self.period]} {self.year}"
+        else:
+            return f"Q{self.period} {self.year}"
+
+    @property
+    def is_payable(self) -> bool:
+        """True αν το τελικό αποτέλεσμα είναι προς απόδοση."""
+        return self.final_result > 0
+
+    @property
+    def is_credit(self) -> bool:
+        """True αν το τελικό αποτέλεσμα είναι πιστωτικό."""
+        return self.final_result < 0 or self.credit_to_next > 0
+
+    @property
+    def months_in_period(self) -> list:
+        """Επιστρέφει τους μήνες που ανήκουν σε αυτή την περίοδο."""
+        if self.period_type == 'monthly':
+            return [self.period]
+        else:
+            # Quarterly: Q1=1,2,3  Q2=4,5,6  Q3=7,8,9  Q4=10,11,12
+            start_month = (self.period - 1) * 3 + 1
+            return [start_month, start_month + 1, start_month + 2]
+
+    @property
+    def period_start_date(self):
+        """First day of the period."""
+        from datetime import date
+        first_month = self.months_in_period[0]
+        return date(self.year, first_month, 1)
+
+    @property
+    def period_end_date(self):
+        """Last day of the period."""
+        from datetime import date
+        import calendar
+        last_month = self.months_in_period[-1]
+        last_day = calendar.monthrange(self.year, last_month)[1]
+        return date(self.year, last_month, last_day)
+
+    # =========================================================================
+    # CALCULATION METHODS
+    # =========================================================================
+
+    def calculate_from_records(self, save: bool = True) -> dict:
+        """
+        Υπολογίζει τα ποσά ΦΠΑ από τα VATRecords.
+
+        Returns:
+            Dict με τα υπολογισμένα ποσά
+        """
+        from django.db.models import Sum
+
+        if self.is_locked:
+            raise ValidationError("Δεν μπορείτε να επανυπολογίσετε κλειδωμένη περίοδο")
+
+        months = self.months_in_period
+
+        # Query VATRecords for this period
+        records = VATRecord.objects.filter(
+            client=self.client,
+            issue_date__year=self.year,
+            issue_date__month__in=months,
+            is_cancelled=False
+        )
+
+        # Calculate output VAT (εκροές = rec_type 1)
+        output_result = records.filter(rec_type=1).aggregate(
+            total=Sum('vat_amount')
+        )
+        self.vat_output = output_result['total'] or Decimal('0.00')
+
+        # Calculate input VAT (εισροές = rec_type 2)
+        input_result = records.filter(rec_type=2).aggregate(
+            total=Sum('vat_amount')
+        )
+        self.vat_input = input_result['total'] or Decimal('0.00')
+
+        # Calculate difference
+        self.vat_difference = self.vat_output - self.vat_input
+
+        # Calculate final result with previous credit
+        result_with_credit = self.vat_difference - self.previous_credit
+
+        if result_with_credit >= 0:
+            # Χρωστάμε
+            self.final_result = result_with_credit
+            self.credit_to_next = Decimal('0.00')
+        else:
+            # Πιστωτικό - μεταφέρεται
+            self.final_result = Decimal('0.00')
+            self.credit_to_next = abs(result_with_credit)
+
+        self.last_calculated_at = timezone.now()
+
+        if save:
+            self.save()
+
+        return {
+            'vat_output': self.vat_output,
+            'vat_input': self.vat_input,
+            'vat_difference': self.vat_difference,
+            'previous_credit': self.previous_credit,
+            'final_result': self.final_result,
+            'credit_to_next': self.credit_to_next,
+        }
+
+    def get_previous_period(self):
+        """Βρίσκει την προηγούμενη περίοδο (αν υπάρχει)."""
+        if self.period_type == 'monthly':
+            if self.period == 1:
+                prev_year = self.year - 1
+                prev_period = 12
+            else:
+                prev_year = self.year
+                prev_period = self.period - 1
+        else:  # quarterly
+            if self.period == 1:
+                prev_year = self.year - 1
+                prev_period = 4
+            else:
+                prev_year = self.year
+                prev_period = self.period - 1
+
+        return VATPeriodResult.objects.filter(
+            client=self.client,
+            period_type=self.period_type,
+            year=prev_year,
+            period=prev_period
+        ).first()
+
+    def inherit_credit_from_previous(self, save: bool = True):
+        """Παίρνει το πιστωτικό από την προηγούμενη περίοδο."""
+        if self.is_locked:
+            raise ValidationError("Δεν μπορείτε να τροποποιήσετε κλειδωμένη περίοδο")
+
+        previous = self.get_previous_period()
+        if previous and previous.credit_to_next > 0:
+            self.previous_credit = previous.credit_to_next
+            if save:
+                self.save(update_fields=['previous_credit', 'updated_at'])
+
+        return self.previous_credit
+
+    def lock(self, user=None):
+        """Κλειδώνει την περίοδο."""
+        if self.is_locked:
+            return False
+
+        self.is_locked = True
+        self.locked_at = timezone.now()
+        self.locked_by = user
+        self.save(update_fields=['is_locked', 'locked_at', 'locked_by', 'updated_at'])
+        return True
+
+    def unlock(self, user=None):
+        """Ξεκλειδώνει την περίοδο (μόνο για admin)."""
+        if not self.is_locked:
+            return False
+
+        self.is_locked = False
+        self.locked_at = None
+        self.locked_by = None
+        self.save(update_fields=['is_locked', 'locked_at', 'locked_by', 'updated_at'])
+        return True
+
+    @classmethod
+    def get_or_create_for_period(
+        cls,
+        client,
+        period_type: str,
+        year: int,
+        period: int
+    ):
+        """
+        Δημιουργεί ή επιστρέφει VATPeriodResult για συγκεκριμένη περίοδο.
+        Αυτόματα παίρνει το πιστωτικό από την προηγούμενη.
+        """
+        obj, created = cls.objects.get_or_create(
+            client=client,
+            period_type=period_type,
+            year=year,
+            period=period
+        )
+
+        if created:
+            # Inherit credit from previous period
+            obj.inherit_credit_from_previous(save=True)
+
+        return obj, created
