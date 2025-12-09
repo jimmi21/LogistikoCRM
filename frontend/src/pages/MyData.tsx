@@ -9,28 +9,57 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle,
-  Clock,
   Users,
-  Euro,
-  ArrowUpRight,
-  ArrowDownRight,
   BarChart3,
   Calculator,
+  ChevronDown,
 } from 'lucide-react';
 import { Button, VATPeriodCalculator } from '../components';
-import { mydataApi, type MyDataDashboardResponse, type TrendData } from '../api/client';
+import { mydataApi, clientsApi } from '../api/client';
 
-// VAT category labels
-const VAT_CATEGORIES: Record<number, string> = {
-  1: '24%',
-  2: '13%',
-  3: '6%',
-  4: '17%',
-  5: '9%',
-  6: '4%',
-  7: '0%',
-  8: 'Απαλλαγή',
-};
+// Types
+interface Client {
+  id: number;
+  afm: string;
+  eponimia: string;
+}
+
+interface CategoryBreakdown {
+  vat_category: number;
+  vat_rate: number;
+  vat_rate_display: string;
+  net_value: number;
+  vat_amount: number;
+  count: number;
+}
+
+interface ClientVATData {
+  client: {
+    afm: string;
+    name: string;
+  };
+  credentials: {
+    has_credentials: boolean;
+    is_verified: boolean;
+    last_sync: string | null;
+  };
+  period: {
+    year: number;
+    month: number;
+    label: string;
+  };
+  summary: {
+    income_net: number;
+    income_vat: number;
+    income_count: number;
+    expense_net: number;
+    expense_vat: number;
+    expense_count: number;
+    vat_difference: number;
+  };
+  income_by_category: CategoryBreakdown[];
+  expense_by_category: CategoryBreakdown[];
+}
 
 // Greek month names
 const MONTHS = [
@@ -46,46 +75,119 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return '-';
+  return new Intl.DateTimeFormat('el-GR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(dateStr));
+}
+
 // Tab types
 type TabType = 'overview' | 'calculator';
 
 export default function MyData() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [dashboard, setDashboard] = useState<MyDataDashboardResponse | null>(null);
-  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  // Client selection
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [credentialsId, setCredentialsId] = useState<number | null>(null);
 
   // Period selection
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  // Fetch dashboard data
-  const fetchData = async () => {
+  // Data state
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [clientData, setClientData] = useState<ClientVATData | null>(null);
+
+  // Fetch clients on mount
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const response = await clientsApi.getAll({ page_size: 1000 });
+        const clientList = response.results || response;
+        setClients(clientList);
+        // Auto-select first client if available
+        if (clientList.length > 0 && !selectedClientId) {
+          setSelectedClientId(clientList[0].id);
+        }
+      } catch (err) {
+        console.error('Error fetching clients:', err);
+      }
+    };
+    fetchClients();
+  }, []);
+
+  // Fetch client VAT data when client or period changes
+  useEffect(() => {
+    if (selectedClientId && activeTab === 'overview') {
+      fetchClientData();
+    }
+  }, [selectedClientId, year, month, activeTab]);
+
+  // Find selected client's AFM
+  const selectedClient = clients.find(c => c.id === selectedClientId);
+
+  // Fetch VAT data for selected client
+  const fetchClientData = async () => {
+    if (!selectedClient) return;
+
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
+
     try {
-      const [dashboardData, trend] = await Promise.all([
-        mydataApi.getDashboard(year, month),
-        mydataApi.getTrend(6),
-      ]);
-      setDashboard(dashboardData);
-      setTrendData(trend);
+      // Get client VAT details
+      const data = await mydataApi.getClientVAT(selectedClient.afm, year, month);
+      setClientData(data);
+
+      // Try to get credentials ID for sync
+      try {
+        const creds = await mydataApi.credentials.getByClient(selectedClientId!);
+        setCredentialsId(creds.id);
+      } catch {
+        setCredentialsId(null);
+      }
     } catch (err) {
-      console.error('Error fetching myDATA:', err);
-      setError('Σφάλμα φόρτωσης δεδομένων myDATA');
+      console.error('Error fetching client VAT data:', err);
+      setError('Σφάλμα φόρτωσης δεδομένων ΦΠΑ');
+      setClientData(null);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (activeTab === 'overview') {
-      fetchData();
+  // Sync VAT data from myDATA
+  const handleSync = async () => {
+    if (!credentialsId) {
+      setError('Δεν βρέθηκαν credentials για αυτόν τον πελάτη');
+      return;
     }
-  }, [year, month, activeTab]);
+
+    setSyncing(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      await mydataApi.credentials.sync(credentialsId, year, month);
+      setSuccessMessage('Ο συγχρονισμός ολοκληρώθηκε επιτυχώς');
+      // Refresh data after sync
+      await fetchClientData();
+    } catch (err: unknown) {
+      console.error('Sync error:', err);
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      setError(axiosError.response?.data?.error || 'Σφάλμα συγχρονισμού');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Navigate months
   const goToPreviousMonth = () => {
@@ -106,67 +208,33 @@ export default function MyData() {
     }
   };
 
-  // Sync all clients
-  const handleSyncAll = async () => {
-    setSyncing(true);
-    try {
-      const credentials = await mydataApi.credentials.getAll();
-      for (const cred of credentials.results || credentials) {
-        try {
-          await mydataApi.credentials.sync(cred.id, year, month);
-        } catch (e) {
-          console.error(`Failed to sync credential ${cred.id}:`, e);
-        }
-      }
-      await fetchData();
-    } catch (err) {
-      console.error('Sync error:', err);
-      setError('Σφάλμα κατά τον συγχρονισμό');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const totals = dashboard?.totals || {
-    income_total: 0,
-    income_vat: 0,
-    expense_total: 0,
-    expense_vat: 0,
-    vat_due: 0,
-    record_count: 0,
-  };
-
-  const syncStatus = dashboard?.sync_status || {
-    total_clients: 0,
-    synced_clients: 0,
-    pending_clients: 0,
-    failed_clients: 0,
-  };
+  // Calculate VAT result
+  const vatResult = clientData?.summary
+    ? clientData.summary.income_vat - clientData.summary.expense_vat
+    : 0;
+  const isPayable = vatResult > 0;
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">myDATA - ΦΠΑ</h1>
-          <p className="text-gray-500 mt-1">Δεδομένα από ΑΑΔΕ Ηλεκτρονικά Βιβλία</p>
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+          <FileText size={20} className="text-blue-600" />
         </div>
-        {activeTab === 'overview' && (
-          <Button onClick={handleSyncAll} disabled={syncing}>
-            <RefreshCw size={18} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Συγχρονισμός...' : 'Συγχρονισμός όλων'}
-          </Button>
-        )}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">myDATA - Αποτέλεσμα ΦΠΑ</h1>
+          <p className="text-gray-500">Παρακολούθηση ΦΠΑ από τα ηλεκτρονικά βιβλία ΑΑΔΕ</p>
+        </div>
       </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="flex gap-4" aria-label="Tabs">
+        <nav className="flex gap-4">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-colors ${
               activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
@@ -175,9 +243,9 @@ export default function MyData() {
           </button>
           <button
             onClick={() => setActiveTab('calculator')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-colors ${
               activeTab === 'calculator'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
@@ -189,294 +257,239 @@ export default function MyData() {
 
       {/* Tab Content */}
       {activeTab === 'overview' ? (
-        <>
-          {/* Loading State */}
-          {loading && (
-            <div className="flex items-center justify-center min-h-96">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          )}
+        <div className="space-y-6">
+          {/* Filters Row */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              {/* Client Selector */}
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Πελάτης</label>
+                <div className="relative">
+                  <select
+                    value={selectedClientId || ''}
+                    onChange={(e) => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
+                  >
+                    <option value="">-- Επιλέξτε Πελάτη --</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.eponimia} ({client.afm})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
 
-          {/* Error State */}
-          {error && !loading && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <p className="text-red-700">{error}</p>
-              <Button onClick={fetchData} className="mt-4">
-                Δοκιμή ξανά
-              </Button>
-            </div>
-          )}
-
-          {/* Content */}
-          {!loading && !error && (
-            <>
               {/* Period Selector */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Περίοδος</label>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={goToPreviousMonth}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                   >
-                    <ChevronLeft size={20} className="text-gray-600" />
+                    <ChevronLeft size={18} />
                   </button>
-                  <div className="flex items-center gap-2">
-                    <Calendar size={20} className="text-blue-600" />
-                    <span className="text-lg font-semibold text-gray-900">
-                      {MONTHS[month - 1]} {year}
-                    </span>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg min-w-[180px] justify-center">
+                    <Calendar size={16} className="text-gray-400" />
+                    <span className="font-medium">{MONTHS[month - 1]} {year}</span>
                   </div>
                   <button
                     onClick={goToNextMonth}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    disabled={year === now.getFullYear() && month === now.getMonth() + 1}
+                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                   >
-                    <ChevronRight size={20} className="text-gray-600" />
+                    <ChevronRight size={18} />
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* Stats Overview */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Εκροές (Income) */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <ArrowUpRight size={24} className="text-green-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">ΦΠΑ Εκροών</p>
-                      <p className="text-sm font-semibold text-green-600">{formatCurrency(totals.income_vat)}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-1">Εκροές (Πωλήσεις)</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.income_total)}</p>
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+              <RefreshCw size={32} className="mx-auto mb-4 text-blue-500 animate-spin" />
+              <p className="text-gray-500">Φόρτωση δεδομένων...</p>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+              <AlertCircle size={20} className="text-red-500 flex-shrink-0" />
+              <p className="text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+              <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
+              <p className="text-green-700">{successMessage}</p>
+            </div>
+          )}
+
+          {/* No Client Selected */}
+          {!selectedClientId && !loading && (
+            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+              <Users size={48} className="mx-auto mb-4 text-gray-300" />
+              <p className="text-gray-500">Επιλέξτε πελάτη για να δείτε τα στοιχεία ΦΠΑ</p>
+            </div>
+          )}
+
+          {/* VAT Results */}
+          {clientData && !loading && (
+            <>
+              {/* Main Result Card */}
+              <div className={`rounded-xl border-2 p-8 text-center ${
+                isPayable
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <p className="text-sm text-gray-600 mb-1">ΑΠΟΤΕΛΕΣΜΑ ΦΠΑ</p>
+                <p className="text-sm text-gray-500 mb-4">{MONTHS[month - 1].toUpperCase()} {year}</p>
+
+                <p className={`text-5xl font-bold mb-4 ${isPayable ? 'text-green-600' : 'text-red-600'}`}>
+                  {isPayable ? '+' : ''}{formatCurrency(vatResult)}
+                </p>
+
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
+                  isPayable
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}>
+                  {isPayable ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                  <span className="font-medium">
+                    {isPayable ? 'ΦΠΑ για Καταβολή' : 'Πιστωτικό Υπόλοιπο'}
+                  </span>
+                </div>
+              </div>
+
+              {/* VAT Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Income VAT */}
+                <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+                  <p className="text-sm text-gray-500 mb-2">ΦΠΑ Εκροών</p>
+                  <p className="text-3xl font-bold text-green-600 mb-1">
+                    {formatCurrency(clientData.summary.income_vat)}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    {clientData.summary.income_count} εγγραφές
+                  </p>
                 </div>
 
-                {/* Εισροές (Expenses) */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                      <ArrowDownRight size={24} className="text-red-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">ΦΠΑ Εισροών</p>
-                      <p className="text-sm font-semibold text-red-600">{formatCurrency(totals.expense_vat)}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-1">Εισροές (Αγορές)</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.expense_total)}</p>
+                {/* Expense VAT */}
+                <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+                  <p className="text-sm text-gray-500 mb-2">ΦΠΑ Εισροών</p>
+                  <p className="text-3xl font-bold text-red-600 mb-1">
+                    {formatCurrency(clientData.summary.expense_vat)}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    {clientData.summary.expense_count} εγγραφές
+                  </p>
                 </div>
+              </div>
 
-                {/* ΦΠΑ προς απόδοση */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      totals.vat_due >= 0 ? 'bg-yellow-100' : 'bg-blue-100'
-                    }`}>
-                      <Euro size={24} className={totals.vat_due >= 0 ? 'text-yellow-600' : 'text-blue-600'} />
-                    </div>
-                    {totals.vat_due >= 0 ? (
-                      <TrendingUp size={20} className="text-yellow-600" />
+              {/* Sync Section */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <Button
+                    onClick={handleSync}
+                    disabled={syncing || !credentialsId}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {syncing ? (
+                      <>
+                        <RefreshCw size={18} className="mr-2 animate-spin" />
+                        Συγχρονισμός...
+                      </>
                     ) : (
-                      <TrendingDown size={20} className="text-blue-600" />
+                      <>
+                        <RefreshCw size={18} className="mr-2" />
+                        Sync από myDATA
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="text-right text-sm text-gray-500">
+                    <p>Τελ. ενημέρωση:</p>
+                    <p className="font-medium">{formatDateTime(clientData.credentials.last_sync)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Income by Category */}
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <TrendingUp size={18} className="text-green-500" />
+                      ΦΠΑ Εκροών ανά Κατηγορία
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    {clientData.income_by_category && clientData.income_by_category.length > 0 ? (
+                      <div className="space-y-3">
+                        {clientData.income_by_category.map((cat) => (
+                          <div key={cat.vat_category} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                {cat.vat_rate_display}
+                              </span>
+                              <span className="text-sm text-gray-600">
+                                ({cat.count} εγγρ.)
+                              </span>
+                            </div>
+                            <span className="font-semibold text-green-600">
+                              {formatCurrency(cat.vat_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-center py-4">Δεν υπάρχουν εγγραφές</p>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">
-                    {totals.vat_due >= 0 ? 'ΦΠΑ προς Απόδοση' : 'ΦΠΑ προς Επιστροφή'}
-                  </p>
-                  <p className={`text-2xl font-bold ${totals.vat_due >= 0 ? 'text-yellow-600' : 'text-blue-600'}`}>
-                    {formatCurrency(Math.abs(totals.vat_due))}
-                  </p>
                 </div>
 
-                {/* Sync Status */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Users size={24} className="text-blue-600" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle size={16} className="text-green-500" />
-                      <span className="text-sm text-green-600">{syncStatus.synced_clients}</span>
-                    </div>
+                {/* Expense by Category */}
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <TrendingDown size={18} className="text-red-500" />
+                      ΦΠΑ Εισροών ανά Κατηγορία
+                    </h3>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Πελάτες</p>
-                  <p className="text-2xl font-bold text-gray-900">{syncStatus.total_clients}</p>
-                  {syncStatus.pending_clients > 0 && (
-                    <p className="text-xs text-yellow-600 mt-1">
-                      <Clock size={12} className="inline mr-1" />
-                      {syncStatus.pending_clients} εκκρεμούν
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Charts Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* VAT Trend */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Εξέλιξη ΦΠΑ (6 μήνες)</h3>
-                  {trendData.length > 0 ? (
-                    <div className="flex items-end justify-between h-48 gap-2">
-                      {trendData.map((item, index) => {
-                        const maxValue = Math.max(...trendData.map(d => Math.max(d.income, d.expense)));
-                        const incomeHeight = maxValue > 0 ? (item.income / maxValue) * 100 : 0;
-                        const expenseHeight = maxValue > 0 ? (item.expense / maxValue) * 100 : 0;
-                        return (
-                          <div key={index} className="flex-1 flex flex-col items-center gap-1">
-                            <div className="w-full flex gap-0.5 items-end h-40">
-                              <div
-                                className="flex-1 bg-green-500 rounded-t transition-all hover:bg-green-600"
-                                style={{ height: `${incomeHeight}%` }}
-                                title={`Εκροές: ${formatCurrency(item.income)}`}
-                              />
-                              <div
-                                className="flex-1 bg-red-400 rounded-t transition-all hover:bg-red-500"
-                                style={{ height: `${expenseHeight}%` }}
-                                title={`Εισροές: ${formatCurrency(item.expense)}`}
-                              />
-                            </div>
-                            <span className="text-xs text-gray-500">{item.period}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-gray-400">
-                      Δεν υπάρχουν δεδομένα
-                    </div>
-                  )}
-                  <div className="flex justify-center gap-6 mt-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded" />
-                      <span className="text-sm text-gray-600">Εκροές</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-red-400 rounded" />
-                      <span className="text-sm text-gray-600">Εισροές</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* VAT by Category */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">ΦΠΑ ανά Κατηγορία</h3>
-                  <div className="space-y-4">
-                    {Object.entries(VAT_CATEGORIES).map(([cat, label]) => {
-                      const categoryNum = parseInt(cat);
-                      let categoryVat = 0;
-                      dashboard?.clients?.forEach(client => {
-                        client.by_category?.forEach(bc => {
-                          if (bc.vat_category === categoryNum) {
-                            categoryVat += bc.total_vat;
-                          }
-                        });
-                      });
-
-                      const maxVat = totals.income_vat + totals.expense_vat || 1;
-                      const percentage = (categoryVat / maxVat) * 100;
-
-                      if (categoryVat === 0) return null;
-
-                      return (
-                        <div key={cat}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">ΦΠΑ {label}</span>
-                            <span className="text-gray-900 font-medium">{formatCurrency(categoryVat)}</span>
-                          </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full transition-all"
-                              style={{ width: `${Math.min(percentage, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Clients Table */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Πελάτες - ΦΠΑ Μήνα</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Πελάτης</th>
-                        <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">ΑΦΜ</th>
-                        <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Εκροές</th>
-                        <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Εισροές</th>
-                        <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">ΦΠΑ</th>
-                        <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase">Κατάσταση</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {dashboard?.clients && dashboard.clients.length > 0 ? (
-                        dashboard.clients.map((client, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <FileText size={16} className="text-blue-600" />
-                                </div>
-                                <span className="font-medium text-gray-900">{client.client_name}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-gray-600 font-mono">{client.afm}</td>
-                            <td className="px-6 py-4 text-right text-green-600 font-medium">
-                              {formatCurrency(client.summary?.income_total || 0)}
-                            </td>
-                            <td className="px-6 py-4 text-right text-red-600 font-medium">
-                              {formatCurrency(client.summary?.expense_total || 0)}
-                            </td>
-                            <td className="px-6 py-4 text-right font-bold">
-                              <span className={client.summary?.vat_due >= 0 ? 'text-yellow-600' : 'text-blue-600'}>
-                                {formatCurrency(Math.abs(client.summary?.vat_due || 0))}
+                  <div className="p-4">
+                    {clientData.expense_by_category && clientData.expense_by_category.length > 0 ? (
+                      <div className="space-y-3">
+                        {clientData.expense_by_category.map((cat) => (
+                          <div key={cat.vat_category} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded">
+                                {cat.vat_rate_display}
                               </span>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              {client.has_credentials ? (
-                                client.last_sync ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                                    <CheckCircle size={12} />
-                                    Ενημερωμένο
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">
-                                    <Clock size={12} />
-                                    Εκκρεμεί
-                                  </span>
-                                )
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
-                                  <AlertCircle size={12} />
-                                  Χωρίς credentials
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                            <FileText size={48} className="mx-auto mb-4 text-gray-300" />
-                            <p>Δεν υπάρχουν δεδομένα για αυτή την περίοδο</p>
-                            <p className="text-sm mt-2">Προσθέστε credentials για τους πελάτες σας στις Ρυθμίσεις</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                              <span className="text-sm text-gray-600">
+                                ({cat.count} εγγρ.)
+                              </span>
+                            </div>
+                            <span className="font-semibold text-red-600">
+                              {formatCurrency(cat.vat_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-center py-4">Δεν υπάρχουν εγγραφές</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </>
           )}
-        </>
+        </div>
       ) : (
         /* Calculator Tab */
         <VATPeriodCalculator />
