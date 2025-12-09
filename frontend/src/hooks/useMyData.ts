@@ -154,7 +154,7 @@ export function useMyDataClients() {
   return useQuery({
     queryKey: [MYDATA_KEY, 'clients'],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<MyDataCredentials> | MyDataCredentials[]>('/api/mydata/credentials/');
+      const response = await apiClient.get<PaginatedResponse<MyDataCredentials> | MyDataCredentials[]>('api/mydata/credentials/');
       // Handle both paginated and non-paginated responses
       if (Array.isArray(response.data)) {
         return response.data;
@@ -188,7 +188,7 @@ export function useClientVATDetail(
         params.append('quarter', quarter.toString());
       }
 
-      const url = `/api/mydata/client/${afm}/?${params.toString()}`;
+      const url = `api/mydata/client/${afm}/?${params.toString()}`;
 
       const response = await apiClient.get<ClientVATDetail>(url);
       return response.data;
@@ -210,7 +210,7 @@ export function useVATSummary(afm: string | null, year?: number, month?: number)
       if (year) params.append('year', year.toString());
       if (month) params.append('month', month.toString());
 
-      const response = await apiClient.get<VATPeriodSummary>(`/api/mydata/records/summary/?${params.toString()}`);
+      const response = await apiClient.get<VATPeriodSummary>(`api/mydata/records/summary/?${params.toString()}`);
       return response.data;
     },
     enabled: !!afm,
@@ -229,7 +229,7 @@ export function useVATTrend(afm?: string, monthsCount = 6) {
       if (afm) params.append('afm', afm);
       params.append('months', monthsCount.toString());
 
-      const response = await apiClient.get<TrendData>(`/api/mydata/trend/?${params.toString()}`);
+      const response = await apiClient.get<TrendData>(`api/mydata/trend/?${params.toString()}`);
       return response.data;
     },
     staleTime: 60000,
@@ -248,8 +248,8 @@ export function useMyDataDashboard(year?: number, month?: number) {
       if (month) params.append('month', month.toString());
 
       const url = params.toString()
-        ? `/api/mydata/dashboard/?${params.toString()}`
-        : '/api/mydata/dashboard/';
+        ? `api/mydata/dashboard/?${params.toString()}`
+        : 'api/mydata/dashboard/';
 
       const response = await apiClient.get<DashboardOverview>(url);
       return response.data;
@@ -271,7 +271,7 @@ export function useSyncVAT() {
       month?: number;
       days?: number;
     }) => {
-      const response = await apiClient.post<SyncResult>(`/api/mydata/credentials/${credentialsId}/sync/`, {
+      const response = await apiClient.post<SyncResult>(`api/mydata/credentials/${credentialsId}/sync/`, {
         year,
         month,
         days: days || 30,
@@ -294,7 +294,7 @@ export function useVerifyCredentials() {
   return useMutation({
     mutationFn: async (credentialsId: number) => {
       const response = await apiClient.post<{ success: boolean; is_verified: boolean; error?: string }>(
-        `/api/mydata/credentials/${credentialsId}/verify/`
+        `api/mydata/credentials/${credentialsId}/verify/`
       );
       return response.data;
     },

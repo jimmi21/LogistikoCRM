@@ -342,13 +342,13 @@ export const mydataApi = {
     const params: Record<string, number> = {};
     if (year) params.year = year;
     if (month) params.month = month;
-    const response = await apiClient.get('/api/mydata/dashboard/', { params });
+    const response = await apiClient.get('api/mydata/dashboard/', { params });
     return response.data;
   },
 
   // Monthly trend data for charts
   getTrend: async (months: number = 6): Promise<TrendData[]> => {
-    const response = await apiClient.get('/api/mydata/trend/', { params: { months } });
+    const response = await apiClient.get('api/mydata/trend/', { params: { months } });
     return response.data;
   },
 
@@ -357,7 +357,7 @@ export const mydataApi = {
     const params: Record<string, number> = {};
     if (year) params.year = year;
     if (month) params.month = month;
-    const response = await apiClient.get(`/api/mydata/client/${afm}/`, { params });
+    const response = await apiClient.get(`api/mydata/client/${afm}/`, { params });
     return response.data;
   },
 
@@ -369,46 +369,46 @@ export const mydataApi = {
     rec_type?: number;
     page?: number;
   }) => {
-    const response = await apiClient.get('/api/mydata/records/', { params });
+    const response = await apiClient.get('api/mydata/records/', { params });
     return response.data;
   },
 
   // Get records summary
   getRecordsSummary: async (params?: { afm?: string; year?: number; month?: number }) => {
-    const response = await apiClient.get('/api/mydata/records/summary/', { params });
+    const response = await apiClient.get('api/mydata/records/summary/', { params });
     return response.data;
   },
 
   // Get records by VAT category
   getRecordsByCategory: async (params?: { afm?: string; year?: number; month?: number }) => {
-    const response = await apiClient.get('/api/mydata/records/by_category/', { params });
+    const response = await apiClient.get('api/mydata/records/by_category/', { params });
     return response.data;
   },
 
   // Credentials management
   credentials: {
     getAll: async () => {
-      const response = await apiClient.get('/api/mydata/credentials/');
+      const response = await apiClient.get('api/mydata/credentials/');
       return response.data;
     },
 
     get: async (id: number) => {
-      const response = await apiClient.get(`/api/mydata/credentials/${id}/`);
+      const response = await apiClient.get(`api/mydata/credentials/${id}/`);
       return response.data;
     },
 
     create: async (data: { client: number; mydata_user_id: string; mydata_subscription_key: string }) => {
-      const response = await apiClient.post('/api/mydata/credentials/', data);
+      const response = await apiClient.post('api/mydata/credentials/', data);
       return response.data;
     },
 
     update: async (id: number, data: { mydata_user_id?: string; mydata_subscription_key?: string; is_active?: boolean }) => {
-      const response = await apiClient.post(`/api/mydata/credentials/${id}/update_credentials/`, data);
+      const response = await apiClient.post(`api/mydata/credentials/${id}/update_credentials/`, data);
       return response.data;
     },
 
     verify: async (id: number) => {
-      const response = await apiClient.post(`/api/mydata/credentials/${id}/verify/`);
+      const response = await apiClient.post(`api/mydata/credentials/${id}/verify/`);
       return response.data;
     },
 
@@ -416,7 +416,7 @@ export const mydataApi = {
       const data: Record<string, number> = {};
       if (year) data.year = year;
       if (month) data.month = month;
-      const response = await apiClient.post(`/api/mydata/credentials/${id}/sync/`, data);
+      const response = await apiClient.post(`api/mydata/credentials/${id}/sync/`, data);
       return response.data;
     },
 
@@ -425,19 +425,19 @@ export const mydataApi = {
       initial_credit_period_year?: number;
       initial_credit_period?: number;
     }) => {
-      const response = await apiClient.post(`/api/mydata/credentials/${id}/set_initial_credit/`, data);
+      const response = await apiClient.post(`api/mydata/credentials/${id}/set_initial_credit/`, data);
       return response.data;
     },
 
     getByClient: async (clientId: number) => {
-      const response = await apiClient.get(`/api/mydata/credentials/by-client/${clientId}/`);
+      const response = await apiClient.get(`api/mydata/credentials/by-client/${clientId}/`);
       return response.data;
     },
   },
 
   // Sync logs
   getLogs: async (params?: { client?: number; page?: number }) => {
-    const response = await apiClient.get('/api/mydata/logs/', { params });
+    const response = await apiClient.get('api/mydata/logs/', { params });
     return response.data;
   },
 
@@ -449,12 +449,12 @@ export const mydataApi = {
       period_type?: 'monthly' | 'quarterly';
       year?: number;
     }) => {
-      const response = await apiClient.get('/api/mydata/periods/', { params });
+      const response = await apiClient.get('api/mydata/periods/', { params });
       return response.data;
     },
 
     get: async (id: number) => {
-      const response = await apiClient.get(`/api/mydata/periods/${id}/`);
+      const response = await apiClient.get(`api/mydata/periods/${id}/`);
       return response.data;
     },
 
@@ -465,29 +465,29 @@ export const mydataApi = {
       period: number;
       previous_credit?: number;
     }) => {
-      const response = await apiClient.post('/api/mydata/periods/', data);
+      const response = await apiClient.post('api/mydata/periods/', data);
       return response.data;
     },
 
     calculate: async (id: number, syncFirst: boolean = false) => {
-      const response = await apiClient.post(`/api/mydata/periods/${id}/calculate/`, {
+      const response = await apiClient.post(`api/mydata/periods/${id}/calculate/`, {
         sync_first: syncFirst,
       });
       return response.data;
     },
 
     lock: async (id: number) => {
-      const response = await apiClient.post(`/api/mydata/periods/${id}/lock/`);
+      const response = await apiClient.post(`api/mydata/periods/${id}/lock/`);
       return response.data;
     },
 
     unlock: async (id: number) => {
-      const response = await apiClient.post(`/api/mydata/periods/${id}/unlock/`);
+      const response = await apiClient.post(`api/mydata/periods/${id}/unlock/`);
       return response.data;
     },
 
     setCredit: async (id: number, previousCredit: number) => {
-      const response = await apiClient.post(`/api/mydata/periods/${id}/set_credit/`, {
+      const response = await apiClient.post(`api/mydata/periods/${id}/set_credit/`, {
         previous_credit: previousCredit,
       });
       return response.data;
@@ -503,7 +503,7 @@ export const mydataApi = {
     period: number;
     recalculate?: boolean;
   }) => {
-    const response = await apiClient.get('/api/mydata/calculator/', { params });
+    const response = await apiClient.get('api/mydata/calculator/', { params });
     return response.data;
   },
 };
