@@ -332,4 +332,9 @@ urlpatterns = [
     # Client-Obligation Assignment Export/Import
     path("api/v1/export/client-obligations/csv/", export_client_obligations_csv, name="api_export_client_obligations_csv"),
     path("api/v1/import/client-obligations/csv/", import_client_obligations_csv, name="api_import_client_obligations_csv"),
+
+    # ==================================================
+    # myDATA API (ΦΠΑ/ΑΑΔΕ)
+    # ==================================================
+    path("api/mydata/", include("mydata.urls")),
 ]

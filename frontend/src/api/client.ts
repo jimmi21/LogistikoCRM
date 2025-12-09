@@ -1,7 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-// Use relative URLs with Vite proxy in development
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/accounting';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/accounting';
 
 // Create axios instance
 export const apiClient = axios.create({
