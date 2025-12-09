@@ -20,6 +20,7 @@ const CLIENT_EMAILS_KEY = 'client-emails';
 const CLIENT_CALLS_KEY = 'client-calls';
 const CLIENT_TICKETS_KEY = 'client-tickets';
 const CLIENT_OBLIGATION_PROFILE_KEY = 'client-obligation-profile';
+const CLIENT_MYDATA_CREDENTIALS_KEY = 'client-mydata-credentials';
 
 // ============================================
 // API RESPONSE TYPES
@@ -417,6 +418,131 @@ export function useBulkAssignObligations() {
       // Invalidate all client obligation profiles
       queryClient.invalidateQueries({ queryKey: [CLIENT_OBLIGATION_PROFILE_KEY] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+}
+
+// ============================================
+// MYDATA CREDENTIALS HOOKS
+// ============================================
+
+export interface MyDataCredentialsData {
+  id?: number;
+  client: number;
+  client_name?: string;
+  client_afm?: string;
+  user_id: string;
+  subscription_key: string;
+  is_sandbox: boolean;
+  is_active: boolean;
+  is_verified: boolean;
+  last_sync_at: string | null;
+  last_vat_sync_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Get myDATA credentials for a client
+ */
+export function useClientMyDataCredentials(clientId: number) {
+  return useQuery({
+    queryKey: [CLIENT_MYDATA_CREDENTIALS_KEY, clientId],
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get<MyDataCredentialsData>(
+          `/api/mydata/credentials/by-client/${clientId}/`
+        );
+        return response.data;
+      } catch (error: unknown) {
+        // Return null if credentials don't exist (404)
+        if (error && typeof error === 'object' && 'response' in error) {
+          const axiosError = error as { response?: { status?: number } };
+          if (axiosError.response?.status === 404) {
+            return null;
+          }
+        }
+        throw error;
+      }
+    },
+    enabled: !!clientId,
+  });
+}
+
+/**
+ * Create or update myDATA credentials
+ */
+export function useSaveMyDataCredentials(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      user_id: string;
+      subscription_key: string;
+      is_sandbox: boolean;
+      is_active?: boolean;
+    }) => {
+      // Try to get existing credentials first
+      try {
+        const existing = await apiClient.get(`/api/mydata/credentials/by-client/${clientId}/`);
+        // Update existing
+        const response = await apiClient.patch(
+          `/api/mydata/credentials/${existing.data.id}/`,
+          { ...data, client: clientId }
+        );
+        return response.data;
+      } catch {
+        // Create new
+        const response = await apiClient.post('/api/mydata/credentials/', {
+          ...data,
+          client: clientId,
+          is_active: data.is_active ?? true,
+        });
+        return response.data;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CLIENT_MYDATA_CREDENTIALS_KEY, clientId] });
+      queryClient.invalidateQueries({ queryKey: ['mydata', 'clients'] });
+    },
+  });
+}
+
+/**
+ * Verify myDATA credentials
+ */
+export function useVerifyMyDataCredentials(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (credentialsId: number) => {
+      const response = await apiClient.post<{ success: boolean; is_verified: boolean; error?: string }>(
+        `/api/mydata/credentials/${credentialsId}/verify/`
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CLIENT_MYDATA_CREDENTIALS_KEY, clientId] });
+    },
+  });
+}
+
+/**
+ * Sync myDATA VAT data
+ */
+export function useSyncMyDataVAT(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ credentialsId, days = 30 }: { credentialsId: number; days?: number }) => {
+      const response = await apiClient.post(`/api/mydata/credentials/${credentialsId}/sync/`, {
+        days,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CLIENT_MYDATA_CREDENTIALS_KEY, clientId] });
+      queryClient.invalidateQueries({ queryKey: ['mydata'] });
     },
   });
 }

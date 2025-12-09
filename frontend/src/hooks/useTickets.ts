@@ -30,7 +30,7 @@ export interface CreateTicketData {
   title: string;
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  client?: number;
+  client?: number | null;  // For create, backend uses 'client'
   call?: number;
   notes?: string;
 }
@@ -41,6 +41,8 @@ export interface UpdateTicketData {
   status?: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   notes?: string;
+  client_id?: number | null;
+  assigned_to?: number | null;
 }
 
 // ============================================

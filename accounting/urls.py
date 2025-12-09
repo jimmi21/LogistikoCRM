@@ -82,6 +82,10 @@ from .api_export_import import (
     export_client_obligations_csv,
     import_client_obligations_csv,
 )
+from .api_reports import (
+    reports_stats,
+    reports_export,
+)
 
 # New Completion Views
 from .completion.completion_views import (
@@ -206,6 +210,10 @@ urlpatterns = [
     path("api/dashboard/recent-activity/", dashboard_recent_activity, name="api_dashboard_recent_activity"),
     path("api/dashboard/client-stats/", dashboard_client_stats, name="api_dashboard_client_stats"),
 
+    # REPORTS API
+    path("api/reports/stats/", reports_stats, name="api_reports_stats"),
+    path("api/reports/export/", reports_export, name="api_reports_export"),
+
     # ============================================
     # OBLIGATION PROFILE APIs
     # ============================================
@@ -229,6 +237,11 @@ urlpatterns = [
     path("api/v1/gsis/status/", gsis_settings_status, name="api_v1_gsis_status"),
     path("api/v1/gsis/settings/", gsis_settings_update, name="api_v1_gsis_settings"),
     path("api/v1/gsis/test/", gsis_test_connection, name="api_v1_gsis_test"),
+
+    # ============================================
+    # myDATA API - ΦΠΑ από ΑΑΔΕ
+    # ============================================
+    path("api/mydata/", include("mydata.urls")),
 
     # ============================================
     # EMAIL API (v1)

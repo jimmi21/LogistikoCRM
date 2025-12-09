@@ -54,27 +54,27 @@ def door_status(request):
         else:
             return Response({
                 'success': False,
-                'status': 'error',
+                'status': 'offline',
                 'online': False,
                 'message': 'Αποτυχία επικοινωνίας με τη συσκευή'
-            }, status=500)
+            })  # 200 OK - device offline is not a server error
 
     except requests.exceptions.Timeout:
-        logger.warning(f"Door status timeout at {TASMOTA_IP}")
+        logger.debug(f"Door status timeout at {TASMOTA_IP}")
         return Response({
             'success': False,
-            'status': 'error',
+            'status': 'offline',
             'online': False,
             'message': 'Timeout - η συσκευή δεν απαντά'
-        }, status=504)
+        })  # 200 OK - expected when device is offline
     except requests.exceptions.ConnectionError:
-        logger.warning(f"Door connection error at {TASMOTA_IP}")
+        logger.debug(f"Door connection error at {TASMOTA_IP}")
         return Response({
             'success': False,
-            'status': 'error',
+            'status': 'offline',
             'online': False,
             'message': 'Δεν βρέθηκε η συσκευή'
-        }, status=503)
+        })  # 200 OK - expected when device is offline
     except Exception as e:
         logger.error(f"Door status error: {e}")
         return Response({
@@ -82,7 +82,7 @@ def door_status(request):
             'status': 'error',
             'online': False,
             'message': str(e)
-        }, status=500)
+        })  # 200 OK - avoid triggering error emails
 
 
 @api_view(['POST'])
@@ -118,27 +118,31 @@ def door_open(request):
         else:
             return Response({
                 'success': False,
-                'message': 'Αποτυχία επικοινωνίας με τη συσκευή'
-            }, status=500)
+                'message': 'Αποτυχία επικοινωνίας με τη συσκευή',
+                'online': False
+            })
 
     except requests.exceptions.Timeout:
-        logger.warning(f"Door toggle timeout for user {request.user.username}")
+        logger.debug(f"Door toggle timeout for user {request.user.username}")
         return Response({
             'success': False,
-            'message': 'Timeout - η συσκευή δεν απαντά'
-        }, status=504)
+            'message': 'Timeout - η συσκευή δεν απαντά',
+            'online': False
+        })
     except requests.exceptions.ConnectionError:
-        logger.warning(f"Door toggle connection error for user {request.user.username}")
+        logger.debug(f"Door toggle connection error for user {request.user.username}")
         return Response({
             'success': False,
-            'message': 'Δεν βρέθηκε η συσκευή'
-        }, status=503)
+            'message': 'Δεν βρέθηκε η συσκευή',
+            'online': False
+        })
     except Exception as e:
         logger.error(f"Door toggle error for user {request.user.username}: {e}")
         return Response({
             'success': False,
-            'message': f'Σφάλμα: {str(e)}'
-        }, status=500)
+            'message': f'Σφάλμα: {str(e)}',
+            'online': False
+        })
 
 
 @api_view(['POST'])
@@ -178,22 +182,26 @@ def door_pulse(request):
         else:
             return Response({
                 'success': False,
-                'message': 'Αποτυχία επικοινωνίας με τη συσκευή'
-            }, status=500)
+                'message': 'Αποτυχία επικοινωνίας με τη συσκευή',
+                'online': False
+            })
 
     except requests.exceptions.Timeout:
         return Response({
             'success': False,
-            'message': 'Timeout - η συσκευή δεν απαντά'
-        }, status=504)
+            'message': 'Timeout - η συσκευή δεν απαντά',
+            'online': False
+        })
     except requests.exceptions.ConnectionError:
         return Response({
             'success': False,
-            'message': 'Δεν βρέθηκε η συσκευή'
-        }, status=503)
+            'message': 'Δεν βρέθηκε η συσκευή',
+            'online': False
+        })
     except Exception as e:
         logger.error(f"Door pulse error: {e}")
         return Response({
             'success': False,
-            'message': f'Σφάλμα: {str(e)}'
-        }, status=500)
+            'message': f'Σφάλμα: {str(e)}',
+            'online': False
+        })

@@ -4,6 +4,7 @@ import { Button } from './Button';
 import { validateAfm } from '../utils/afm';
 import { gsisApi, type AFMData } from '../api/client';
 import type { Client, ClientFormData } from '../types';
+import { TAXPAYER_TYPES } from '../types';
 
 interface ClientFormProps {
   client?: Client | null;
@@ -16,6 +17,7 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
   const [formData, setFormData] = useState<ClientFormData>({
     afm: '',
     eponimia: '',
+    eidos_ipoxreou: 'individual',
     email: '',
     kinito_tilefono: '',
     is_active: true,
@@ -79,6 +81,7 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
       setFormData({
         afm: client.afm || '',
         eponimia: client.eponimia || '',
+        eidos_ipoxreou: (client as { eidos_ipoxreou?: string }).eidos_ipoxreou as ClientFormData['eidos_ipoxreou'] || 'individual',
         email: client.email || '',
         kinito_tilefono: client.kinito_tilefono || '',
         is_active: client.is_active ?? true,
@@ -148,6 +151,25 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
           placeholder="Εισάγετε επωνυμία"
         />
         {errors.eponimia && <p className="mt-1 text-sm text-red-500">{errors.eponimia}</p>}
+      </div>
+
+      {/* Είδος Υπόχρεου */}
+      <div>
+        <label htmlFor="eidos_ipoxreou" className="block text-sm font-medium text-gray-700 mb-1">
+          Είδος Υπόχρεου *
+        </label>
+        <select
+          id="eidos_ipoxreou"
+          value={formData.eidos_ipoxreou}
+          onChange={(e) => handleChange('eidos_ipoxreou', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          {TAXPAYER_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* ΑΦΜ */}

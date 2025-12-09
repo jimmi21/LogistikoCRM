@@ -10,6 +10,7 @@ Django REST Framework Views για myDATA module.
 """
 
 from datetime import date, timedelta
+from calendar import monthrange
 from decimal import Decimal
 import logging
 
@@ -92,6 +93,79 @@ def build_category_breakdown(client, year: int, month: int, rec_type: int) -> li
     ]
 
 
+def get_period_date_range(year: int, month: int = None, quarter: int = None, period_type: str = 'month'):
+    """
+    Calculate date range based on period type.
+
+    Args:
+        year: Year
+        month: Month (1-12), used when period_type='month'
+        quarter: Quarter (1-4), used when period_type='quarter'
+        period_type: 'month', 'quarter', or 'year'
+
+    Returns:
+        Tuple (date_from, date_to, display_label)
+    """
+    if period_type == 'quarter':
+        if quarter is None:
+            quarter = 1
+        start_month = (quarter - 1) * 3 + 1
+        end_month = quarter * 3
+        date_from = date(year, start_month, 1)
+        last_day = monthrange(year, end_month)[1]
+        date_to = date(year, end_month, last_day)
+        label = f"Q{quarter} {year}"
+    elif period_type == 'year':
+        date_from = date(year, 1, 1)
+        date_to = date(year, 12, 31)
+        label = str(year)
+    else:  # month
+        if month is None:
+            month = 1
+        date_from = date(year, month, 1)
+        last_day = monthrange(year, month)[1]
+        date_to = date(year, month, last_day)
+        label = f"{month}/{year}"
+
+    return date_from, date_to, label
+
+
+def build_date_range_summary(client, date_from, date_to) -> dict:
+    """Build complete period summary for a client using date range."""
+    income = VATRecord.get_date_range_summary(client, date_from, date_to, rec_type=1)
+    expense = VATRecord.get_date_range_summary(client, date_from, date_to, rec_type=2)
+
+    return {
+        'income_net': income['net_value'],
+        'income_vat': income['vat_amount'],
+        'income_gross': income['gross_value'],
+        'income_count': income['count'],
+        'expense_net': expense['net_value'],
+        'expense_vat': expense['vat_amount'],
+        'expense_gross': expense['gross_value'],
+        'expense_count': expense['count'],
+        'net_difference': income['net_value'] - expense['net_value'],
+        'vat_difference': income['vat_amount'] - expense['vat_amount'],
+    }
+
+
+def build_date_range_category_breakdown(client, date_from, date_to, rec_type: int) -> list:
+    """Build VAT category breakdown for a date range."""
+    breakdown = VATRecord.get_date_range_by_category(client, date_from, date_to, rec_type)
+
+    return [
+        {
+            'vat_category': item['vat_category'],
+            'vat_rate': get_vat_rate_for_category(item['vat_category']),
+            'vat_rate_display': get_vat_rate_display(item['vat_category']),
+            'net_value': item['total_net'] or Decimal('0.00'),
+            'vat_amount': item['total_vat'] or Decimal('0.00'),
+            'count': item['record_count'] or 0,
+        }
+        for item in breakdown
+    ]
+
+
 # =============================================================================
 # CREDENTIALS VIEWSET
 # =============================================================================
@@ -135,6 +209,26 @@ class MyDataCredentialsViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_verified=is_verified.lower() == 'true')
 
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='by-client/(?P<client_id>[^/.]+)')
+    def by_client(self, request, client_id=None):
+        """
+        Get credentials for a specific client by client ID.
+
+        GET /api/mydata/credentials/by-client/{client_id}/
+        """
+        try:
+            credentials = MyDataCredentials.objects.select_related('client').get(
+                client_id=client_id,
+                is_active=True
+            )
+            serializer = self.get_serializer(credentials)
+            return Response(serializer.data)
+        except MyDataCredentials.DoesNotExist:
+            return Response(
+                {'error': 'Δεν βρέθηκαν credentials για αυτόν τον πελάτη'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
@@ -519,7 +613,9 @@ class ClientVATDetailView(APIView):
 
     Query params:
     - year: Year (default: current)
-    - month: Month (default: current)
+    - month: Month (default: current, used when period_type='month')
+    - quarter: Quarter 1-4 (used when period_type='quarter')
+    - period_type: 'month', 'quarter', or 'year' (default: 'month')
     - include_records: Include individual records (default: false)
     """
 
@@ -536,8 +632,26 @@ class ClientVATDetailView(APIView):
 
         today = date.today()
         year = int(request.query_params.get('year', today.year))
-        month = int(request.query_params.get('month', today.month))
+        period_type = request.query_params.get('period_type', 'month')
         include_records = request.query_params.get('include_records', 'false').lower() == 'true'
+
+        # Get month or quarter based on period type
+        if period_type == 'quarter':
+            # Default to current quarter
+            current_quarter = (today.month - 1) // 3 + 1
+            quarter = int(request.query_params.get('quarter', current_quarter))
+            month = None
+        elif period_type == 'year':
+            quarter = None
+            month = None
+        else:
+            quarter = None
+            month = int(request.query_params.get('month', today.month))
+
+        # Calculate date range
+        date_from, date_to, period_label = get_period_date_range(
+            year, month=month, quarter=quarter, period_type=period_type
+        )
 
         # Check for credentials
         try:
@@ -550,10 +664,18 @@ class ClientVATDetailView(APIView):
             is_verified = False
             last_sync = None
 
-        # Build response
-        summary = build_period_summary(client, year, month)
-        income_breakdown = build_category_breakdown(client, year, month, 1)
-        expense_breakdown = build_category_breakdown(client, year, month, 2)
+        # Build response using date range functions
+        summary = build_date_range_summary(client, date_from, date_to)
+        income_breakdown = build_date_range_category_breakdown(client, date_from, date_to, 1)
+        expense_breakdown = build_date_range_category_breakdown(client, date_from, date_to, 2)
+
+        # Add period info to summary
+        summary['year'] = year
+        summary['month'] = month
+        summary['quarter'] = quarter
+        summary['period_type'] = period_type
+        summary['date_from'] = date_from.isoformat()
+        summary['date_to'] = date_to.isoformat()
 
         response_data = {
             'client': {
@@ -568,6 +690,11 @@ class ClientVATDetailView(APIView):
             'period': {
                 'year': year,
                 'month': month,
+                'quarter': quarter,
+                'period_type': period_type,
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+                'label': period_label,
             },
             'summary': summary,
             'income_by_category': income_breakdown,
@@ -577,8 +704,8 @@ class ClientVATDetailView(APIView):
         if include_records:
             records = VATRecord.objects.filter(
                 client=client,
-                issue_date__year=year,
-                issue_date__month=month,
+                issue_date__gte=date_from,
+                issue_date__lte=date_to,
                 is_cancelled=False,
             ).order_by('-issue_date', '-mark')
 
