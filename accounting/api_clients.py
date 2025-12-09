@@ -171,6 +171,14 @@ class ClientCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Μη έγκυρο ΑΦΜ - αποτυχία ελέγχου checksum."
             )
+        # Check for duplicate AFM (exclude current instance on update)
+        existing = ClientProfile.objects.filter(afm=value)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError(
+                "Υπάρχει ήδη πελάτης με αυτό το ΑΦΜ."
+            )
         return value
 
 

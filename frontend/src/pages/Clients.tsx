@@ -54,12 +54,36 @@ export default function Clients() {
     );
   }, [data?.results, searchTerm]);
 
+  // Helper to extract error message from API response
+  const getErrorMessage = (error: unknown): string => {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const response = (error as { response?: { data?: Record<string, unknown> } }).response;
+      if (response?.data) {
+        // Handle field-specific errors (e.g., { afm: ["Υπάρχει ήδη πελάτης με αυτό το ΑΦΜ."] })
+        const data = response.data;
+        for (const key of Object.keys(data)) {
+          const value = data[key];
+          if (Array.isArray(value) && value.length > 0) {
+            return String(value[0]);
+          }
+          if (typeof value === 'string') {
+            return value;
+          }
+        }
+      }
+    }
+    return 'Σφάλμα κατά την αποθήκευση';
+  };
+
   // Handlers
   const handleCreate = (formData: ClientFormData) => {
     createMutation.mutate(formData, {
       onSuccess: () => {
         setIsCreateModalOpen(false);
-        // invalidateQueries in hook triggers automatic refetch
+        showToast('success', 'Ο πελάτης δημιουργήθηκε επιτυχώς');
+      },
+      onError: (error: unknown) => {
+        showToast('error', getErrorMessage(error));
       },
     });
   };
@@ -77,7 +101,10 @@ export default function Clients() {
         onSuccess: () => {
           setIsEditModalOpen(false);
           setSelectedClient(null);
-          // invalidateQueries in hook triggers automatic refetch
+          showToast('success', 'Ο πελάτης ενημερώθηκε επιτυχώς');
+        },
+        onError: (error: unknown) => {
+          showToast('error', getErrorMessage(error));
         },
       }
     );
