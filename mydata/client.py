@@ -552,6 +552,18 @@ class MyDataClient:
             # Try finding all elements with local name VatInfo
             vat_info_elements = [elem for elem in root.iter() if elem.tag.endswith('VatInfo')]
 
+        # === DEBUG LOGGING: Δες τι επιστρέφει το API ===
+        logger.info(f"[DEBUG] RequestVatInfo: Found {len(vat_info_elements)} VatInfo elements")
+        for i, vat_elem in enumerate(vat_info_elements[:5]):  # Πρώτα 5 για debugging
+            xml_str = ET.tostring(vat_elem, encoding='unicode')
+            logger.info(f"[DEBUG] VatInfo[{i}] RAW XML:\n{xml_str}")
+            # Έλεγχος για RecType field
+            rec_type_check = self._get_xml_text_flexible(vat_elem, 'RecType', ns)
+            vat303_check = self._get_xml_text_flexible(vat_elem, 'Vat303', ns)
+            vat333_check = self._get_xml_text_flexible(vat_elem, 'Vat333', ns)
+            logger.info(f"[DEBUG] VatInfo[{i}] Fields: RecType={rec_type_check}, Vat303={vat303_check}, Vat333={vat333_check}")
+        # === END DEBUG LOGGING ===
+
         # Parse continuation token (pagination) - try both with and without namespace
         continuation = root.find('aade:continuationToken', ns)
         if continuation is None:
