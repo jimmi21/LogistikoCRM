@@ -1,7 +1,21 @@
 import { useState, useMemo } from 'react';
 import {
-  RefreshCw, ChevronLeft, ChevronRight, AlertCircle, CheckCircle,
-  TrendingUp, TrendingDown, Minus, Info, Building2, Calendar
+  FileText,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Users,
+  Euro,
+  ArrowUpRight,
+  ArrowDownRight,
+  BarChart3,
+  Calculator,
 } from 'lucide-react';
 import { Button, VATPeriodCalculator } from '../components';
 import { mydataApi, type MyDataDashboardResponse, type TrendData } from '../api/client';
@@ -30,12 +44,40 @@ const VAT_COLORS: Record<number, string> = {
   8: '#9CA3AF', // χωρίς - light gray
 };
 
+// Tab types
+type TabType = 'overview' | 'calculator';
+
 export default function MyData() {
-  const today = new Date();
-  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-  const [selectedAfm, setSelectedAfm] = useState<string | null>(null);
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [dashboard, setDashboard] = useState<MyDataDashboardResponse | null>(null);
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  // Period selection
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+
+  // Fetch dashboard data
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [dashboardData, trend] = await Promise.all([
+        mydataApi.getDashboard(year, month),
+        mydataApi.getTrend(6),
+      ]);
+      setDashboard(dashboardData);
+      setTrendData(trend);
+    } catch (err) {
+      console.error('Error fetching myDATA:', err);
+      setError('Σφάλμα φόρτωσης δεδομένων myDATA');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Queries
   const { data: clients, isLoading: loadingClients, error: clientsError } = useMyDataClients();
@@ -143,9 +185,46 @@ export default function MyData() {
             Παρακολούθηση ΦΠΑ από τα ηλεκτρονικά βιβλία ΑΑΔΕ
           </p>
         </div>
+        {activeTab === 'overview' && (
+          <Button onClick={handleSyncAll} disabled={syncing}>
+            <RefreshCw size={18} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Συγχρονισμός...' : 'Συγχρονισμός όλων'}
+          </Button>
+        )}
       </div>
 
-      {/* Client & Period Selection */}
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'overview'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <BarChart3 size={18} />
+            Επισκόπηση
+          </button>
+          <button
+            onClick={() => setActiveTab('calculator')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'calculator'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Calculator size={18} />
+            Υπολογισμός Περιόδου
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' ? (
+        <>
+          {/* Period Selector */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Client Selection */}
@@ -534,9 +613,11 @@ export default function MyData() {
           </table>
         </div>
       </div>
-
-      {/* VAT Period Calculator */}
-      <VATPeriodCalculator />
+        </>
+      ) : (
+        /* Calculator Tab */
+        <VATPeriodCalculator />
+      )}
     </div>
   );
 }
