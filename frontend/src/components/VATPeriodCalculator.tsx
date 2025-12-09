@@ -42,6 +42,7 @@ interface VATPeriodResult {
   is_payable: boolean;
   is_credit: boolean;
   last_calculated_at: string | null;
+  created: boolean;  // True if this was a newly created period result
 }
 
 // Greek month names
@@ -405,19 +406,23 @@ export default function VATPeriodCalculator() {
                   <p className="text-lg font-semibold text-purple-600">
                     {formatCurrency(result.previous_credit)}
                   </p>
-                  {!result.is_locked && (
+                  {/* Show edit button only if unlocked AND (new period OR no credit yet) */}
+                  {!result.is_locked && (result.created || result.previous_credit === 0) && (
                     <button
                       onClick={() => {
                         setShowCreditInput(!showCreditInput);
                         setManualCredit(result.previous_credit.toString());
                       }}
                       className="text-purple-500 hover:text-purple-700"
-                      title="Επεξεργασία"
+                      title="Ορισμός πιστωτικού"
                     >
                       <Save size={14} />
                     </button>
                   )}
                 </div>
+                {result.previous_credit > 0 && !result.created && (
+                  <p className="text-xs text-purple-400 mt-1">Από προηγούμενη περίοδο</p>
+                )}
               </div>
 
               <ArrowRight size={20} className="text-gray-400 hidden sm:block" />

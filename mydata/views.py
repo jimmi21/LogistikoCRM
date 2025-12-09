@@ -136,16 +136,16 @@ def build_date_range_summary(client, date_from, date_to) -> dict:
     expense = VATRecord.get_date_range_summary(client, date_from, date_to, rec_type=2)
 
     return {
-        'income_net': income['net_value'],
-        'income_vat': income['vat_amount'],
-        'income_gross': income['gross_value'],
+        'income_net': float(income['net_value']),
+        'income_vat': float(income['vat_amount']),
+        'income_gross': float(income['gross_value']),
         'income_count': income['count'],
-        'expense_net': expense['net_value'],
-        'expense_vat': expense['vat_amount'],
-        'expense_gross': expense['gross_value'],
+        'expense_net': float(expense['net_value']),
+        'expense_vat': float(expense['vat_amount']),
+        'expense_gross': float(expense['gross_value']),
         'expense_count': expense['count'],
-        'net_difference': income['net_value'] - expense['net_value'],
-        'vat_difference': income['vat_amount'] - expense['vat_amount'],
+        'net_difference': float(income['net_value'] - expense['net_value']),
+        'vat_difference': float(income['vat_amount'] - expense['vat_amount']),
     }
 
 
@@ -158,8 +158,8 @@ def build_date_range_category_breakdown(client, date_from, date_to, rec_type: in
             'vat_category': item['vat_category'],
             'vat_rate': get_vat_rate_for_category(item['vat_category']),
             'vat_rate_display': get_vat_rate_display(item['vat_category']),
-            'net_value': item['total_net'] or Decimal('0.00'),
-            'vat_amount': item['total_vat'] or Decimal('0.00'),
+            'net_value': float(item['total_net'] or 0),
+            'vat_amount': float(item['total_vat'] or 0),
             'count': item['record_count'] or 0,
         }
         for item in breakdown
@@ -268,6 +268,46 @@ class MyDataCredentialsViewSet(viewsets.ModelViewSet):
             'success': True,
             'message': 'Τα credentials ενημερώθηκαν. Κάντε verify για επιβεβαίωση.',
         })
+
+    @action(detail=True, methods=['post'])
+    def set_initial_credit(self, request, pk=None):
+        """
+        Ορίζει το αρχικό πιστωτικό υπόλοιπο.
+
+        Body:
+        - initial_credit_balance: Decimal amount
+        - initial_credit_period_year: Year (optional)
+        - initial_credit_period: Period/Month (optional)
+        """
+        credentials = self.get_object()
+
+        try:
+            balance = Decimal(str(request.data.get('initial_credit_balance', 0)))
+            if balance < 0:
+                return Response(
+                    {'error': 'Το πιστωτικό δεν μπορεί να είναι αρνητικό'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            credentials.initial_credit_balance = balance
+            credentials.initial_credit_period_year = request.data.get('initial_credit_period_year')
+            credentials.initial_credit_period = request.data.get('initial_credit_period')
+            credentials.save(update_fields=[
+                'initial_credit_balance',
+                'initial_credit_period_year',
+                'initial_credit_period'
+            ])
+
+            return Response({
+                'success': True,
+                'message': f'Το αρχικό πιστωτικό ορίστηκε σε {balance}€',
+                'initial_credit_balance': str(balance),
+            })
+        except (ValueError, TypeError) as e:
+            return Response(
+                {'error': f'Μη έγκυρο ποσό: {e}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=True, methods=['post'])
     def sync(self, request, pk=None):
@@ -630,88 +670,96 @@ class ClientVATDetailView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        today = date.today()
-        year = int(request.query_params.get('year', today.year))
-        period_type = request.query_params.get('period_type', 'month')
-        include_records = request.query_params.get('include_records', 'false').lower() == 'true'
-
-        # Get month or quarter based on period type
-        if period_type == 'quarter':
-            # Default to current quarter
-            current_quarter = (today.month - 1) // 3 + 1
-            quarter = int(request.query_params.get('quarter', current_quarter))
-            month = None
-        elif period_type == 'year':
-            quarter = None
-            month = None
-        else:
-            quarter = None
-            month = int(request.query_params.get('month', today.month))
-
-        # Calculate date range
-        date_from, date_to, period_label = get_period_date_range(
-            year, month=month, quarter=quarter, period_type=period_type
-        )
-
-        # Check for credentials
         try:
-            credentials = client.mydata_credentials
-            has_credentials = credentials.has_credentials
-            is_verified = credentials.is_verified
-            last_sync = credentials.last_vat_sync_at
-        except MyDataCredentials.DoesNotExist:
-            has_credentials = False
-            is_verified = False
-            last_sync = None
+            today = date.today()
+            year = int(request.query_params.get('year', today.year))
+            period_type = request.query_params.get('period_type', 'month')
+            include_records = request.query_params.get('include_records', 'false').lower() == 'true'
 
-        # Build response using date range functions
-        summary = build_date_range_summary(client, date_from, date_to)
-        income_breakdown = build_date_range_category_breakdown(client, date_from, date_to, 1)
-        expense_breakdown = build_date_range_category_breakdown(client, date_from, date_to, 2)
+            # Get month or quarter based on period type
+            if period_type == 'quarter':
+                # Default to current quarter
+                current_quarter = (today.month - 1) // 3 + 1
+                quarter = int(request.query_params.get('quarter', current_quarter))
+                month = None
+            elif period_type == 'year':
+                quarter = None
+                month = None
+            else:
+                quarter = None
+                month = int(request.query_params.get('month', today.month))
 
-        # Add period info to summary
-        summary['year'] = year
-        summary['month'] = month
-        summary['quarter'] = quarter
-        summary['period_type'] = period_type
-        summary['date_from'] = date_from.isoformat()
-        summary['date_to'] = date_to.isoformat()
+            # Calculate date range
+            date_from, date_to, period_label = get_period_date_range(
+                year, month=month, quarter=quarter, period_type=period_type
+            )
 
-        response_data = {
-            'client': {
-                'afm': client.afm,
-                'name': client.eponimia,
-            },
-            'credentials': {
-                'has_credentials': has_credentials,
-                'is_verified': is_verified,
-                'last_sync': last_sync,
-            },
-            'period': {
-                'year': year,
-                'month': month,
-                'quarter': quarter,
-                'period_type': period_type,
-                'date_from': date_from.isoformat(),
-                'date_to': date_to.isoformat(),
-                'label': period_label,
-            },
-            'summary': summary,
-            'income_by_category': income_breakdown,
-            'expense_by_category': expense_breakdown,
-        }
+            # Check for credentials
+            try:
+                credentials = client.mydata_credentials
+                has_credentials = credentials.has_credentials
+                is_verified = credentials.is_verified
+                last_sync = credentials.last_vat_sync_at.isoformat() if credentials.last_vat_sync_at else None
+            except MyDataCredentials.DoesNotExist:
+                has_credentials = False
+                is_verified = False
+                last_sync = None
 
-        if include_records:
-            records = VATRecord.objects.filter(
-                client=client,
-                issue_date__gte=date_from,
-                issue_date__lte=date_to,
-                is_cancelled=False,
-            ).order_by('-issue_date', '-mark')
+            # Build response using date range functions
+            summary = build_date_range_summary(client, date_from, date_to)
+            income_breakdown = build_date_range_category_breakdown(client, date_from, date_to, 1)
+            expense_breakdown = build_date_range_category_breakdown(client, date_from, date_to, 2)
 
-            response_data['records'] = VATRecordListSerializer(records, many=True).data
+            # Add period info to summary
+            summary['year'] = year
+            summary['month'] = month
+            summary['quarter'] = quarter
+            summary['period_type'] = period_type
+            summary['date_from'] = date_from.isoformat()
+            summary['date_to'] = date_to.isoformat()
 
-        return Response(response_data)
+            response_data = {
+                'client': {
+                    'afm': client.afm,
+                    'name': client.eponimia,
+                },
+                'credentials': {
+                    'has_credentials': has_credentials,
+                    'is_verified': is_verified,
+                    'last_sync': last_sync,
+                },
+                'period': {
+                    'year': year,
+                    'month': month,
+                    'quarter': quarter,
+                    'period_type': period_type,
+                    'date_from': date_from.isoformat(),
+                    'date_to': date_to.isoformat(),
+                    'label': period_label,
+                },
+                'summary': summary,
+                'income_by_category': income_breakdown,
+                'expense_by_category': expense_breakdown,
+            }
+
+            if include_records:
+                records = VATRecord.objects.filter(
+                    client=client,
+                    issue_date__gte=date_from,
+                    issue_date__lte=date_to,
+                    is_cancelled=False,
+                ).order_by('-issue_date', '-mark')
+
+                response_data['records'] = VATRecordListSerializer(records, many=True).data
+
+            return Response(response_data)
+
+        except Exception as e:
+            import traceback
+            return Response(
+                {'error': str(e), 'traceback': traceback.format_exc()},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # =============================================================================
@@ -1070,28 +1118,32 @@ class VATPeriodCalculatorView(APIView):
         if created or request.query_params.get('recalculate'):
             period_result.calculate_from_records(save=True)
 
-        # Build response
+        # Build response - flat structure matching frontend interface
+        final_result = float(period_result.final_result)
         return Response({
-            'client': {
-                'id': client.pk,
-                'afm': client.afm,
-                'name': client.eponimia,
-            },
-            'period': {
-                'type': period_result.period_type,
-                'year': period_result.year,
-                'period': period_result.period,
-                'display': period_result.get_period_display(),
-                'start_date': period_result.period_start_date.isoformat(),
-                'end_date': period_result.period_end_date.isoformat(),
-            },
-            'vat_output': str(period_result.vat_output),
-            'vat_input': str(period_result.vat_input),
-            'vat_difference': str(period_result.vat_difference),
-            'previous_credit': str(period_result.previous_credit),
-            'final_result': str(period_result.final_result),
-            'credit_to_next': str(period_result.credit_to_next),
+            'id': period_result.pk,  # Important: needed for lock/unlock operations
+            # Client info (flat)
+            'client': client.pk,
+            'client_afm': client.afm,
+            'client_name': client.eponimia,
+            # Period info (flat)
+            'period_type': period_result.period_type,
+            'year': period_result.year,
+            'period': period_result.period,
+            'period_display': period_result.get_period_display(),
+            'period_start_date': period_result.period_start_date.isoformat(),
+            'period_end_date': period_result.period_end_date.isoformat(),
+            # VAT values (as numbers for frontend)
+            'vat_output': float(period_result.vat_output),
+            'vat_input': float(period_result.vat_input),
+            'vat_difference': float(period_result.vat_difference),
+            'previous_credit': float(period_result.previous_credit),
+            'final_result': final_result,
+            'credit_to_next': float(period_result.credit_to_next),
+            # Status flags
             'is_locked': period_result.is_locked,
+            'is_payable': final_result > 0,
+            'is_credit': final_result < 0,
             'locked_at': period_result.locked_at.isoformat() if period_result.locked_at else None,
             'last_calculated_at': period_result.last_calculated_at.isoformat() if period_result.last_calculated_at else None,
             'months_synced': period_result.months_synced,

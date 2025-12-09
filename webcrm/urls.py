@@ -23,11 +23,6 @@ urlpatterns = [
     path('OAuth-2/authorize/', staff_member_required(get_refresh_token), name='get_refresh_token'),
 
     # ==================================================
-    # myDATA API
-    # ==================================================
-    path('api/mydata/', include('mydata.urls', namespace='mydata')),
-
-    # ==================================================
     # API DOCUMENTATION (OpenAPI/Swagger)
     # ==================================================
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
