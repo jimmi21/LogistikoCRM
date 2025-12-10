@@ -34,6 +34,7 @@ import {
   Shield,
   ShieldCheck,
   ShieldAlert,
+  FolderOpen,
 } from 'lucide-react';
 import { Button } from '../components';
 import {
@@ -238,6 +239,17 @@ export default function ClientDetails() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
+            {/* Folder link - opens Django archive view */}
+            <a
+              href={`/accounting/client/${clientId}/files/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors"
+              title="Άνοιγμα φακέλου αρχείων"
+            >
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Φάκελος
+            </a>
             {isEditing ? (
               <>
                 <Button
