@@ -16,8 +16,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema, OpenApiExample
@@ -107,6 +107,22 @@ class CustomTokenRefreshView(TokenRefreshView):
     Response:
         - access: New JWT access token
         - refresh: New JWT refresh token (if rotation is enabled)
+    """
+    pass
+
+
+class CustomTokenVerifyView(TokenVerifyView):
+    """
+    POST /api/auth/verify/
+
+    Verify that a token is valid.
+
+    Request body:
+        - token: JWT token to verify
+
+    Response:
+        - 200: Token is valid
+        - 401: Token is invalid or expired
     """
     pass
 

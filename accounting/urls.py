@@ -274,6 +274,7 @@ urlpatterns = [
     # ==================================================
     path("api/auth/login/", api_auth.CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/auth/refresh/", api_auth.CustomTokenRefreshView.as_view(), name="token_refresh"),
+    path("api/auth/verify/", api_auth.CustomTokenVerifyView.as_view(), name="token_verify"),
     path("api/auth/logout/", api_auth.logout_view, name="auth_logout"),
     path("api/auth/me/", api_auth.current_user_view, name="auth_me"),
 
