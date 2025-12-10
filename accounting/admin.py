@@ -73,14 +73,28 @@ class VoIPCallInline(admin.TabularInline):
         return False
 
 
+class ClientProfileDocumentInline(admin.TabularInline):
+    """Inline για όλα τα documents ενός πελάτη"""
+    model = ClientDocument
+    extra = 0
+    fields = ['document_category', 'file', 'filename', 'uploaded_at', 'obligation']
+    readonly_fields = ['filename', 'uploaded_at']
+    ordering = ['-uploaded_at']
+    verbose_name = 'Έγγραφο'
+    verbose_name_plural = 'Έγγραφα Πελάτη'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('obligation', 'obligation__obligation_type')
+
+
 # ============================================================================
 # ADMIN CLASSES - CLIENT PROFILE (ENHANCED)
 # ============================================================================
 
 @admin.register(ClientProfile)
 class ClientProfileAdmin(admin.ModelAdmin):  # ✅ ΔΙΟΡΘΩΣΗ: Προστέθηκε το όνομα της κλάσης!
-    # VoIP Call History Inline
-    inlines = [VoIPCallInline]
+    # VoIP Call History & Documents Inline
+    inlines = [VoIPCallInline, ClientProfileDocumentInline]
 
     list_display = [
         'afm',
@@ -88,7 +102,9 @@ class ClientProfileAdmin(admin.ModelAdmin):  # ✅ ΔΙΟΡΘΩΣΗ: Προστ�
         'eidos_ipoxreou',
         'katigoria_vivlion',
         'is_active',
+        'documents_count',
         'created_at',
+        'folder_link',
         'pdf_report_link',
     ]
 
@@ -102,7 +118,26 @@ class ClientProfileAdmin(admin.ModelAdmin):  # ✅ ΔΙΟΡΘΩΣΗ: Προστ�
             'font-weight: 600;">📥 PDF</a>',
             url
         )
-    
+
+    @admin.display(description='📁 Φάκελος')
+    def folder_link(self, obj):
+        """Link to client files/archive view"""
+        url = reverse('accounting:client_files', args=[obj.id])
+        return format_html(
+            '<a href="{}" target="_blank" style="background: #417690; '
+            'color: white; padding: 3px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; '
+            'font-weight: 600;">📁 Αρχεία</a>',
+            url
+        )
+
+    @admin.display(description='Έγγραφα')
+    def documents_count(self, obj):
+        """Count of client documents"""
+        count = obj.documents.count()
+        if count > 0:
+            return format_html('<span style="color: #28a745; font-weight: bold;">{}</span>', count)
+        return '-'
+
     list_filter = [
         'eidos_ipoxreou',
         'katigoria_vivlion',
