@@ -648,6 +648,7 @@ class EmailLog(models.Model):
         ('sent', 'Απεστάλη'),
         ('failed', 'Αποτυχία'),
         ('pending', 'Σε αναμονή'),
+        ('queued', 'Στην ουρά'),
     ]
 
     recipient_email = models.EmailField('Email Παραλήπτη')
@@ -689,6 +690,7 @@ class EmailLog(models.Model):
         default='pending'
     )
     error_message = models.TextField('Μήνυμα Σφάλματος', blank=True)
+    retry_count = models.PositiveIntegerField('Αριθμός Επαναπροσπαθειών', default=0)
 
     sent_at = models.DateTimeField('Αποστολή', auto_now_add=True)
     sent_by = models.ForeignKey(
@@ -711,13 +713,13 @@ class EmailLog(models.Model):
         ]
 
     def __str__(self):
-        status_icon = {'sent': '✅', 'failed': '❌', 'pending': '⏳'}.get(self.status, '?')
+        status_icon = {'sent': '✅', 'failed': '❌', 'pending': '⏳', 'queued': '📤'}.get(self.status, '?')
         return f"{status_icon} {self.recipient_email} - {self.subject[:50]}"
 
     @property
     def status_display(self):
         """Return status with icon"""
-        icons = {'sent': '✅', 'failed': '❌', 'pending': '⏳'}
+        icons = {'sent': '✅', 'failed': '❌', 'pending': '⏳', 'queued': '📤'}
         return f"{icons.get(self.status, '?')} {self.get_status_display()}"
 
 

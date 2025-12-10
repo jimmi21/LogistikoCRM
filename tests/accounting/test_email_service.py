@@ -416,3 +416,266 @@ class EmailServiceGreekCharactersTest(TestCase):
         # Check subject contains Greek
         self.assertIn('Φόρος Προστιθέμενης Αξίας', mail.outbox[0].subject)
         self.assertIn('ΔΟΚΙΜΑΣΤΙΚΗ', mail.outbox[0].subject)
+
+
+# =============================================================================
+# NEW TESTS FOR EMAIL IMPROVEMENTS (v3.0)
+# =============================================================================
+
+class EmailLogRetryCountTest(TestCase):
+    """Tests for the retry_count field on EmailLog"""
+
+    def test_email_log_has_retry_count(self):
+        """Test that EmailLog has retry_count field"""
+        log = EmailLog.objects.create(
+            recipient_email='test@example.com',
+            recipient_name='Test',
+            subject='Test',
+            body='Test',
+            status='pending'
+        )
+        self.assertEqual(log.retry_count, 0)
+
+    def test_email_log_retry_count_increments(self):
+        """Test that retry_count can be incremented"""
+        log = EmailLog.objects.create(
+            recipient_email='test@example.com',
+            recipient_name='Test',
+            subject='Test',
+            body='Test',
+            status='pending'
+        )
+        log.retry_count = 3
+        log.save()
+        log.refresh_from_db()
+        self.assertEqual(log.retry_count, 3)
+
+    def test_email_log_queued_status(self):
+        """Test queued status for async emails"""
+        log = EmailLog.objects.create(
+            recipient_email='test@example.com',
+            recipient_name='Test',
+            subject='Test',
+            body='Test',
+            status='queued'
+        )
+        self.assertEqual(log.status, 'queued')
+        self.assertIn('📤', str(log))
+
+
+class EmailUtilsRateLimiterTest(TestCase):
+    """Tests for the RateLimiter class"""
+
+    def test_rate_limiter_creation(self):
+        """Test RateLimiter can be created"""
+        from accounting.services.email_utils import RateLimiter
+        limiter = RateLimiter(requests_per_second=2.0)
+        self.assertIsNotNone(limiter)
+
+    def test_rate_limiter_wait(self):
+        """Test RateLimiter wait method"""
+        from accounting.services.email_utils import RateLimiter
+        import time
+
+        limiter = RateLimiter(requests_per_second=10.0)  # High rate for fast test
+
+        start = time.time()
+        limiter.wait()
+        limiter.wait()
+        elapsed = time.time() - start
+
+        # Should have waited at least min_interval (0.1s for 10 req/s)
+        self.assertGreaterEqual(elapsed, 0.05)
+
+    def test_rate_limiter_reset(self):
+        """Test RateLimiter reset"""
+        from accounting.services.email_utils import RateLimiter
+        limiter = RateLimiter()
+        limiter.wait()
+        limiter.reset()
+        self.assertEqual(limiter.last_request_time, 0.0)
+
+
+class EmailUtilsRetryDecoratorTest(TestCase):
+    """Tests for the retry_with_backoff decorator"""
+
+    def test_retry_decorator_success(self):
+        """Test that decorator passes through on success"""
+        from accounting.services.email_utils import retry_with_backoff
+
+        call_count = 0
+
+        @retry_with_backoff(max_retries=3, base_delay=0.01)
+        def success_func():
+            nonlocal call_count
+            call_count += 1
+            return "success"
+
+        result = success_func()
+        self.assertEqual(result, "success")
+        self.assertEqual(call_count, 1)
+
+    def test_retry_decorator_retries_on_failure(self):
+        """Test that decorator retries on retriable exceptions"""
+        from accounting.services.email_utils import retry_with_backoff, RETRIABLE_EXCEPTIONS
+        from smtplib import SMTPServerDisconnected
+
+        call_count = 0
+
+        @retry_with_backoff(max_retries=2, base_delay=0.01)
+        def fail_then_succeed():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise SMTPServerDisconnected("Connection lost")
+            return "success"
+
+        result = fail_then_succeed()
+        self.assertEqual(result, "success")
+        self.assertEqual(call_count, 2)
+
+
+class EmailUtilsConnectionPoolTest(TestCase):
+    """Tests for the EmailConnectionPool class"""
+
+    def test_connection_pool_creation(self):
+        """Test ConnectionPool can be created"""
+        from accounting.services.email_utils import EmailConnectionPool
+        pool = EmailConnectionPool(max_connections=3)
+        self.assertEqual(pool.max_connections, 3)
+
+    def test_connection_pool_stats(self):
+        """Test ConnectionPool stats"""
+        from accounting.services.email_utils import EmailConnectionPool
+        pool = EmailConnectionPool(max_connections=3)
+        stats = pool.stats
+        self.assertIn('pooled', stats)
+        self.assertIn('active', stats)
+        self.assertIn('max', stats)
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FROM_EMAIL='noreply@test.com'
+)
+class EmailServiceNewFeaturesTest(TestCase):
+    """Tests for new EmailService features in v3.0"""
+
+    def setUp(self):
+        """Set up test data"""
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='testuser@example.com',
+            password='testpass123'
+        )
+
+        self.client = ClientProfile.objects.create(
+            afm='123456789',
+            eponimia='Test Company',
+            email='client@example.com'
+        )
+
+    def test_send_email_with_retry_disabled(self):
+        """Test sending email with retry disabled"""
+        success, result = EmailService.send_email(
+            recipient_email='test@example.com',
+            subject='Test',
+            body='<p>Test</p>',
+            client=self.client,
+            use_retry=False
+        )
+        self.assertTrue(success)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_send_email_with_rate_limit_disabled(self):
+        """Test sending email with rate limit disabled"""
+        success, result = EmailService.send_email(
+            recipient_email='test@example.com',
+            subject='Test',
+            body='<p>Test</p>',
+            client=self.client,
+            use_rate_limit=False
+        )
+        self.assertTrue(success)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_send_email_creates_log_with_retry_count(self):
+        """Test that EmailLog is created with retry_count=0"""
+        success, result = EmailService.send_email(
+            recipient_email='test@example.com',
+            subject='Test',
+            body='<p>Test</p>',
+            client=self.client
+        )
+        self.assertTrue(success)
+        self.assertIsInstance(result, EmailLog)
+        self.assertEqual(result.retry_count, 0)
+
+    def test_send_email_from_log(self):
+        """Test sending email from existing EmailLog"""
+        # Create a pending log entry
+        log = EmailLog.objects.create(
+            recipient_email='test@example.com',
+            recipient_name='Test',
+            client=self.client,
+            subject='Test Subject',
+            body='<p>Test Body</p>',
+            status='pending'
+        )
+
+        success, error = EmailService.send_email_from_log(log.id)
+        self.assertTrue(success)
+        self.assertIsNone(error)
+
+        log.refresh_from_db()
+        self.assertEqual(log.status, 'sent')
+
+    def test_send_email_from_log_already_sent(self):
+        """Test that already sent emails are not re-sent"""
+        log = EmailLog.objects.create(
+            recipient_email='test@example.com',
+            recipient_name='Test',
+            client=self.client,
+            subject='Test',
+            body='Test',
+            status='sent'
+        )
+
+        success, error = EmailService.send_email_from_log(log.id)
+        self.assertTrue(success)
+        # No new emails should be sent
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_send_bulk_emails_with_connection_pool(self):
+        """Test bulk email with connection pooling"""
+        obligation_type = ObligationType.objects.create(
+            name='Test', code='TST', frequency='monthly'
+        )
+
+        template = EmailTemplate.objects.create(
+            name='Test Template',
+            subject='Test {client_name}',
+            body_html='<p>Test</p>',
+            is_active=True
+        )
+
+        obligations = []
+        for i in range(3):
+            obligations.append(MonthlyObligation.objects.create(
+                client=self.client,
+                obligation_type=obligation_type,
+                year=2025,
+                month=i + 1,
+                deadline=timezone.now().date(),
+                status='completed'
+            ))
+
+        results = EmailService.send_bulk_emails(
+            obligations=obligations,
+            template=template,
+            use_connection_pool=True
+        )
+
+        self.assertEqual(results['sent'], 3)
+        self.assertEqual(results['failed'], 0)
+        self.assertEqual(len(mail.outbox), 3)
