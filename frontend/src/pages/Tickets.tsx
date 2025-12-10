@@ -28,58 +28,14 @@ import {
 import { useUsers } from '../hooks/useUsers';
 import { useClients } from '../hooks/useClients';
 import type { TicketFull } from '../types';
-
-// Status filter options
-const STATUS_OPTIONS = [
-  { value: '', label: 'Όλες' },
-  { value: 'open', label: 'Ανοιχτά' },
-  { value: 'in_progress', label: 'Σε εξέλιξη' },
-  { value: 'resolved', label: 'Επιλύθηκε' },
-  { value: 'closed', label: 'Κλειστά' },
-];
-
-// Priority filter options
-const PRIORITY_OPTIONS = [
-  { value: '', label: 'Όλες' },
-  { value: 'urgent', label: 'Επείγον' },
-  { value: 'high', label: 'Υψηλή' },
-  { value: 'medium', label: 'Μεσαία' },
-  { value: 'low', label: 'Χαμηλή' },
-];
-
-// Status badge colors
-const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-800',
-  assigned: 'bg-cyan-100 text-cyan-800',
-  in_progress: 'bg-yellow-100 text-yellow-800',
-  resolved: 'bg-green-100 text-green-800',
-  closed: 'bg-gray-100 text-gray-800',
-};
-
-// Status labels
-const STATUS_LABELS: Record<string, string> = {
-  open: 'Ανοιχτό',
-  assigned: 'Ανατέθηκε',
-  in_progress: 'Σε εξέλιξη',
-  resolved: 'Επιλύθηκε',
-  closed: 'Κλειστό',
-};
-
-// Priority badge colors
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: 'bg-red-100 text-red-800',
-  high: 'bg-orange-100 text-orange-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  low: 'bg-green-100 text-green-800',
-};
-
-// Priority labels
-const PRIORITY_LABELS: Record<string, string> = {
-  urgent: 'Επείγον',
-  high: 'Υψηλή',
-  medium: 'Μεσαία',
-  low: 'Χαμηλή',
-};
+import {
+  TICKET_STATUS_OPTIONS as STATUS_OPTIONS,
+  PRIORITY_OPTIONS,
+  TICKET_STATUS_COLORS as STATUS_COLORS,
+  TICKET_STATUS_LABELS as STATUS_LABELS,
+  PRIORITY_COLORS,
+  PRIORITY_LABELS,
+} from '../constants';
 
 export default function Tickets() {
   // Filters state

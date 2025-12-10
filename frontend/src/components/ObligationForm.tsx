@@ -3,6 +3,11 @@ import { Button } from './Button';
 import { useObligationTypes } from '../hooks/useObligations';
 import { useUsers } from '../hooks/useUsers';
 import type { Client, Obligation, ObligationFormData, ObligationStatus } from '../types';
+import {
+  OBLIGATION_STATUS_OPTIONS as STATUS_OPTIONS,
+  MONTHS,
+  YEARS,
+} from '../constants';
 
 interface ObligationFormProps {
   obligation?: Obligation | null;
@@ -12,31 +17,7 @@ interface ObligationFormProps {
   isLoading?: boolean;
 }
 
-const STATUS_OPTIONS: { value: ObligationStatus; label: string }[] = [
-  { value: 'pending', label: 'Εκκρεμεί' },
-  { value: 'in_progress', label: 'Σε εξέλιξη' },
-  { value: 'completed', label: 'Ολοκληρώθηκε' },
-  { value: 'overdue', label: 'Εκπρόθεσμη' },
-  { value: 'cancelled', label: 'Ακυρώθηκε' },
-];
-
-const MONTHS = [
-  { value: 1, label: 'Ιανουάριος' },
-  { value: 2, label: 'Φεβρουάριος' },
-  { value: 3, label: 'Μάρτιος' },
-  { value: 4, label: 'Απρίλιος' },
-  { value: 5, label: 'Μάιος' },
-  { value: 6, label: 'Ιούνιος' },
-  { value: 7, label: 'Ιούλιος' },
-  { value: 8, label: 'Αύγουστος' },
-  { value: 9, label: 'Σεπτέμβριος' },
-  { value: 10, label: 'Οκτώβριος' },
-  { value: 11, label: 'Νοέμβριος' },
-  { value: 12, label: 'Δεκέμβριος' },
-];
-
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 export function ObligationForm({
   obligation,

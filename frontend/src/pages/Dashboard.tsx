@@ -10,25 +10,11 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
-
-// Status colors matching the rest of the app
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#EAB308',      // yellow-500
-  in_progress: '#3B82F6',  // blue-500
-  completed: '#22C55E',    // green-500
-  overdue: '#EF4444',      // red-500
-  cancelled: '#6B7280',    // gray-500
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Εκκρεμείς',
-  in_progress: 'Σε εξέλιξη',
-  completed: 'Ολοκληρωμένες',
-  overdue: 'Εκπρόθεσμες',
-  cancelled: 'Ακυρωμένες',
-};
-
-const GREEK_DAY_NAMES = ['Δευ', 'Τρι', 'Τετ', 'Πεμ', 'Παρ', 'Σαβ', 'Κυρ'];
+import {
+  OBLIGATION_STATUS_COLORS_HEX,
+  OBLIGATION_STATUS_LABELS_PLURAL,
+  GREEK_DAY_NAMES,
+} from '../constants';
 
 export default function Dashboard() {
   const { data: stats, isLoading, isError, error, refetch } = useDashboardStats();
@@ -46,9 +32,9 @@ export default function Dashboard() {
     ? Object.entries(stats.status_breakdown)
         .filter(([, count]) => count > 0)
         .map(([status, count]) => ({
-          name: STATUS_LABELS[status] || status,
+          name: OBLIGATION_STATUS_LABELS_PLURAL[status] || status,
           value: count,
-          color: STATUS_COLORS[status] || '#6B7280',
+          color: OBLIGATION_STATUS_COLORS_HEX[status] || '#6B7280',
         }))
     : [];
 
