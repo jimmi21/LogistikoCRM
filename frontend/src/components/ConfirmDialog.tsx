@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   isLoading?: boolean;
+  isPending?: boolean;  // Alias for isLoading
   variant?: 'danger' | 'warning';
 }
 
@@ -23,8 +24,11 @@ export function ConfirmDialog({
   confirmText = 'Επιβεβαίωση',
   cancelText = 'Ακύρωση',
   isLoading = false,
+  isPending,
   variant = 'danger',
 }: ConfirmDialogProps) {
+  // Support both isLoading and isPending (isPending takes precedence if provided)
+  const loading = isPending ?? isLoading;
   const iconColor = variant === 'danger' ? 'text-red-600' : 'text-yellow-600';
   const iconBg = variant === 'danger' ? 'bg-red-100' : 'bg-yellow-100';
 
@@ -39,7 +43,7 @@ export function ConfirmDialog({
           <Button
             variant="secondary"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={loading}
             className="flex-1"
           >
             {cancelText}
@@ -47,7 +51,7 @@ export function ConfirmDialog({
           <Button
             variant="danger"
             onClick={onConfirm}
-            isLoading={isLoading}
+            isLoading={loading}
             className="flex-1"
           >
             {confirmText}
