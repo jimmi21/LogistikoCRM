@@ -15,7 +15,7 @@ import type { GenerateMonthResult, Client } from '../types';
 import { useClients } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
-import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
+import { Modal, ConfirmDialog, ObligationForm, Button, TableSkeleton } from '../components';
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { CompleteObligationModal } from '../components/CompleteObligationModal';
@@ -648,10 +648,7 @@ export default function Obligations() {
 
       {/* Loading State */}
       {isLoading && (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Φόρτωση υποχρεώσεων...</p>
-        </div>
+        <TableSkeleton rows={8} columns={7} showCheckbox />
       )}
 
       {/* Obligations Table */}
