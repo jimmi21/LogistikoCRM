@@ -5,7 +5,6 @@ import {
   useDeleteObligation,
   useObligationTypes,
   useBulkCreateObligations,
-  useBulkUpdateObligations,
   useBulkDeleteObligations,
   exportObligationsToExcel,
   useGenerateMonthlyObligations,
@@ -137,7 +136,6 @@ export default function Obligations() {
   const createMutation = useCreateObligation();
   const deleteMutation = useDeleteObligation();
   const bulkCreateMutation = useBulkCreateObligations();
-  const bulkUpdateMutation = useBulkUpdateObligations();
   const bulkDeleteMutation = useBulkDeleteObligations();
   const generateMonthMutation = useGenerateMonthlyObligations();
   const completeAndNotifyMutation = useCompleteAndNotify();

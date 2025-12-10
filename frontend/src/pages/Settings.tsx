@@ -106,7 +106,6 @@ export default function Settings() {
 
   // GSIS Settings State
   const [gsisConfigured, setGsisConfigured] = useState(false);
-  const [gsisActive, setGsisActive] = useState(false);
   const [gsisAfm, setGsisAfm] = useState('');
   const [gsisUsername, setGsisUsername] = useState('');
   const [gsisPassword, setGsisPassword] = useState('');
@@ -124,7 +123,6 @@ export default function Settings() {
     try {
       const status = await gsisApi.getStatus();
       setGsisConfigured(status.configured);
-      setGsisActive(status.active);
       if (status.afm) {
         setGsisAfm(status.afm);
       }

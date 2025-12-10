@@ -12,7 +12,6 @@ import { useToast } from '../Toast';
 export default function VoIPWidget() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const { addToast } = useToast();
-  const previousMissedCount = useRef<number | null>(null);
   const previousTicketIds = useRef<Set<number>>(new Set());
 
   // Get today's date in YYYY-MM-DD format

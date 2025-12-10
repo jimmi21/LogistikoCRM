@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Eye,
   Check,
-  X,
   Copy,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Button } from '../components';
