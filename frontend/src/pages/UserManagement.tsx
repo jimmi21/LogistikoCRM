@@ -68,10 +68,10 @@ export default function UserManagement() {
   };
 
   // Check if current user can edit the target user
-  const canEdit = (targetUser: User) => {
+  const canEdit = (targetUser: User): boolean => {
     if (currentUser?.is_superuser) return true;
     if (targetUser.is_superuser) return false;
-    return currentUser?.is_staff;
+    return currentUser?.is_staff ?? false;
   };
 
   return (
@@ -208,7 +208,7 @@ export default function UserManagement() {
 
 interface UserRowProps {
   user: User;
-  currentUser: { id: number; is_superuser: boolean } | null;
+  currentUser: { id: number; is_superuser?: boolean } | null;
   canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;

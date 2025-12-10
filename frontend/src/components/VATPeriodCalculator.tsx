@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from './Button';
 import { mydataApi, clientsApi } from '../api/client';
+import { MONTH_NAMES as MONTHS, QUARTERS } from '../constants';
 
 // Types
 interface Client {
@@ -44,15 +45,6 @@ interface VATPeriodResult {
   last_calculated_at: string | null;
   created: boolean;  // True if this was a newly created period result
 }
-
-// Greek month names
-const MONTHS = [
-  'Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος',
-  'Μάιος', 'Ιούνιος', 'Ιούλιος', 'Αύγουστος',
-  'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'
-];
-
-const QUARTERS = ['1ο Τρίμηνο', '2ο Τρίμηνο', '3ο Τρίμηνο', '4ο Τρίμηνο'];
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('el-GR', {

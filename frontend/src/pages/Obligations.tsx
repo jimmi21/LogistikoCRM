@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
   useObligations,
   useCreateObligation,
   useDeleteObligation,
   useObligationTypes,
   useBulkCreateObligations,
-  useBulkUpdateObligations,
   useBulkDeleteObligations,
   exportObligationsToExcel,
   useGenerateMonthlyObligations,
@@ -16,7 +16,7 @@ import type { GenerateMonthResult, Client } from '../types';
 import { useClients } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
-import { Modal, ConfirmDialog, ObligationForm, Button } from '../components';
+import { Modal, ConfirmDialog, ObligationForm, Button, TableSkeleton } from '../components';
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { CompleteObligationModal } from '../components/CompleteObligationModal';
@@ -26,43 +26,18 @@ import {
   Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X,
   Paperclip, Mail
 } from 'lucide-react';
-import type { Obligation, ObligationFormData, ObligationStatus, BulkObligationFormData } from '../types';
+import type { Obligation, ObligationFormData, BulkObligationFormData } from '../types';
+import {
+  OBLIGATION_STATUS_LABELS,
+  OBLIGATION_STATUS_COLORS,
+  MONTHS,
+  YEARS,
+} from '../constants';
 
-// Greek labels for obligation statuses
-const STATUS_LABELS: Record<ObligationStatus, string> = {
-  pending: 'Εκκρεμεί',
-  in_progress: 'Σε εξέλιξη',
-  completed: 'Ολοκληρώθηκε',
-  overdue: 'Εκπρόθεσμη',
-  cancelled: 'Ακυρώθηκε',
-};
-
-// Status badge colors
-const STATUS_COLORS: Record<ObligationStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  overdue: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-800',
-};
-
-const MONTHS = [
-  { value: 1, label: 'Ιανουάριος' },
-  { value: 2, label: 'Φεβρουάριος' },
-  { value: 3, label: 'Μάρτιος' },
-  { value: 4, label: 'Απρίλιος' },
-  { value: 5, label: 'Μάιος' },
-  { value: 6, label: 'Ιούνιος' },
-  { value: 7, label: 'Ιούλιος' },
-  { value: 8, label: 'Αύγουστος' },
-  { value: 9, label: 'Σεπτέμβριος' },
-  { value: 10, label: 'Οκτώβριος' },
-  { value: 11, label: 'Νοέμβριος' },
-  { value: 12, label: 'Δεκέμβριος' },
-];
-
+// Alias for backwards compatibility within this file
+const STATUS_LABELS = OBLIGATION_STATUS_LABELS;
+const STATUS_COLORS = OBLIGATION_STATUS_COLORS;
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 interface Filters {
   status: string;
@@ -137,7 +112,6 @@ export default function Obligations() {
   const createMutation = useCreateObligation();
   const deleteMutation = useDeleteObligation();
   const bulkCreateMutation = useBulkCreateObligations();
-  const bulkUpdateMutation = useBulkUpdateObligations();
   const bulkDeleteMutation = useBulkDeleteObligations();
   const generateMonthMutation = useGenerateMonthlyObligations();
   const completeAndNotifyMutation = useCompleteAndNotify();
@@ -675,10 +649,7 @@ export default function Obligations() {
 
       {/* Loading State */}
       {isLoading && (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Φόρτωση υποχρεώσεων...</p>
-        </div>
+        <TableSkeleton rows={8} columns={7} showCheckbox />
       )}
 
       {/* Obligations Table */}
@@ -1138,12 +1109,13 @@ function GenerateMonthModal({
   const [useAllClients, setUseAllClients] = useState(true);
   const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Filter clients by search
+  // Filter clients by search - uses debounced search term for performance
   const filteredClients = clients.filter(
     (c) =>
-      c.eponimia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.afm.includes(searchTerm)
+      c.eponimia.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      c.afm.includes(debouncedSearchTerm)
   );
 
   // Toggle client selection
