@@ -73,6 +73,19 @@ from .email_views import (
     send_ticket_email,
 )
 
+# Obligation views
+from .obligations import (
+    quick_complete_obligation,
+    bulk_complete_view,
+    advanced_bulk_complete,
+    check_obligation_duplicate,
+    complete_with_file,
+    bulk_complete_obligations,
+    obligation_detail_view,
+    api_obligations_wizard,
+    wizard_bulk_process,
+)
+
 __all__ = [
     # Helpers
     '_safe_int',
@@ -126,4 +139,14 @@ __all__ = [
     'api_email_template_detail',
     'api_send_bulk_email_direct',
     'send_ticket_email',
+    # Obligation views
+    'quick_complete_obligation',
+    'bulk_complete_view',
+    'advanced_bulk_complete',
+    'check_obligation_duplicate',
+    'complete_with_file',
+    'bulk_complete_obligations',
+    'obligation_detail_view',
+    'api_obligations_wizard',
+    'wizard_bulk_process',
 ]
