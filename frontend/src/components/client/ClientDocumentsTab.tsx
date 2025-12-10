@@ -1,0 +1,114 @@
+import {
+  FileText,
+  Upload,
+  RefreshCw,
+  Eye,
+  Download,
+  Trash2,
+} from 'lucide-react';
+import { Button } from '../../components';
+import type { ClientDocument } from '../../types';
+
+// Props interface
+export interface ClientDocumentsTabProps {
+  data: { documents: ClientDocument[] } | undefined;
+  isLoading: boolean;
+  onUpload: () => void;
+  onDelete: (docId: number) => void;
+}
+
+export default function ClientDocumentsTab({
+  data,
+  isLoading,
+  onUpload,
+  onDelete,
+}: ClientDocumentsTabProps) {
+  return (
+    <div className="space-y-4">
+      {/* Header with upload button */}
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-medium text-gray-700">
+          {data ? `${data.documents.length} έγγραφα` : 'Έγγραφα'}
+        </h3>
+        <Button onClick={onUpload}>
+          <Upload className="w-4 h-4 mr-2" />
+          Μεταφόρτωση
+        </Button>
+      </div>
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="text-center py-8">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+        </div>
+      )}
+
+      {/* Documents grid */}
+      {!isLoading && data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {data.documents.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-gray-500">
+              Δεν υπάρχουν έγγραφα
+            </div>
+          ) : (
+            data.documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{doc.filename}</p>
+                      <p className="text-xs text-gray-500">
+                        {doc.category_display || doc.document_category}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                  <span className="text-xs text-gray-500">
+                    {new Date(doc.uploaded_at).toLocaleDateString('el-GR')}
+                  </span>
+                  <div className="flex gap-2">
+                    {doc.file_url && (
+                      <a
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                        title="Προβολή"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                    )}
+                    {doc.file_url && (
+                      <a
+                        href={doc.file_url}
+                        download
+                        className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                        title="Λήψη"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => onDelete(doc.id)}
+                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                      title="Διαγραφή"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
