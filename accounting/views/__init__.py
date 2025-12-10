@@ -86,6 +86,46 @@ from .obligations import (
     wizard_bulk_process,
 )
 
+# Ticket views
+from .tickets import (
+    assign_ticket,
+    update_ticket_status,
+)
+
+# Door control views (Tasmota IoT)
+from .door import (
+    door_status,
+    open_door,
+    door_control,
+)
+
+# Export views
+from .export import (
+    export_filtered_excel,
+)
+
+# Search views
+from .search import (
+    global_search_api,
+)
+
+# Report views (PDF generation)
+from .reports import (
+    client_report_pdf,
+    monthly_report_pdf,
+)
+
+# Client views
+from .clients import (
+    client_detail_view,
+    ClientDocumentViewSet,
+)
+
+# Notification views
+from .notifications import (
+    get_notifications,
+)
+
 __all__ = [
     # Helpers
     '_safe_int',
@@ -149,4 +189,23 @@ __all__ = [
     'obligation_detail_view',
     'api_obligations_wizard',
     'wizard_bulk_process',
+    # Ticket views
+    'assign_ticket',
+    'update_ticket_status',
+    # Door control views
+    'door_status',
+    'open_door',
+    'door_control',
+    # Export views
+    'export_filtered_excel',
+    # Search views
+    'global_search_api',
+    # Report views
+    'client_report_pdf',
+    'monthly_report_pdf',
+    # Client views
+    'client_detail_view',
+    'ClientDocumentViewSet',
+    # Notification views
+    'get_notifications',
 ]
