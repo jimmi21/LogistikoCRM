@@ -56,7 +56,6 @@ import {
   useSaveMyDataCredentials,
   useVerifyMyDataCredentials,
   useSyncMyDataVAT,
-  type MyDataCredentialsData,
 } from '../hooks/useClientDetails';
 import { useObligationTypesGrouped } from '../hooks/useObligations';
 import type { ClientFull, ClientDocument, VoIPTicket, ObligationGroup } from '../types';
@@ -1369,7 +1368,7 @@ function TicketsTab({
   data: { tickets: VoIPTicket[] } | undefined;
   isLoading: boolean;
   onCreate: () => void;
-  onUpdate: (ticketId: number, data: { status?: string; priority?: string }) => void;
+  onUpdate: (ticketId: number, data: { status?: 'open' | 'in_progress' | 'resolved' | 'closed'; priority?: 'low' | 'medium' | 'high' | 'urgent' }) => void;
   onDelete: (ticketId: number) => void;
   isUpdating: boolean;
   isDeleting: boolean;
