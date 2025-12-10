@@ -52,6 +52,27 @@ from .voip import (
     VoIPCallLogViewSet,
 )
 
+# Dashboard views
+from .dashboard import (
+    dashboard_view,
+    reports_view,
+)
+
+# Calendar views
+from .calendar import (
+    calendar_view,
+    calendar_events_api,
+)
+
+# Email views
+from .email_views import (
+    api_email_templates,
+    api_send_bulk_email,
+    api_email_template_detail,
+    api_send_bulk_email_direct,
+    send_ticket_email,
+)
+
 __all__ = [
     # Helpers
     '_safe_int',
@@ -93,4 +114,16 @@ __all__ = [
     'VoIPCallViewSet',
     'VoIPCallsListView',
     'VoIPCallLogViewSet',
+    # Dashboard views
+    'dashboard_view',
+    'reports_view',
+    # Calendar views
+    'calendar_view',
+    'calendar_events_api',
+    # Email views
+    'api_email_templates',
+    'api_send_bulk_email',
+    'api_email_template_detail',
+    'api_send_bulk_email_direct',
+    'send_ticket_email',
 ]
