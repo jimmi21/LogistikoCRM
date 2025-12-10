@@ -22,25 +22,13 @@ import {
 import { Button } from '../components';
 import { useCalls, useMatchCallToClient, useCreateTicketFromCall, useSearchClientsForMatch, useDeleteCall, type CallsFilters } from '../hooks/useVoIP';
 import type { VoIPCallFull } from '../types';
+import {
+  CALL_DIRECTION_OPTIONS as DIRECTION_OPTIONS,
+  CALL_STATUS_COLORS as STATUS_COLORS,
+} from '../constants';
 
 // Auto-refresh interval in milliseconds (30 seconds)
 const AUTO_REFRESH_INTERVAL = 30000;
-
-// Direction filter options
-const DIRECTION_OPTIONS = [
-  { value: '', label: 'Όλες' },
-  { value: 'incoming', label: 'Εισερχόμενες' },
-  { value: 'outgoing', label: 'Εξερχόμενες' },
-  { value: 'missed', label: 'Αναπάντητες' },
-];
-
-// Status colors
-const STATUS_COLORS: Record<string, string> = {
-  completed: 'text-green-600',
-  missed: 'text-red-600',
-  active: 'text-blue-600',
-  failed: 'text-gray-600',
-};
 
 export default function Calls() {
   // Filters state

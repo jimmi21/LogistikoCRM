@@ -67,6 +67,11 @@ import {
   LEGAL_FORMS,
   FREQUENCY_LABELS,
 } from '../types';
+import {
+  OBLIGATION_STATUS_COLORS as STATUS_COLORS,
+  OBLIGATION_STATUS_LABELS as STATUS_LABELS,
+  PRIORITY_COLORS,
+} from '../constants';
 
 // Tab type
 type TabType = 'info' | 'obligations' | 'profile' | 'documents' | 'emails' | 'calls' | 'tickets' | 'notes';
@@ -82,32 +87,6 @@ const TABS: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'tickets', label: 'Tickets', icon: Ticket },
   { id: 'notes', label: 'Σημειώσεις', icon: StickyNote },
 ];
-
-// Status badge colors
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  completed: 'bg-green-100 text-green-800',
-  overdue: 'bg-red-100 text-red-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  cancelled: 'bg-gray-100 text-gray-800',
-};
-
-// Status labels
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Εκκρεμεί',
-  completed: 'Ολοκληρώθηκε',
-  overdue: 'Καθυστερεί',
-  in_progress: 'Σε εξέλιξη',
-  cancelled: 'Ακυρώθηκε',
-};
-
-// Priority colors
-const PRIORITY_COLORS: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-800',
-  medium: 'bg-blue-100 text-blue-800',
-  high: 'bg-orange-100 text-orange-800',
-  urgent: 'bg-red-100 text-red-800',
-};
 
 export default function ClientDetails() {
   const { id } = useParams<{ id: string }>();

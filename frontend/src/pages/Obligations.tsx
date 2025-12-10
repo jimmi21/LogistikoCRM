@@ -26,43 +26,18 @@ import {
   Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X,
   Paperclip, Mail
 } from 'lucide-react';
-import type { Obligation, ObligationFormData, ObligationStatus, BulkObligationFormData } from '../types';
+import type { Obligation, ObligationFormData, BulkObligationFormData } from '../types';
+import {
+  OBLIGATION_STATUS_LABELS,
+  OBLIGATION_STATUS_COLORS,
+  MONTHS,
+  YEARS,
+} from '../constants';
 
-// Greek labels for obligation statuses
-const STATUS_LABELS: Record<ObligationStatus, string> = {
-  pending: 'Εκκρεμεί',
-  in_progress: 'Σε εξέλιξη',
-  completed: 'Ολοκληρώθηκε',
-  overdue: 'Εκπρόθεσμη',
-  cancelled: 'Ακυρώθηκε',
-};
-
-// Status badge colors
-const STATUS_COLORS: Record<ObligationStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  overdue: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-800',
-};
-
-const MONTHS = [
-  { value: 1, label: 'Ιανουάριος' },
-  { value: 2, label: 'Φεβρουάριος' },
-  { value: 3, label: 'Μάρτιος' },
-  { value: 4, label: 'Απρίλιος' },
-  { value: 5, label: 'Μάιος' },
-  { value: 6, label: 'Ιούνιος' },
-  { value: 7, label: 'Ιούλιος' },
-  { value: 8, label: 'Αύγουστος' },
-  { value: 9, label: 'Σεπτέμβριος' },
-  { value: 10, label: 'Οκτώβριος' },
-  { value: 11, label: 'Νοέμβριος' },
-  { value: 12, label: 'Δεκέμβριος' },
-];
-
+// Alias for backwards compatibility within this file
+const STATUS_LABELS = OBLIGATION_STATUS_LABELS;
+const STATUS_COLORS = OBLIGATION_STATUS_COLORS;
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 interface Filters {
   status: string;

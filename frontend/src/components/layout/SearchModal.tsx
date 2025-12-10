@@ -10,6 +10,11 @@ import {
   Loader2
 } from 'lucide-react';
 import { useGlobalSearch, type SearchResultItem } from '../../hooks/useGlobalSearch';
+import {
+  OBLIGATION_STATUS_COLORS,
+  TICKET_STATUS_COLORS,
+  CALL_STATUS_BADGE_COLORS as CALL_STATUS_COLORS,
+} from '../../constants';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -45,32 +50,6 @@ const CATEGORIES = {
 } as const;
 
 type CategoryKey = keyof typeof CATEGORIES;
-
-// Status colors for obligations
-const OBLIGATION_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  overdue: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-700',
-};
-
-// Status colors for tickets
-const TICKET_STATUS_COLORS: Record<string, string> = {
-  open: 'bg-red-100 text-red-700',
-  assigned: 'bg-blue-100 text-blue-700',
-  in_progress: 'bg-yellow-100 text-yellow-700',
-  resolved: 'bg-green-100 text-green-700',
-  closed: 'bg-gray-100 text-gray-700',
-};
-
-// Call status colors
-const CALL_STATUS_COLORS: Record<string, string> = {
-  active: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  missed: 'bg-red-100 text-red-700',
-  failed: 'bg-gray-100 text-gray-700',
-};
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState('');
