@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/authStore';
-import { Layout } from './components';
+import { Layout, ErrorBoundary } from './components';
 import { ToastProvider } from './components/Toast';
 
 // Pages
@@ -66,8 +66,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <BrowserRouter>
+      <ErrorBoundary>
+        <ToastProvider>
+          <BrowserRouter>
           <Routes>
           {/* Public route */}
           <Route path="/login" element={<Login />} />
@@ -197,8 +198,9 @@ function App() {
           {/* Redirect unknown routes to dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
-      </ToastProvider>
+          </BrowserRouter>
+        </ToastProvider>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }
