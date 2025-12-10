@@ -1,17 +1,37 @@
+# -*- coding: utf-8 -*-
 """
 Email Service for LogistikoCRM
 Author: ddiplas
-Version: 2.0
-Description: Complete email service with direct SMTP sending and logging.
-             No Celery required - emails are sent synchronously.
+Version: 3.0
+Description: Complete email service with retry logic, rate limiting,
+             connection pooling, and async support via Celery.
+
+Features:
+- Retry with exponential backoff (2s, 4s, 8s delays, max 3 retries)
+- Rate limiting (2 emails/sec default)
+- Connection pooling for bulk sends
+- Async email queue via Celery
+- Comprehensive logging with EmailLog model
 """
 
-from django.core.mail import EmailMessage, EmailMultiAlternatives
+from django.core.mail import EmailMessage, EmailMultiAlternatives, get_connection
 from django.conf import settings
 from django.utils import timezone
-from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 import logging
+import time
+
+from .email_utils import (
+    retry_with_backoff,
+    get_rate_limiter,
+    get_connection_pool,
+    BulkEmailSender,
+    EmailError,
+    EmailConnectionError,
+    EmailPermanentError,
+    RETRIABLE_EXCEPTIONS,
+    PERMANENT_EXCEPTIONS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +41,20 @@ class EmailService:
     Service class for sending templated emails from the CRM.
 
     Features:
-    - Direct SMTP sending (no Celery)
+    - Retry with exponential backoff for transient failures
+    - Rate limiting to prevent SMTP throttling
+    - Connection pooling for bulk sends
+    - Async sending via Celery (optional)
     - Email logging with EmailLog model
     - Template rendering with {variable} syntax
     - Preview functionality
     - Attachment support
     """
+
+    # Default settings (can be overridden in Django settings)
+    DEFAULT_MAX_RETRIES = 3
+    DEFAULT_BASE_DELAY = 2.0
+    DEFAULT_RATE_LIMIT = 2.0  # emails per second
 
     @staticmethod
     def get_context_for_obligation(obligation, user=None):
@@ -121,6 +149,97 @@ class EmailService:
         return template.render_simple(context)
 
     @staticmethod
+    def _prepare_email_message(
+        recipient_email,
+        subject,
+        body,
+        html_body=None,
+        attachments=None
+    ):
+        """
+        Prepare an EmailMessage object.
+
+        Args:
+            recipient_email: Email address to send to
+            subject: Email subject
+            body: Email body (HTML or plain text)
+            html_body: Optional separate HTML body
+            attachments: Optional list of attachments
+
+        Returns:
+            EmailMessage or EmailMultiAlternatives instance
+        """
+        if html_body:
+            # Send as multipart (plain + HTML)
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=strip_tags(body),  # Plain text version
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[recipient_email]
+            )
+            email.attach_alternative(html_body, "text/html")
+        else:
+            # Send as HTML
+            email = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[recipient_email]
+            )
+            email.content_subtype = 'html'
+
+        # Add attachments
+        if attachments:
+            for attachment in attachments:
+                if isinstance(attachment, str):
+                    # File path
+                    try:
+                        email.attach_file(attachment)
+                    except Exception as e:
+                        logger.warning(f"Could not attach file {attachment}: {e}")
+                elif isinstance(attachment, tuple) and len(attachment) == 3:
+                    # (filename, content, mimetype)
+                    email.attach(*attachment)
+                elif hasattr(attachment, 'path'):
+                    # Django FileField
+                    try:
+                        email.attach_file(attachment.path)
+                    except Exception as e:
+                        logger.warning(f"Could not attach FileField {attachment}: {e}")
+
+        return email
+
+    @staticmethod
+    @retry_with_backoff(
+        max_retries=3,
+        base_delay=2.0,
+        max_delay=30.0,
+        retriable_exceptions=RETRIABLE_EXCEPTIONS,
+        permanent_exceptions=PERMANENT_EXCEPTIONS
+    )
+    def _send_with_retry(email_message, use_rate_limit=True):
+        """
+        Send email with retry logic.
+        This method is decorated with @retry_with_backoff.
+
+        Args:
+            email_message: Prepared EmailMessage instance
+            use_rate_limit: Whether to apply rate limiting
+
+        Returns:
+            int: Number of emails sent (0 or 1)
+
+        Raises:
+            EmailConnectionError: On retriable failures after max retries
+            EmailPermanentError: On permanent failures (auth, invalid recipient)
+        """
+        if use_rate_limit:
+            rate_limiter = get_rate_limiter()
+            rate_limiter.wait()
+
+        return email_message.send(fail_silently=False)
+
+    @staticmethod
     def send_email(
         recipient_email,
         subject,
@@ -130,7 +249,10 @@ class EmailService:
         template=None,
         user=None,
         attachments=None,
-        html_body=None
+        html_body=None,
+        use_retry=True,
+        use_rate_limit=True,
+        async_send=False,
     ):
         """
         Send an email and log it.
@@ -145,6 +267,9 @@ class EmailService:
             user: Optional User who is sending
             attachments: Optional list of file paths or (filename, content, mimetype) tuples
             html_body: Optional separate HTML body (if body is plain text)
+            use_retry: Whether to use retry logic (default True)
+            use_rate_limit: Whether to apply rate limiting (default True)
+            async_send: Whether to send asynchronously via Celery (default False)
 
         Returns:
             tuple: (success: bool, email_log: EmailLog or error_message: str)
@@ -164,6 +289,19 @@ class EmailService:
             sent_by=user
         )
 
+        # If async, queue for later
+        if async_send:
+            try:
+                from accounting.tasks import send_email_async
+                send_email_async.delay(email_log.id)
+                email_log.status = 'queued'
+                email_log.save()
+                logger.info(f"📧 Email queued for async send: {recipient_email}")
+                return True, email_log
+            except Exception as e:
+                logger.warning(f"Could not queue email, sending synchronously: {e}")
+                # Fall through to sync send
+
         try:
             # Check email configuration
             if not getattr(settings, 'EMAIL_HOST', None):
@@ -171,56 +309,54 @@ class EmailService:
 
             # Check if using console backend (for testing)
             is_console_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('console.EmailBackend')
+            is_locmem_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('locmem.EmailBackend')
 
-            if not is_console_backend:
+            if not is_console_backend and not is_locmem_backend:
                 if not getattr(settings, 'EMAIL_HOST_PASSWORD', ''):
                     logger.warning("EMAIL_HOST_PASSWORD δεν έχει οριστεί - email ίσως αποτύχει")
 
-            # Prepare email
-            if html_body:
-                # Send as multipart (plain + HTML)
-                email = EmailMultiAlternatives(
-                    subject=subject,
-                    body=strip_tags(body),  # Plain text version
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    to=[recipient_email]
-                )
-                email.attach_alternative(html_body, "text/html")
+            # Prepare email message
+            email = EmailService._prepare_email_message(
+                recipient_email=recipient_email,
+                subject=subject,
+                body=body,
+                html_body=html_body,
+                attachments=attachments
+            )
+
+            # Send with or without retry
+            if use_retry and not is_console_backend and not is_locmem_backend:
+                sent = EmailService._send_with_retry(email, use_rate_limit=use_rate_limit)
             else:
-                # Send as HTML
-                email = EmailMessage(
-                    subject=subject,
-                    body=body,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    to=[recipient_email]
-                )
-                email.content_subtype = 'html'
-
-            # Add attachments
-            if attachments:
-                for attachment in attachments:
-                    if isinstance(attachment, str):
-                        # File path
-                        email.attach_file(attachment)
-                    elif isinstance(attachment, tuple) and len(attachment) == 3:
-                        # (filename, content, mimetype)
-                        email.attach(*attachment)
-                    elif hasattr(attachment, 'path'):
-                        # Django FileField
-                        try:
-                            email.attach_file(attachment.path)
-                        except Exception as e:
-                            logger.warning(f"Could not attach file {attachment}: {e}")
-
-            # Send email
-            email.send(fail_silently=False)
+                if use_rate_limit and not is_console_backend and not is_locmem_backend:
+                    rate_limiter = get_rate_limiter()
+                    rate_limiter.wait()
+                sent = email.send(fail_silently=False)
 
             # Update log as sent
             email_log.status = 'sent'
+            email_log.retry_count = 0  # Success on first try or after retries
             email_log.save()
 
             logger.info(f"✅ Email sent to {recipient_email}: {subject}")
             return True, email_log
+
+        except EmailPermanentError as e:
+            # Permanent failure - don't retry
+            email_log.status = 'failed'
+            email_log.error_message = f"Permanent error: {str(e)}"
+            email_log.save()
+            logger.error(f"❌ Permanent email failure to {recipient_email}: {e}")
+            return False, str(e)
+
+        except EmailConnectionError as e:
+            # Failed after all retries
+            email_log.status = 'failed'
+            email_log.error_message = f"Connection error after retries: {str(e)}"
+            email_log.retry_count = getattr(e, 'attempt', 0)
+            email_log.save()
+            logger.error(f"❌ Email failed after retries to {recipient_email}: {e}")
+            return False, str(e)
 
         except Exception as e:
             # Update log as failed
@@ -232,7 +368,57 @@ class EmailService:
             return False, str(e)
 
     @staticmethod
-    def send_obligation_completion_email(obligation, user=None, include_attachment=True):
+    def send_email_from_log(email_log_id):
+        """
+        Send an email from an existing EmailLog entry (for async/retry).
+
+        Args:
+            email_log_id: ID of the EmailLog entry
+
+        Returns:
+            tuple: (success: bool, error_message or None)
+        """
+        from accounting.models import EmailLog
+
+        try:
+            email_log = EmailLog.objects.get(id=email_log_id)
+        except EmailLog.DoesNotExist:
+            logger.error(f"EmailLog {email_log_id} not found")
+            return False, "Email log not found"
+
+        if email_log.status == 'sent':
+            logger.info(f"Email {email_log_id} already sent")
+            return True, None
+
+        try:
+            # Prepare email
+            email = EmailService._prepare_email_message(
+                recipient_email=email_log.recipient_email,
+                subject=email_log.subject,
+                body=email_log.body,
+            )
+
+            # Send with retry
+            EmailService._send_with_retry(email, use_rate_limit=True)
+
+            # Update log
+            email_log.status = 'sent'
+            email_log.save()
+
+            logger.info(f"✅ Email {email_log_id} sent successfully")
+            return True, None
+
+        except Exception as e:
+            email_log.status = 'failed'
+            email_log.error_message = str(e)
+            email_log.retry_count = (email_log.retry_count or 0) + 1
+            email_log.save()
+
+            logger.error(f"❌ Failed to send email {email_log_id}: {e}")
+            return False, str(e)
+
+    @staticmethod
+    def send_obligation_completion_email(obligation, user=None, include_attachment=True, async_send=False):
         """
         Send completion notification for an obligation.
 
@@ -240,6 +426,7 @@ class EmailService:
             obligation: MonthlyObligation instance
             user: Optional User who completed the obligation
             include_attachment: Whether to include the obligation attachment
+            async_send: Whether to send asynchronously
 
         Returns:
             tuple: (success: bool, email_log or error_message)
@@ -284,7 +471,8 @@ class EmailService:
             obligation=obligation,
             template=template,
             user=user,
-            attachments=attachments
+            attachments=attachments,
+            async_send=async_send
         )
 
     @staticmethod
@@ -317,19 +505,28 @@ class EmailService:
         }
 
     @staticmethod
-    def send_bulk_emails(obligations, template=None, user=None, include_attachments=True):
+    def send_bulk_emails(
+        obligations,
+        template=None,
+        user=None,
+        include_attachments=True,
+        use_connection_pool=True
+    ):
         """
-        Send emails for multiple obligations.
+        Send emails for multiple obligations with connection pooling.
 
         Args:
             obligations: QuerySet or list of MonthlyObligation instances
             template: Optional specific template (otherwise auto-selects)
             user: User who is sending
             include_attachments: Whether to include obligation attachments
+            use_connection_pool: Whether to use connection pooling (faster for bulk)
 
         Returns:
             dict with 'sent', 'failed', 'skipped' counts and 'details' list
         """
+        from accounting.models import EmailTemplate, EmailLog
+
         results = {
             'sent': 0,
             'failed': 0,
@@ -337,62 +534,156 @@ class EmailService:
             'details': []
         }
 
-        for obligation in obligations:
-            client = obligation.client
+        obligations_list = list(obligations)
 
-            # Skip if no email
-            if not client.email:
-                results['skipped'] += 1
-                results['details'].append({
-                    'obligation_id': obligation.id,
-                    'client': client.eponimia,
-                    'status': 'skipped',
-                    'message': 'Δεν υπάρχει email'
-                })
-                continue
+        if not obligations_list:
+            return results
 
-            # Use specific template or find appropriate one
-            email_template = template
-            if not email_template:
-                from accounting.models import EmailTemplate
-                email_template = EmailTemplate.get_template_for_obligation(obligation)
+        # Use connection pooling for efficiency
+        if use_connection_pool and len(obligations_list) > 1:
+            try:
+                with BulkEmailSender(use_pool=True, use_rate_limit=True) as sender:
+                    for obligation in obligations_list:
+                        result = EmailService._send_single_bulk_email(
+                            obligation=obligation,
+                            template=template,
+                            user=user,
+                            include_attachments=include_attachments,
+                            sender=sender,
+                            results=results
+                        )
+            except Exception as e:
+                logger.error(f"Bulk email error: {e}")
+                # Fall back to individual sends for remaining
+                for obligation in obligations_list[results['sent'] + results['failed'] + results['skipped']:]:
+                    EmailService._send_single_bulk_email(
+                        obligation=obligation,
+                        template=template,
+                        user=user,
+                        include_attachments=include_attachments,
+                        sender=None,
+                        results=results
+                    )
+        else:
+            # Single email or pool disabled - send individually
+            for obligation in obligations_list:
+                EmailService._send_single_bulk_email(
+                    obligation=obligation,
+                    template=template,
+                    user=user,
+                    include_attachments=include_attachments,
+                    sender=None,
+                    results=results
+                )
 
-            if not email_template:
-                results['failed'] += 1
-                results['details'].append({
-                    'obligation_id': obligation.id,
-                    'client': client.eponimia,
-                    'status': 'failed',
-                    'message': 'Δεν βρέθηκε πρότυπο'
-                })
-                continue
+        logger.info(
+            f"Bulk email results: sent={results['sent']}, "
+            f"failed={results['failed']}, skipped={results['skipped']}"
+        )
+        return results
 
-            # Send email
-            success, result = EmailService.send_obligation_completion_email(
-                obligation=obligation,
-                user=user,
-                include_attachment=include_attachments
+    @staticmethod
+    def _send_single_bulk_email(obligation, template, user, include_attachments, sender, results):
+        """
+        Helper to send a single email in a bulk operation.
+        """
+        from accounting.models import EmailTemplate, EmailLog
+
+        client = obligation.client
+
+        # Skip if no email
+        if not client.email:
+            results['skipped'] += 1
+            results['details'].append({
+                'obligation_id': obligation.id,
+                'client': client.eponimia,
+                'status': 'skipped',
+                'message': 'Δεν υπάρχει email'
+            })
+            return
+
+        # Use specific template or find appropriate one
+        email_template = template
+        if not email_template:
+            email_template = EmailTemplate.get_template_for_obligation(obligation)
+
+        if not email_template:
+            results['failed'] += 1
+            results['details'].append({
+                'obligation_id': obligation.id,
+                'client': client.eponimia,
+                'status': 'failed',
+                'message': 'Δεν βρέθηκε πρότυπο'
+            })
+            return
+
+        # Render template
+        subject, body = EmailService.render_template(
+            template=email_template,
+            obligation=obligation,
+            user=user
+        )
+
+        # Prepare attachments
+        attachments = []
+        if include_attachments and obligation.attachment:
+            try:
+                attachments.append(obligation.attachment)
+            except Exception as e:
+                logger.warning(f"Could not add attachment: {e}")
+
+        # Create log entry
+        email_log = EmailLog.objects.create(
+            recipient_email=client.email,
+            recipient_name=client.eponimia,
+            client=client,
+            obligation=obligation,
+            template_used=email_template,
+            subject=subject,
+            body=body,
+            status='pending',
+            sent_by=user
+        )
+
+        try:
+            # Prepare email message
+            email = EmailService._prepare_email_message(
+                recipient_email=client.email,
+                subject=subject,
+                body=body,
+                attachments=attachments
             )
 
-            if success:
-                results['sent'] += 1
-                results['details'].append({
-                    'obligation_id': obligation.id,
-                    'client': client.eponimia,
-                    'status': 'sent',
-                    'message': f'Στάλθηκε στο {client.email}'
-                })
+            # Send using bulk sender or regular method
+            if sender:
+                sender.send(email)
             else:
-                results['failed'] += 1
-                results['details'].append({
-                    'obligation_id': obligation.id,
-                    'client': client.eponimia,
-                    'status': 'failed',
-                    'message': str(result)
-                })
+                EmailService._send_with_retry(email, use_rate_limit=True)
 
-        logger.info(f"Bulk email results: sent={results['sent']}, failed={results['failed']}, skipped={results['skipped']}")
-        return results
+            # Update log
+            email_log.status = 'sent'
+            email_log.save()
+
+            results['sent'] += 1
+            results['details'].append({
+                'obligation_id': obligation.id,
+                'client': client.eponimia,
+                'status': 'sent',
+                'message': f'Στάλθηκε στο {client.email}'
+            })
+
+        except Exception as e:
+            email_log.status = 'failed'
+            email_log.error_message = str(e)
+            email_log.save()
+
+            results['failed'] += 1
+            results['details'].append({
+                'obligation_id': obligation.id,
+                'client': client.eponimia,
+                'status': 'failed',
+                'message': str(e)
+            })
 
 
 # ============================================================================
@@ -406,7 +697,6 @@ def create_scheduled_email(obligations, template, recipient_email=None, send_at=
     For new code, use EmailService.send_email directly.
     """
     from accounting.models import ScheduledEmail
-    from django.conf import settings
 
     if not obligations:
         return None
@@ -462,6 +752,7 @@ def send_scheduled_email(email_id):
     """
     Send a scheduled email.
     LEGACY: Maintains backwards compatibility.
+    Now uses retry logic.
     """
     from accounting.models import ScheduledEmail
 
@@ -488,7 +779,8 @@ def send_scheduled_email(email_id):
             except Exception as e:
                 logger.warning(f"Could not attach file: {e}")
 
-        email.send()
+        # Send with retry
+        EmailService._send_with_retry(email, use_rate_limit=True)
         scheduled_email.mark_as_sent()
 
         logger.info(f"✅ Scheduled email sent to {scheduled_email.recipient_email}")

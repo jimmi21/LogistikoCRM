@@ -629,3 +629,127 @@ def process_scheduled_emails():
     result = f"Processed scheduled emails: {sent_count} sent ({total_recipients} recipients), {failed_count} failed"
     logger.info(f"✅ {result}")
     return result
+
+
+# ============================================
+# TASK 7: ASYNC EMAIL SENDING
+# ============================================
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def send_email_async(self, email_log_id):
+    """
+    Async task to send email from EmailLog entry.
+
+    This task is triggered when async_send=True is passed to EmailService.send_email().
+    It uses the retry logic built into the EmailService.
+
+    Args:
+        email_log_id: ID of the EmailLog entry to send
+
+    Returns:
+        dict with success status and message
+    """
+    from accounting.services.email_service import EmailService
+    from accounting.models import EmailLog
+
+    try:
+        email_log = EmailLog.objects.get(id=email_log_id)
+    except EmailLog.DoesNotExist:
+        logger.error(f"EmailLog {email_log_id} not found")
+        return {'success': False, 'error': 'Email log not found'}
+
+    # Skip if already sent
+    if email_log.status == 'sent':
+        logger.info(f"Email {email_log_id} already sent, skipping")
+        return {'success': True, 'message': 'Already sent'}
+
+    # Update status to show it's being processed
+    email_log.status = 'pending'
+    email_log.save()
+
+    try:
+        success, error = EmailService.send_email_from_log(email_log_id)
+
+        if success:
+            logger.info(f"✅ Async email {email_log_id} sent successfully")
+            return {'success': True, 'message': f'Sent to {email_log.recipient_email}'}
+        else:
+            logger.error(f"❌ Async email {email_log_id} failed: {error}")
+            # Retry the task
+            raise self.retry(exc=Exception(error), countdown=60 * (self.request.retries + 1))
+
+    except EmailLog.DoesNotExist:
+        return {'success': False, 'error': 'Email log not found'}
+    except Exception as exc:
+        # Update log with retry count
+        email_log.retry_count = self.request.retries
+        email_log.error_message = str(exc)
+        email_log.save()
+
+        # Retry if we haven't exceeded max retries
+        if self.request.retries < self.max_retries:
+            logger.warning(f"Retrying async email {email_log_id} (attempt {self.request.retries + 1})")
+            raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+        else:
+            # Mark as failed after max retries
+            email_log.status = 'failed'
+            email_log.save()
+            logger.error(f"❌ Async email {email_log_id} failed after {self.max_retries} retries: {exc}")
+            return {'success': False, 'error': str(exc)}
+
+
+@shared_task(bind=True, max_retries=3)
+def retry_failed_emails(self):
+    """
+    Periodic task to retry failed emails.
+
+    Runs: Every 30 minutes via Celery Beat
+    Retries: Emails that failed within the last 24 hours and haven't exceeded max retries.
+    """
+    from accounting.models import EmailLog
+    from accounting.services.email_service import EmailService
+
+    # Find failed emails from last 24 hours that haven't been retried too many times
+    cutoff = timezone.now() - timedelta(hours=24)
+    failed_emails = EmailLog.objects.filter(
+        status='failed',
+        sent_at__gte=cutoff,
+        retry_count__lt=3
+    ).order_by('sent_at')[:50]  # Limit to 50 per run
+
+    if not failed_emails.exists():
+        logger.debug("No failed emails to retry")
+        return "No failed emails to retry"
+
+    retried = 0
+    succeeded = 0
+
+    for email_log in failed_emails:
+        try:
+            # Increment retry count
+            email_log.retry_count += 1
+            email_log.status = 'pending'
+            email_log.save()
+
+            success, error = EmailService.send_email_from_log(email_log.id)
+
+            if success:
+                succeeded += 1
+                logger.info(f"✅ Retry successful for email {email_log.id}")
+            else:
+                email_log.status = 'failed'
+                email_log.error_message = str(error)
+                email_log.save()
+                logger.warning(f"Retry failed for email {email_log.id}: {error}")
+
+            retried += 1
+
+        except Exception as e:
+            email_log.status = 'failed'
+            email_log.error_message = str(e)
+            email_log.save()
+            logger.error(f"Error retrying email {email_log.id}: {e}")
+
+    result = f"Retried {retried} emails, {succeeded} succeeded"
+    logger.info(f"✅ {result}")
+    return result

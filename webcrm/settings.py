@@ -69,6 +69,18 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('true', '1', 'yes
 SERVER_EMAIL = os.getenv('EMAIL_HOST_USER', 'dpeconsolutions@gmail.com')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'dpeconsolutions@gmail.com')
 
+# Email Rate Limiting and Connection Pooling
+# These settings prevent SMTP throttling and improve bulk email performance
+EMAIL_RATE_LIMIT = float(os.getenv('EMAIL_RATE_LIMIT', '2.0'))  # emails per second
+EMAIL_BURST_LIMIT = int(os.getenv('EMAIL_BURST_LIMIT', '5'))    # max burst size
+EMAIL_POOL_MAX_CONNECTIONS = int(os.getenv('EMAIL_POOL_MAX_CONNECTIONS', '3'))
+EMAIL_POOL_CONNECTION_TTL = float(os.getenv('EMAIL_POOL_CONNECTION_TTL', '300.0'))  # seconds
+
+# Email Retry Settings
+EMAIL_MAX_RETRIES = int(os.getenv('EMAIL_MAX_RETRIES', '3'))
+EMAIL_RETRY_BASE_DELAY = float(os.getenv('EMAIL_RETRY_BASE_DELAY', '2.0'))  # seconds
+EMAIL_RETRY_MAX_DELAY = float(os.getenv('EMAIL_RETRY_MAX_DELAY', '30.0'))   # seconds
+
 ADMINS = [("<Admin1>", "dpeconsolutions@gmail.com")]   # specify admin
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -521,6 +533,10 @@ CELERY_BEAT_SCHEDULE = {
     'process-scheduled-emails': {
         'task': 'accounting.tasks.process_scheduled_emails',
         'schedule': crontab(minute='*/5'),  # Every 5 minutes
+    },
+    'retry-failed-emails': {
+        'task': 'accounting.tasks.retry_failed_emails',
+        'schedule': crontab(minute='*/30'),  # Every 30 minutes
     },
 }
 
