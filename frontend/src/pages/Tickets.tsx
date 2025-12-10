@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Ticket,
@@ -25,6 +25,7 @@ import {
   useDeleteTicket,
   type TicketsFilters,
 } from '../hooks/useTickets';
+import { useDebounce } from '../hooks/useDebounce';
 import { useUsers } from '../hooks/useUsers';
 import { useClients } from '../hooks/useClients';
 import type { TicketFull } from '../types';
@@ -45,6 +46,7 @@ export default function Tickets() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [searchInput, setSearchInput] = useState('');
+  const debouncedSearchInput = useDebounce(searchInput, 300);
 
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -55,6 +57,15 @@ export default function Tickets() {
   const { data, isLoading, isError, refetch } = useTickets(filters);
   const { data: clientsData } = useClients({ page_size: 1000 }); // Get all clients for dropdown
   const clients = clientsData?.results || [];
+
+  // Auto-search when debounced search input changes
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      search: debouncedSearchInput || undefined,
+      page: 1,
+    }));
+  }, [debouncedSearchInput]);
 
   // Handlers
   const handleFilterChange = useCallback(
@@ -67,14 +78,6 @@ export default function Tickets() {
     },
     []
   );
-
-  const handleSearch = useCallback(() => {
-    setFilters((prev) => ({
-      ...prev,
-      search: searchInput || undefined,
-      page: 1,
-    }));
-  }, [searchInput]);
 
   const handleClearFilters = useCallback(() => {
     setFilters({ page: 1, page_size: 20 });
@@ -183,16 +186,9 @@ export default function Tickets() {
               placeholder="Αναζήτηση με τίτλο ή πελάτη..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Αναζήτηση
-          </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${

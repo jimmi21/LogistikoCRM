@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
   useObligations,
   useCreateObligation,
@@ -1108,12 +1109,13 @@ function GenerateMonthModal({
   const [useAllClients, setUseAllClients] = useState(true);
   const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Filter clients by search
+  // Filter clients by search - uses debounced search term for performance
   const filteredClients = clients.filter(
     (c) =>
-      c.eponimia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.afm.includes(searchTerm)
+      c.eponimia.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      c.afm.includes(debouncedSearchTerm)
   );
 
   // Toggle client selection

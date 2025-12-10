@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useClients, useCreateClient, useDeleteClient } from '../hooks/useClients';
+import { useClients, useCreateClient, useDeleteClient, useDebounce } from '../hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ClientForm, Button, TableSkeleton } from '../components';
@@ -11,6 +11,7 @@ import { downloadClientsCSV, downloadClientsTemplate, useImportClients } from '.
 
 export default function Clients() {
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [page, setPage] = useState(1);
   const pageSize = 100;
 
@@ -41,18 +42,18 @@ export default function Clients() {
     },
   });
 
-  // Filter clients by name (eponimia) or AFM
+  // Filter clients by name (eponimia) or AFM - uses debounced search term for performance
   const filteredClients = useMemo(() => {
     if (!data?.results) return [];
-    if (!searchTerm.trim()) return data.results;
+    if (!debouncedSearchTerm.trim()) return data.results;
 
-    const term = searchTerm.toLowerCase().trim();
+    const term = debouncedSearchTerm.toLowerCase().trim();
     return data.results.filter(
       (client) =>
         (client.eponimia?.toLowerCase() || '').includes(term) ||
         (client.afm || '').includes(term)
     );
-  }, [data?.results, searchTerm]);
+  }, [data?.results, debouncedSearchTerm]);
 
   // Handlers
   const handleCreate = (formData: ClientFormData) => {
