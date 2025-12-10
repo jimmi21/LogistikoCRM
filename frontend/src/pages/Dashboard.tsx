@@ -4,7 +4,7 @@ import {
   Users, FileText, AlertCircle, RefreshCw, ArrowRight, Clock, TrendingUp,
   Calendar, CheckCircle, Plus, Activity
 } from 'lucide-react';
-import { Button } from '../components';
+import { Button, DeadlineListSkeleton } from '../components';
 import VoIPWidget from '../components/dashboard/VoIPWidget';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -184,8 +184,8 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Κατανομή Υποχρεώσεων</h3>
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="h-64 flex items-center justify-center">
+              <div className="w-32 h-32 bg-gray-200 rounded-full animate-pulse" />
             </div>
           ) : pieChartData.length > 0 ? (
             <div className="h-64">
@@ -235,8 +235,10 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Τύποι Υποχρεώσεων</h3>
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="h-64 flex items-end justify-around gap-2 animate-pulse">
+              {[70, 50, 85, 40, 60, 45].map((h, i) => (
+                <div key={i} className="bg-gray-200 rounded-t flex-1" style={{ height: `${h}%` }} />
+              ))}
             </div>
           ) : barChartData.length > 0 ? (
             <div className="h-64">
@@ -420,9 +422,7 @@ export default function Dashboard() {
             <span className="text-sm text-gray-500">Επόμενες 7 ημέρες</span>
           </div>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
+            <DeadlineListSkeleton count={5} />
           ) : stats?.upcoming_deadlines && stats.upcoming_deadlines.length > 0 ? (
             <div className="space-y-3">
               {stats.upcoming_deadlines.slice(0, 5).map((deadline) => (

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useClients, useCreateClient, useDeleteClient } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
-import { Modal, ConfirmDialog, ClientForm, Button } from '../components';
+import { Modal, ConfirmDialog, ClientForm, Button, TableSkeleton } from '../components';
 import { useToast } from '../components/Toast';
 import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2, Eye, Download, Upload, FileDown, FileUp } from 'lucide-react';
 import type { Client, ClientFormData } from '../types';
@@ -217,10 +217,7 @@ export default function Clients() {
 
       {/* Loading State */}
       {isLoading && (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Φόρτωση πελατών...</p>
-        </div>
+        <TableSkeleton rows={8} columns={5} showAvatar />
       )}
 
       {/* Clients Table */}
