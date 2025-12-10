@@ -1,4 +1,5 @@
 export { Button } from './Button';
+export { ErrorBoundary } from './ErrorBoundary';
 export { Modal } from './Modal';
 export { ConfirmDialog } from './ConfirmDialog';
 export { ClientForm } from './ClientForm';
