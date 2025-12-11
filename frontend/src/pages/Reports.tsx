@@ -10,9 +10,17 @@ import {
   ClipboardList,
   RefreshCw,
   AlertCircle,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '../components';
-import { useReportsStats, useReportsExport, type ReportPeriod } from '../hooks/useReports';
+import {
+  useReportsStats,
+  useReportsExport,
+  useReportExport,
+  type ReportPeriod
+} from '../hooks/useReports';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -36,8 +44,37 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function Reports() {
   const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const { data: stats, isLoading, isError, error, refetch } = useReportsStats(period);
   const { data: exportData } = useReportsExport();
+  const {
+    isExporting,
+    exportType,
+    error: exportError,
+    exportClients,
+    exportObligations,
+    exportMonthlyPdf,
+  } = useReportExport();
+
+  // Get current date for monthly PDF export
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+
+  const handleExport = async (type: string) => {
+    setShowExportMenu(false);
+    try {
+      if (type === 'clients') {
+        await exportClients();
+      } else if (type === 'obligations') {
+        await exportObligations(period);
+      } else if (type === 'monthly-pdf') {
+        await exportMonthlyPdf(currentYear, currentMonth);
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+    }
+  };
 
   const renderStatValue = (value: number | undefined) => {
     if (isLoading) return '...';
@@ -84,14 +121,56 @@ export default function Reports() {
             <RefreshCw size={18} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Ανανέωση
           </Button>
-          <Button variant="secondary">
-            <Filter size={18} className="mr-2" />
-            Φίλτρα
-          </Button>
-          <Button>
-            <Download size={18} className="mr-2" />
-            Εξαγωγή
-          </Button>
+          {/* Export dropdown */}
+          <div className="relative">
+            <Button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 size={18} className="mr-2 animate-spin" />
+              ) : (
+                <Download size={18} className="mr-2" />
+              )}
+              {isExporting ? 'Εξαγωγή...' : 'Εξαγωγή'}
+            </Button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                <button
+                  onClick={() => handleExport('clients')}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3"
+                >
+                  <FileSpreadsheet size={18} className="text-green-600" />
+                  <div>
+                    <div className="font-medium text-sm">Πελάτες (Excel)</div>
+                    <div className="text-xs text-gray-500">Πλήρης λίστα πελατών</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExport('obligations')}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3"
+                >
+                  <FileSpreadsheet size={18} className="text-blue-600" />
+                  <div>
+                    <div className="font-medium text-sm">Υποχρεώσεις (Excel)</div>
+                    <div className="text-xs text-gray-500">Τρέχουσες υποχρεώσεις</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExport('monthly-pdf')}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3"
+                >
+                  <FileText size={18} className="text-red-600" />
+                  <div>
+                    <div className="font-medium text-sm">Μηνιαία Αναφορά (PDF)</div>
+                    <div className="text-xs text-gray-500">
+                      {currentMonth}/{currentYear}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -277,29 +356,45 @@ export default function Reports() {
           <h3 className="text-lg font-semibold text-gray-900">Διαθέσιμες αναφορές</h3>
         </div>
         <div className="divide-y divide-gray-200">
-          {(exportData?.available_exports || [
-            { name: 'Αναφορά πελατών', description: 'Πλήρης λίστα πελατών με στοιχεία επικοινωνίας', type: 'clients' },
-            { name: 'Αναφορά υποχρεώσεων', description: 'Κατάσταση υποχρεώσεων ανά μήνα', type: 'obligations' },
-            { name: 'Οικονομική αναφορά', description: 'Έσοδα και στατιστικά χρεώσεων', type: 'financial' },
-            { name: 'Αναφορά απόδοσης', description: 'Χρόνοι ολοκλήρωσης και KPIs', type: 'performance' },
-          ]).map((report, index) => {
+          {[
+            { name: 'Αναφορά πελατών', description: 'Πλήρης λίστα πελατών με στοιχεία επικοινωνίας', type: 'clients', enabled: true },
+            { name: 'Αναφορά υποχρεώσεων', description: 'Κατάσταση υποχρεώσεων ανά μήνα', type: 'obligations', enabled: true },
+            { name: 'Μηνιαία αναφορά (PDF)', description: `Συνοπτική αναφορά ${currentMonth}/${currentYear}`, type: 'monthly-pdf', enabled: true },
+            { name: 'Οικονομική αναφορά', description: 'Έσοδα και στατιστικά χρεώσεων (σύντομα)', type: 'financial', enabled: false },
+            { name: 'Αναφορά απόδοσης', description: 'Χρόνοι ολοκλήρωσης και KPIs (σύντομα)', type: 'performance', enabled: false },
+          ].map((report, index) => {
             const IconComponent = report.type === 'clients' ? Users :
                                   report.type === 'obligations' ? ClipboardList :
+                                  report.type === 'monthly-pdf' ? FileText :
                                   report.type === 'financial' ? TrendingUp : BarChart3;
+            const isCurrentlyExporting = isExporting && exportType === report.type;
             return (
               <div key={index} className="flex items-center justify-between p-4 hover:bg-gray-50">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <IconComponent size={20} className="text-gray-600" />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    report.enabled ? 'bg-gray-100' : 'bg-gray-50'
+                  }`}>
+                    <IconComponent size={20} className={report.enabled ? 'text-gray-600' : 'text-gray-400'} />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{report.name}</p>
+                    <p className={`font-medium ${report.enabled ? 'text-gray-900' : 'text-gray-400'}`}>
+                      {report.name}
+                    </p>
                     <p className="text-sm text-gray-500">{report.description}</p>
                   </div>
                 </div>
-                <Button variant="secondary" size="sm">
-                  <Download size={16} className="mr-2" />
-                  Λήψη
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleExport(report.type)}
+                  disabled={!report.enabled || isExporting}
+                >
+                  {isCurrentlyExporting ? (
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                  ) : (
+                    <Download size={16} className="mr-2" />
+                  )}
+                  {isCurrentlyExporting ? 'Λήψη...' : 'Λήψη'}
                 </Button>
               </div>
             );
