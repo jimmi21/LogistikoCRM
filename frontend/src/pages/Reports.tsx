@@ -10,9 +10,19 @@ import {
   ClipboardList,
   RefreshCw,
   AlertCircle,
+  Loader2,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { Button } from '../components';
-import { useReportsStats, useReportsExport, type ReportPeriod } from '../hooks/useReports';
+import {
+  useReportsStats,
+  useReportsExport,
+  downloadReportExport,
+  type ReportPeriod,
+  type ExportType,
+  type ExportFormat,
+} from '../hooks/useReports';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -36,8 +46,22 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function Reports() {
   const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [downloadingType, setDownloadingType] = useState<ExportType | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const { data: stats, isLoading, isError, error, refetch } = useReportsStats(period);
   const { data: exportData } = useReportsExport();
+
+  const handleDownload = async (type: ExportType, format: ExportFormat = 'xlsx') => {
+    setDownloadingType(type);
+    setDownloadError(null);
+    try {
+      await downloadReportExport({ type, format, period });
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Σφάλμα κατά τη λήψη');
+    } finally {
+      setDownloadingType(null);
+    }
+  };
 
   const renderStatValue = (value: number | undefined) => {
     if (isLoading) return '...';
@@ -271,23 +295,44 @@ export default function Reports() {
         </div>
       )}
 
+      {/* Download Error Banner */}
+      {downloadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <span className="text-red-700">{downloadError}</span>
+            </div>
+            <button
+              onClick={() => setDownloadError(null)}
+              className="text-red-500 hover:text-red-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Reports List */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Διαθέσιμες αναφορές</h3>
+          <p className="text-sm text-gray-500 mt-1">Επιλέξτε μορφή εξαγωγής για κάθε αναφορά</p>
         </div>
         <div className="divide-y divide-gray-200">
           {(exportData?.available_exports || [
-            { name: 'Αναφορά πελατών', description: 'Πλήρης λίστα πελατών με στοιχεία επικοινωνίας', type: 'clients' },
-            { name: 'Αναφορά υποχρεώσεων', description: 'Κατάσταση υποχρεώσεων ανά μήνα', type: 'obligations' },
-            { name: 'Οικονομική αναφορά', description: 'Έσοδα και στατιστικά χρεώσεων', type: 'financial' },
-            { name: 'Αναφορά απόδοσης', description: 'Χρόνοι ολοκλήρωσης και KPIs', type: 'performance' },
-          ]).map((report, index) => {
+            { name: 'Αναφορά πελατών', description: 'Πλήρης λίστα πελατών με στοιχεία επικοινωνίας', type: 'clients', formats: ['csv', 'xlsx'] },
+            { name: 'Αναφορά υποχρεώσεων', description: 'Κατάσταση υποχρεώσεων ανά μήνα', type: 'obligations', formats: ['csv', 'xlsx'] },
+            { name: 'Σύνοψη ΦΠΑ', description: 'Αναλυτική κατάσταση ΦΠΑ ανά πελάτη', type: 'vat_summary', formats: ['csv', 'xlsx'] },
+            { name: 'Αναφορά απόδοσης', description: 'Χρόνοι ολοκλήρωσης και KPIs', type: 'performance', formats: ['csv', 'xlsx'] },
+          ]).map((report) => {
+            const reportType = report.type as ExportType;
+            const isDownloading = downloadingType === reportType;
             const IconComponent = report.type === 'clients' ? Users :
                                   report.type === 'obligations' ? ClipboardList :
-                                  report.type === 'financial' ? TrendingUp : BarChart3;
+                                  report.type === 'vat_summary' ? FileText : BarChart3;
             return (
-              <div key={index} className="flex items-center justify-between p-4 hover:bg-gray-50">
+              <div key={report.type} className="flex items-center justify-between p-4 hover:bg-gray-50">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                     <IconComponent size={20} className="text-gray-600" />
@@ -297,10 +342,38 @@ export default function Reports() {
                     <p className="text-sm text-gray-500">{report.description}</p>
                   </div>
                 </div>
-                <Button variant="secondary" size="sm">
-                  <Download size={16} className="mr-2" />
-                  Λήψη
-                </Button>
+                <div className="flex items-center gap-2">
+                  {(report.formats || ['csv', 'xlsx']).includes('csv') && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleDownload(reportType, 'csv')}
+                      disabled={isDownloading}
+                    >
+                      {isDownloading ? (
+                        <Loader2 size={16} className="mr-2 animate-spin" />
+                      ) : (
+                        <FileText size={16} className="mr-2" />
+                      )}
+                      CSV
+                    </Button>
+                  )}
+                  {(report.formats || ['csv', 'xlsx']).includes('xlsx') && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleDownload(reportType, 'xlsx')}
+                      disabled={isDownloading}
+                    >
+                      {isDownloading ? (
+                        <Loader2 size={16} className="mr-2 animate-spin" />
+                      ) : (
+                        <FileSpreadsheet size={16} className="mr-2" />
+                      )}
+                      Excel
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}

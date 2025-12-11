@@ -74,3 +74,68 @@ export function useReportsExport() {
     staleTime: 60000, // 1 minute
   });
 }
+
+export type ExportType = 'clients' | 'obligations' | 'financial' | 'performance' | 'vat_summary' | 'client_statement';
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
+
+interface DownloadExportParams {
+  type: ExportType;
+  format?: ExportFormat;
+  period?: ReportPeriod;
+  clientId?: number;
+  year?: number;
+  month?: number;
+}
+
+/**
+ * Download a report export file
+ * Triggers browser download of the generated file
+ */
+export async function downloadReportExport({
+  type,
+  format = 'xlsx',
+  period = 'month',
+  clientId,
+  year,
+  month,
+}: DownloadExportParams): Promise<void> {
+  const params = new URLSearchParams({
+    type,
+    format,
+    period,
+    download: 'true',
+  });
+
+  if (clientId) params.append('client_id', clientId.toString());
+  if (year) params.append('year', year.toString());
+  if (month) params.append('month', month.toString());
+
+  const response = await apiClient.get(`/api/reports/export/?${params.toString()}`, {
+    responseType: 'blob',
+  });
+
+  // Extract filename from Content-Disposition header or generate one
+  const contentDisposition = response.headers['content-disposition'];
+  let filename = `${type}_report.${format}`;
+
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, '');
+    }
+  }
+
+  // Create blob and trigger download
+  const blob = new Blob([response.data], {
+    type: response.headers['content-type'] || 'application/octet-stream',
+  });
+
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+}
