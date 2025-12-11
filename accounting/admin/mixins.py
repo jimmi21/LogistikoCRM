@@ -56,7 +56,8 @@ class TicketInline(admin.TabularInline):
     verbose_name_plural = '🎫 Tickets'
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('call')[:5]
+        # No slicing - Django handles pagination
+        return super().get_queryset(request).select_related('call')
 
     def ticket_link(self, obj):
         url = reverse('admin:accounting_ticket_change', args=[obj.pk])
