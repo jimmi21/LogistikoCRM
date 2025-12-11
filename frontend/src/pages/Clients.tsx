@@ -4,8 +4,9 @@ import { useClients, useCreateClient, useDeleteClient, useDebounce } from '../ho
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 import { Modal, ConfirmDialog, ClientForm, Button, TableSkeleton } from '../components';
+import { BulkAssignModal } from '../components/BulkAssignModal';
 import { useToast } from '../components/Toast';
-import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2, Eye, Download, Upload, FileDown, FileUp } from 'lucide-react';
+import { Users, Search, AlertCircle, RefreshCw, Plus, Edit2, Trash2, Eye, Download, Upload, FileDown, FileUp, ClipboardList } from 'lucide-react';
 import type { Client, ClientFormData } from '../types';
 import { downloadClientsCSV, downloadClientsTemplate, useImportClients } from '../hooks/useExportImport';
 
@@ -21,6 +22,7 @@ export default function Clients() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isBulkAssignModalOpen, setIsBulkAssignModalOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useClients({ page, page_size: pageSize });
@@ -177,6 +179,10 @@ export default function Clients() {
               </div>
             )}
           </div>
+          <Button variant="secondary" onClick={() => setIsBulkAssignModalOpen(true)}>
+            <ClipboardList className="w-4 h-4 mr-2" />
+            Μαζική Ανάθεση
+          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Νέος Πελάτης
@@ -389,6 +395,12 @@ export default function Clients() {
         importMutation={importMutation}
         showToast={showToast}
         refetch={refetch}
+      />
+
+      {/* Bulk Assign Modal */}
+      <BulkAssignModal
+        isOpen={isBulkAssignModalOpen}
+        onClose={() => setIsBulkAssignModalOpen(false)}
       />
     </div>
   );
