@@ -1,7 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
 import apiClient from '../api/client';
 
 export type ReportPeriod = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
+export type ExportType = 'clients' | 'obligations' | 'financial' | 'performance';
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
 
 interface ObligationByType {
   obligation_type__name: string;

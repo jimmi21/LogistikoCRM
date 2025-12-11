@@ -135,14 +135,12 @@ def reports_stats(request):
 
     # Format monthly activity for frontend
     monthly_data = []
-    greek_months = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαι', 'Ιουν',
-                    'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
 
     for item in monthly_activity:
         if item['month']:
             month_idx = item['month'].month - 1
             monthly_data.append({
-                'month': greek_months[month_idx],
+                'month': GREEK_MONTHS_SHORT[month_idx],
                 'month_num': item['month'].month,
                 'year': item['month'].year,
                 'count': item['count']
@@ -163,7 +161,7 @@ def reports_stats(request):
         )
 
         all_months.append({
-            'month': greek_months[month_idx],
+            'month': GREEK_MONTHS_SHORT[month_idx],
             'month_num': month_date.month,
             'year': month_date.year,
             'count': existing['count'] if existing else 0
@@ -198,27 +196,13 @@ def reports_stats(request):
 def calculate_comparison(period: str, current_start, current_end):
     """
     Calculate comparison with previous period for trend indicators.
+    Uses centralized date range utilities.
     """
-    today = timezone.now().date()
+    # Use centralized utility for previous period calculation
+    prev_start, prev_end = get_previous_period_range(period, current_start, current_end)
 
-    if period == 'today':
-        prev_start = prev_end = today - timedelta(days=1)
-    elif period == 'week':
-        prev_end = current_start - timedelta(days=1)
-        prev_start = prev_end - timedelta(days=6)
-    elif period == 'month':
-        prev_end = current_start - timedelta(days=1)
-        prev_start = prev_end.replace(day=1)
-    elif period == 'quarter':
-        prev_end = current_start - timedelta(days=1)
-        prev_quarter = (prev_end.month - 1) // 3
-        prev_start_month = prev_quarter * 3 + 1
-        prev_start = prev_end.replace(month=prev_start_month, day=1)
-    elif period == 'year':
-        prev_end = current_start - timedelta(days=1)
-        prev_start = prev_end.replace(month=1, day=1)
-    else:
-        return {'clients': 0, 'completed': 0, 'pending': 0, 'overdue': 0}
+    if prev_start is None or prev_end is None:
+        return {'clients_change': 0, 'completed_change': 0}
 
     # Previous period stats
     prev_completed = MonthlyObligation.objects.filter(
