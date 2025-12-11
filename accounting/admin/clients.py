@@ -21,6 +21,8 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.core.management import call_command
 
+from django.db.models import Count
+
 from ..models import (
     ClientProfile,
     ClientDocument,
@@ -71,11 +73,18 @@ class ClientProfileAdmin(admin.ModelAdmin):
 
     @admin.display(description='Έγγραφα')
     def documents_count(self, obj):
-        """Count of client documents"""
-        count = obj.documents.count()
+        """Count of client documents - uses annotated value to avoid N+1"""
+        count = getattr(obj, '_documents_count', None)
+        if count is None:
+            count = obj.documents.count()
         if count > 0:
             return format_html('<span style="color: #28a745; font-weight: bold;">{}</span>', count)
         return '-'
+
+    def get_queryset(self, request):
+        """Optimize queries with annotation for document count"""
+        qs = super().get_queryset(request)
+        return qs.annotate(_documents_count=Count('documents'))
 
     list_filter = [
         'eidos_ipoxreou',
@@ -424,9 +433,19 @@ class ClientDocumentAdmin(admin.ModelAdmin):
     search_fields = ['client__eponimia', 'client__afm', 'filename', 'description']
     raw_id_fields = ['client', 'obligation']
 
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('client', 'obligation')
+
 
 @admin.register(ArchiveConfiguration)
 class ArchiveConfigurationAdmin(admin.ModelAdmin):
     list_display = ['obligation_type', 'filename_pattern', 'folder_pattern', 'create_subfolder']
     list_filter = ['create_subfolder', 'allow_multiple_files']
     search_fields = ['obligation_type__name', 'obligation_type__code']
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('obligation_type')

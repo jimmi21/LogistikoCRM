@@ -20,6 +20,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import HttpResponse
 from django.utils import timezone
+from django.db.models import Count, Prefetch
 
 from ..models import (
     ObligationGroup,
@@ -66,14 +67,26 @@ class ObligationGroupAdmin(admin.ModelAdmin):
 
         messages.success(request, f'✅ Ομάδα "{obj.name}" ενημερώθηκε με {len(selected_types)} υποχρεώσεις!')
 
+    def get_queryset(self, request):
+        """Optimize queries with prefetch_related and Count annotation"""
+        qs = super().get_queryset(request)
+        return qs.prefetch_related('obligationtype_set').annotate(
+            _obligation_count=Count('obligationtype')
+        )
+
     def get_obligations_count(self, obj):
-        return obj.obligationtype_set.count()
+        count = getattr(obj, '_obligation_count', None)
+        if count is None:
+            count = obj.obligationtype_set.count()
+        return count
     get_obligations_count.short_description = 'Πλήθος'
 
     def get_obligations_list(self, obj):
-        obligations = obj.obligationtype_set.all()[:3]
+        # Uses prefetched data
+        obligations = list(obj.obligationtype_set.all()[:3])
         names = [o.name for o in obligations]
-        if obj.obligationtype_set.count() > 3:
+        count = getattr(obj, '_obligation_count', obj.obligationtype_set.count())
+        if count > 3:
             names.append('...')
         return ', '.join(names) if names else '—'
     get_obligations_list.short_description = 'Υποχρεώσεις'
@@ -107,14 +120,26 @@ class ObligationProfileAdmin(admin.ModelAdmin):
 
         messages.success(request, f'✅ Profile "{obj.name}" ενημερώθηκε με {len(selected_types)} υποχρεώσεις!')
 
+    def get_queryset(self, request):
+        """Optimize queries with prefetch_related and Count annotation"""
+        qs = super().get_queryset(request)
+        return qs.prefetch_related('obligations').annotate(
+            _obligation_count=Count('obligations')
+        )
+
     def get_obligation_count(self, obj):
-        return obj.obligations.count()
+        count = getattr(obj, '_obligation_count', None)
+        if count is None:
+            count = obj.obligations.count()
+        return count
     get_obligation_count.short_description = 'Πλήθος'
 
     def get_obligations_list(self, obj):
-        obligations = obj.obligations.all()[:3]
+        # Uses prefetched data
+        obligations = list(obj.obligations.all()[:3])
         names = [o.name for o in obligations]
-        if obj.obligations.count() > 3:
+        count = getattr(obj, '_obligation_count', obj.obligations.count())
+        if count > 3:
             names.append('...')
         return ', '.join(names) if names else '—'
     get_obligations_list.short_description = 'Υποχρεώσεις'
@@ -139,6 +164,11 @@ class ObligationTypeAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('profile', 'exclusion_group')
+
 
 @admin.register(ClientObligation)
 class ClientObligationAdmin(admin.ModelAdmin):
@@ -147,6 +177,11 @@ class ClientObligationAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'obligation_profiles']
     search_fields = ['client__afm', 'client__eponimia']
     filter_horizontal = ['obligation_types', 'obligation_profiles']
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('client')
 
     fieldsets = (
         ('Πελάτης', {

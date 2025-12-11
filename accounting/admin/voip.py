@@ -86,6 +86,11 @@ class VoIPCallAdmin(admin.ModelAdmin):
     date_hierarchy = 'started_at'
     list_per_page = 50
 
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('client')
+
     # Display methods
     def call_id_colored(self, obj):
         return format_html(
@@ -233,6 +238,11 @@ class VoIPCallLogAdmin(admin.ModelAdmin):
 
     ordering = ['-created_at']
 
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('call')
+
     def has_add_permission(self, request):
         return False
 
@@ -305,6 +315,11 @@ class TicketAdmin(admin.ModelAdmin):
         'client__eponimia',
         'notes'
     ]
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('client', 'call', 'assigned_to')
 
     readonly_fields = [
         'created_at',

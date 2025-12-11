@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils.html import format_html, escape
 from django.contrib import admin
 from django.contrib import messages
+from django.db.models import Count
 
 from ..models import (
     EmailTemplate,
@@ -61,6 +62,11 @@ class EmailTemplateAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('obligation_type')
+
     def preview_button(self, obj):
         return format_html(
             '<a class="button" href="{}">👁️ Preview</a>',
@@ -92,6 +98,11 @@ class EmailAutomationRuleAdmin(admin.ModelAdmin):
             'description': '⏰ Πότε θα αποστέλλεται το email'
         }),
     )
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('template')
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -138,6 +149,15 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
     )
 
     actions = ['send_now', 'cancel_emails']
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related, prefetch_related and Count annotation"""
+        qs = super().get_queryset(request)
+        return qs.select_related(
+            'client', 'template', 'automation_rule', 'created_by'
+        ).prefetch_related('obligations').annotate(
+            _obligations_count=Count('obligations')
+        )
 
     def get_form(self, request, obj=None, **kwargs):
         """Override to use textarea widget for recipient_email field"""
@@ -195,7 +215,10 @@ class ScheduledEmailAdmin(admin.ModelAdmin):
     subject_preview.short_description = 'Θέμα'
 
     def obligations_count(self, obj):
-        count = obj.obligations.count()
+        # Use annotated count to avoid N+1
+        count = getattr(obj, '_obligations_count', None)
+        if count is None:
+            count = obj.obligations.count()
         attachments = obj.get_attachments()
         return format_html(
             '{} υποχρεώσεις<br><small>📎 {} αρχεία</small>',
@@ -288,6 +311,11 @@ class EmailLogAdmin(admin.ModelAdmin):
     ordering = ['-sent_at']
     list_per_page = 50
     date_hierarchy = 'sent_at'
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related for ForeignKey fields"""
+        qs = super().get_queryset(request)
+        return qs.select_related('client', 'sent_by', 'obligation')
 
     fieldsets = (
         ('Παραλήπτης', {
