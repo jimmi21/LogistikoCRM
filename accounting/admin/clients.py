@@ -27,13 +27,13 @@ from ..models import (
     ArchiveConfiguration,
 )
 from ..export_import import export_clients_to_excel, export_clients_summary_to_excel
-from .mixins import VoIPCallInline, ClientProfileDocumentInline
+from .mixins import VoIPCallInline, TicketInline, ClientProfileDocumentInline
 
 
 @admin.register(ClientProfile)
 class ClientProfileAdmin(admin.ModelAdmin):
-    # VoIP Call History & Documents Inline
-    inlines = [VoIPCallInline, ClientProfileDocumentInline]
+    # VoIP Call History, Tickets & Documents Inline
+    inlines = [VoIPCallInline, TicketInline, ClientProfileDocumentInline]
 
     list_display = [
         'afm',

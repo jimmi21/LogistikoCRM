@@ -10,6 +10,7 @@ from django.utils.html import format_html, escape
 
 from ..models import (
     VoIPCall,
+    Ticket,
     ClientDocument,
     EmailLog,
 )
@@ -37,6 +38,55 @@ class VoIPCallInline(admin.TabularInline):
             return f"{mins}:{secs:02d}"
         return "-"
     duration_display.short_description = 'Διάρκεια'
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class TicketInline(admin.TabularInline):
+    """Inline για εμφάνιση tickets στην καρτέλα πελάτη - minimal design"""
+    model = Ticket
+    extra = 0
+    max_num = 0
+    can_delete = False
+    fields = ['ticket_link', 'title_short', 'status_badge', 'created_at']
+    readonly_fields = ['ticket_link', 'title_short', 'status_badge', 'created_at']
+    ordering = ['-created_at']
+    verbose_name = 'Ticket'
+    verbose_name_plural = '🎫 Tickets'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('call')[:5]
+
+    def ticket_link(self, obj):
+        url = reverse('admin:accounting_ticket_change', args=[obj.pk])
+        return format_html(
+            '<a href="{}" style="color: #667eea; font-weight: 500;">#{}</a>',
+            url, obj.pk
+        )
+    ticket_link.short_description = '#'
+
+    def title_short(self, obj):
+        title = escape(obj.title)
+        return title[:40] + '...' if len(obj.title) > 40 else title
+    title_short.short_description = 'Τίτλος'
+
+    def status_badge(self, obj):
+        colors = {
+            'open': '#dc2626',
+            'assigned': '#d97706',
+            'in_progress': '#2563eb',
+            'resolved': '#059669',
+            'closed': '#6b7280',
+        }
+        color = colors.get(obj.status, '#6b7280')
+        label = obj.get_status_display().replace('🔴 ', '').replace('👤 ', '').replace('⏳ ', '').replace('✅ ', '').replace('🔒 ', '')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; '
+            'border-radius: 10px; font-size: 11px;">{}</span>',
+            color, label
+        )
+    status_badge.short_description = 'Κατάσταση'
 
     def has_add_permission(self, request, obj=None):
         return False

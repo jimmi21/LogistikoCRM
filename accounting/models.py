@@ -1065,7 +1065,9 @@ class Ticket(models.Model):
     
     call = models.OneToOneField(
         VoIPCall,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='ticket',
         verbose_name='Κλήση'
     )
