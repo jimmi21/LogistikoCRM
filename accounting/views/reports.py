@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.template.loader import render_to_string
 
 from ..models import ClientProfile, MonthlyObligation
+from ..utils.report_constants import GREEK_MONTHS_FULL
 
 import logging
 
@@ -122,14 +123,8 @@ def monthly_report_pdf(request, year, month):
     # Get obligations for the table
     obligations = all_obligations.select_related('client', 'obligation_type').order_by('deadline', 'client__eponimia')
 
-    # Month names in Greek
-    month_names = {
-        1: 'Ιανουάριος', 2: 'Φεβρουάριος', 3: 'Μάρτιος',
-        4: 'Απρίλιος', 5: 'Μάιος', 6: 'Ιούνιος',
-        7: 'Ιούλιος', 8: 'Αύγουστος', 9: 'Σεπτέμβριος',
-        10: 'Οκτώβριος', 11: 'Νοέμβριος', 12: 'Δεκέμβριος'
-    }
-    month_name = month_names.get(month, str(month))
+    # Month name in Greek (using centralized constants)
+    month_name = GREEK_MONTHS_FULL.get(month, str(month))
 
     html_content = render_to_string('reports/monthly_report.html', {
         'year': year,
