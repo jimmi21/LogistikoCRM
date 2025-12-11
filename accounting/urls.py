@@ -85,9 +85,7 @@ from .api_export_import import (
 from .api_reports import (
     reports_stats,
     reports_export,
-    reports_export_download,
     client_statement,
-    vat_summary,
 )
 
 # New Completion Views
@@ -216,9 +214,7 @@ urlpatterns = [
     # REPORTS API
     path("api/reports/stats/", reports_stats, name="api_reports_stats"),
     path("api/reports/export/", reports_export, name="api_reports_export"),
-    path("api/reports/export/download/", reports_export_download, name="api_reports_export_download"),
     path("api/reports/client-statement/<int:client_id>/", client_statement, name="api_client_statement"),
-    path("api/reports/vat-summary/", vat_summary, name="api_vat_summary"),
 
     # ============================================
     # OBLIGATION PROFILE APIs
