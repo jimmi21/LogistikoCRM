@@ -15,6 +15,10 @@ from django.urls import reverse
 from django.utils.html import format_html, escape
 from django.contrib import admin
 from django.http import HttpResponse
+from django.template.response import TemplateResponse
+from django.contrib.admin.utils import get_deleted_objects
+from django.db import router
+from django.contrib import messages
 
 from ..models import (
     VoIPCall,
@@ -57,6 +61,8 @@ class VoIPCallAdmin(admin.ModelAdmin):
         'mark_as_closed',
         'mark_as_follow_up',
         'mark_as_pending',
+        'delete_with_tickets',
+        'delete_without_tickets',
         'export_calls_csv',
     ]
 
@@ -221,6 +227,47 @@ class VoIPCallAdmin(admin.ModelAdmin):
         return response
     export_calls_csv.short_description = '📊 Export CSV'
 
+    # Bulk delete actions
+    def delete_with_tickets(self, request, queryset):
+        """Διαγραφή κλήσεων μαζί με τα tickets τους (CASCADE)"""
+        count = queryset.count()
+        ticket_count = Ticket.objects.filter(call__in=queryset).count()
+        queryset.delete()
+        self.message_user(
+            request,
+            f'{count} κλήσεις και {ticket_count} tickets διαγράφηκαν',
+            messages.SUCCESS
+        )
+    delete_with_tickets.short_description = 'Διαγραφή με tickets'
+
+    def delete_without_tickets(self, request, queryset):
+        """Διαγραφή κλήσεων χωρίς τα tickets (αποσύνδεση πρώτα)"""
+        count = queryset.count()
+        # Αποσύνδεση tickets πρώτα
+        Ticket.objects.filter(call__in=queryset).update(call=None)
+        # Ενημέρωση ticket_created
+        queryset.update(ticket_created=False)
+        queryset.delete()
+        self.message_user(
+            request,
+            f'{count} κλήσεις διαγράφηκαν (tickets διατηρήθηκαν)',
+            messages.SUCCESS
+        )
+    delete_without_tickets.short_description = 'Διαγραφή χωρίς tickets'
+
+    # Custom delete view
+    def delete_view(self, request, object_id, extra_context=None):
+        obj = self.get_object(request, object_id)
+        extra_context = extra_context or {}
+
+        # Check for related ticket
+        has_ticket = hasattr(obj, 'ticket') and obj.ticket is not None
+        if has_ticket:
+            extra_context['has_related_ticket'] = True
+            extra_context['ticket_id'] = obj.ticket.id
+
+        return super().delete_view(request, object_id, extra_context)
+
 
 @admin.register(VoIPCallLog)
 class VoIPCallLogAdmin(admin.ModelAdmin):
@@ -341,6 +388,8 @@ class TicketAdmin(admin.ModelAdmin):
         'mark_as_in_progress',
         'mark_as_resolved',
         'mark_as_closed',
+        'delete_with_calls',
+        'delete_without_calls',
         'export_tickets_csv',
     ]
 
@@ -497,3 +546,51 @@ class TicketAdmin(admin.ModelAdmin):
         if not change and not obj.assigned_to:
             obj.assigned_to = request.user
         super().save_model(request, obj, form, change)
+
+    # Bulk delete actions
+    def delete_with_calls(self, request, queryset):
+        """Διαγραφή tickets μαζί με τις κλήσεις τους"""
+        call_ids = list(queryset.values_list('call_id', flat=True))
+        count = queryset.count()
+        # Διαγραφή κλήσεων (cascade θα διαγράψει και τα tickets)
+        VoIPCall.objects.filter(id__in=call_ids).delete()
+        self.message_user(
+            request,
+            f'{count} tickets και κλήσεις διαγράφηκαν',
+            messages.SUCCESS
+        )
+    delete_with_calls.short_description = 'Διαγραφή με κλήσεις'
+
+    def delete_without_calls(self, request, queryset):
+        """Διαγραφή tickets χωρίς τις κλήσεις (signal θα ενημερώσει calls)"""
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(
+            request,
+            f'{count} tickets διαγράφηκαν (κλήσεις διατηρήθηκαν)',
+            messages.SUCCESS
+        )
+    delete_without_calls.short_description = 'Διαγραφή χωρίς κλήσεις'
+
+    # Custom delete view
+    def delete_view(self, request, object_id, extra_context=None):
+        obj = self.get_object(request, object_id)
+        extra_context = extra_context or {}
+
+        # Check for related call
+        has_call = obj and obj.call_id is not None
+        if has_call:
+            extra_context['has_related_call'] = True
+            extra_context['call_phone'] = obj.call.phone_number if obj.call else ''
+
+        # Handle POST with delete_call checkbox
+        if request.method == 'POST' and request.POST.get('delete_call') == '1':
+            if obj and obj.call:
+                call = obj.call
+                obj.call = None
+                obj.save()
+                call.delete()
+                self.message_user(request, 'Ticket και κλήση διαγράφηκαν', messages.SUCCESS)
+                return self.response_delete(request, obj.__str__(), obj.pk)
+
+        return super().delete_view(request, object_id, extra_context)

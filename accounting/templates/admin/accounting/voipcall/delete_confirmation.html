@@ -1,0 +1,57 @@
+{% extends "admin/delete_confirmation.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+<p>{% blocktranslate with escaped_object=object %}Διαγραφή "{{ escaped_object }}"{% endblocktranslate %}</p>
+
+{% if has_related_ticket %}
+<div style="margin: 20px 0; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #1e40af;">
+        <span style="font-size: 16px;">i</span>
+        <span>Θα διαγραφεί και το Ticket #{{ ticket_id }}</span>
+    </div>
+</div>
+{% endif %}
+
+{% if perms_lacking %}
+<p>{% trans "Deleting the selected object would result in deleting related objects, but your account doesn't have permission to delete the following types of objects:" %}</p>
+<ul>
+{% for obj in perms_lacking %}
+    <li>{{ obj }}</li>
+{% endfor %}
+</ul>
+{% elif protected %}
+<p>{% trans "Deleting the selected object would require deleting the following protected related objects:" %}</p>
+<ul>
+{% for obj in protected %}
+    <li>{{ obj }}</li>
+{% endfor %}
+</ul>
+{% else %}
+{% if deleted_objects|length > 2 %}
+<p style="margin-top: 16px; color: #64748b; font-size: 13px;">
+    {% trans "Related objects:" %}
+</p>
+<ul style="margin-left: 20px; color: #64748b; font-size: 13px;">
+{% for deleted_object in deleted_objects %}
+    <li>{{ deleted_object }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+<form method="post">{% csrf_token %}
+<div style="margin-top: 24px; display: flex; gap: 12px;">
+    <a href="{{ object_url }}"
+       style="padding: 8px 16px; background: #f1f5f9; color: #475569;
+              border-radius: 6px; text-decoration: none; font-size: 14px;">
+        {% trans "Cancel" %}
+    </a>
+    <button type="submit"
+            style="padding: 8px 16px; background: #dc2626; color: white;
+                   border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+        {% trans "Delete" %}
+    </button>
+</div>
+</form>
+{% endif %}
+{% endblock %}
