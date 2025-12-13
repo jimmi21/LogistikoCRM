@@ -4,24 +4,38 @@ from django.http.response import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
+from common.utils.helpers import supports_regex_lookup
 from massmail.models.mailing_out import MailingOut
 
 
 def exclude_recipients(request, object_id: int) -> HttpResponseRedirect:
     """
-    This view excludes recipients from the mailing out who 
+    This view excludes recipients from the mailing out who
     have already received the message (object.message).
     """
     mo = MailingOut.objects.get(id=object_id)
     mos = MailingOut.objects.filter(message=mo.message, content_type=mo.content_type)
     recipient_ids = mo.recipient_ids.split(',')
     excluded_num = 0
-    regex_queries = Q()
-    for recipient_id in recipient_ids:
-        regex_queries |= Q(successful_ids__iregex=fr"(^|,){recipient_id}(,|$)")
 
+    # Database-agnostic: regex for MySQL/PostgreSQL/SQLite, icontains for SQL Server
+    if supports_regex_lookup():
+        regex_queries = Q()
+        for recipient_id in recipient_ids:
+            regex_queries |= Q(successful_ids__iregex=fr"(^|,){recipient_id}(,|$)")
+    else:
+        # SQL Server fallback
+        regex_queries = Q()
+        for recipient_id in recipient_ids:
+            regex_queries |= (
+                Q(successful_ids__icontains=f",{recipient_id},") |
+                Q(successful_ids__istartswith=f"{recipient_id},") |
+                Q(successful_ids__iendswith=f",{recipient_id}") |
+                Q(successful_ids=recipient_id)
+            )
+
+    excluded_ids = set()
     if regex_queries:
-        excluded_ids = set()
         excluded_recipients = mos.filter(regex_queries).values_list('successful_ids', flat=True)
         for successful_ids in excluded_recipients:
             if not successful_ids:

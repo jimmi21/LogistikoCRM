@@ -10,6 +10,7 @@ from django.urls import reverse
 from common.models import Base1
 from common.utils.helpers import add_phone_q_params
 from common.utils.helpers import get_department_id
+from common.utils.helpers import supports_regex_lookup
 from crm.utils.helpers import get_email_domain
 from crm.utils.ticketproc import new_ticket
 
@@ -368,15 +369,28 @@ class Request(Base1):
                             self.verification_required = True
 
     def _get_company_name_q_param(self) -> models.Q:
+        """
+        Database-agnostic company name search.
+        Uses regex for MySQL/PostgreSQL/SQLite, icontains for SQL Server.
+        """
         letters = [i for i in self.company_name if i.isalpha() or i.isspace()]
         phrase = ''.join(letters)
         words = phrase.split(" ")
-        words_re_list = [''.join((f"[{letter}]{{1}}" for letter in word)) for word in words]
-        phrase_re = ''.join((f'[^a-zA-z]*{word_re}' for word_re in words_re_list))
-        return models.Q(
-            models.Q(full_name__iregex=fr"^{phrase_re}[^a-zA-Z]*$") |
-            models.Q(alternative_names__iregex=fr"(^|,)\s*{phrase_re}\s*(,|$)")
-        )
+
+        if supports_regex_lookup():
+            # MySQL, PostgreSQL, SQLite - use regex
+            words_re_list = [''.join((f"[{letter}]{{1}}" for letter in word)) for word in words]
+            phrase_re = ''.join((f'[^a-zA-z]*{word_re}' for word_re in words_re_list))
+            return models.Q(
+                models.Q(full_name__iregex=fr"^{phrase_re}[^a-zA-Z]*$") |
+                models.Q(alternative_names__iregex=fr"(^|,)\s*{phrase_re}\s*(,|$)")
+            )
+        else:
+            # SQL Server fallback - use icontains
+            return models.Q(
+                models.Q(full_name__icontains=phrase) |
+                models.Q(alternative_names__icontains=phrase)
+            )
 
     def get_or_create_contact_or_lead(self) -> None:
         if self.find_contact_or_lead():

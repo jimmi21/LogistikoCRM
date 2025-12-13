@@ -3,6 +3,7 @@ from django import forms
 from django.contrib.admin.widgets import ForeignKeyRawIdWidget
 from django.contrib.contenttypes.models import ContentType
 from django.contrib import messages
+from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.utils.translation import gettext as _
@@ -11,6 +12,7 @@ from django.urls.exceptions import NoReverseMatch
 from django.views import View
 
 from common.models import TheFile
+from common.utils.helpers import supports_regex_lookup
 from crm.models import Contact
 from crm.models import Company
 from crm.models import Deal
@@ -93,9 +95,18 @@ class DeleteDuplicateObject(View):
             objects = model.objects.filter(**kwarg1)
             objects.update(**kwarg2)
 
-        # re_str string must be acceptable for MySQL and PostgreSQL
-        re_str = fr"^{self.duplicate_id},|,{self.duplicate_id},|,{self.duplicate_id}$"
-        mailing_outs = MailingOut.objects.filter(recipient_ids__regex=re_str)
+        # Database-agnostic: regex for MySQL/PostgreSQL/SQLite, icontains for SQL Server
+        if supports_regex_lookup():
+            re_str = fr"^{self.duplicate_id},|,{self.duplicate_id},|,{self.duplicate_id}$"
+            mailing_outs = MailingOut.objects.filter(recipient_ids__regex=re_str)
+        else:
+            # SQL Server fallback - search for ID in comma-separated list
+            mailing_outs = MailingOut.objects.filter(
+                Q(recipient_ids__icontains=f",{self.duplicate_id},") |
+                Q(recipient_ids__istartswith=f"{self.duplicate_id},") |
+                Q(recipient_ids__iendswith=f",{self.duplicate_id}") |
+                Q(recipient_ids=str(self.duplicate_id))
+            )
         for mo in mailing_outs:
             ids = mo.recipient_ids
             ids = re.sub(fr"^{self.duplicate_id},", f"{self.original_id},", ids)

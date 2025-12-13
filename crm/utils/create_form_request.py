@@ -5,6 +5,7 @@ from common.models import Department
 from common.utils.helpers import get_active_users
 from common.utils.helpers import get_today
 from common.utils.helpers import send_crm_email
+from common.utils.helpers import supports_regex_lookup
 from common.utils.parse_full_name import parse_full_name
 from crm.forms.contact_form import ContactForm
 from crm.models import Country
@@ -27,12 +28,19 @@ def create_form_request(lead_source: LeadSource, form: ContactForm) -> None:
         country_name = data.get('country')
         if country_name and country_name != 'not _set':
             try:
-                # re_str string must be acceptable for MySQL and PostgreSQL
-                re_str = fr"(?:\s|^){country_name}(?:,|$)"
-                request.country = Country.objects.get(
-                    Q(name__iexact=country_name) |
-                    Q(alternative_names__regex=re_str)
-                )
+                # Database-agnostic: regex for MySQL/PostgreSQL/SQLite, icontains for SQL Server
+                if supports_regex_lookup():
+                    re_str = fr"(?:\s|^){country_name}(?:,|$)"
+                    request.country = Country.objects.get(
+                        Q(name__iexact=country_name) |
+                        Q(alternative_names__regex=re_str)
+                    )
+                else:
+                    # SQL Server fallback
+                    request.country = Country.objects.get(
+                        Q(name__iexact=country_name) |
+                        Q(alternative_names__icontains=country_name)
+                    )
             except Country.DoesNotExist:
                 send_crm_email(
                     f"{settings.EMAIL_SUBJECT_PREFIX}Country name error.",

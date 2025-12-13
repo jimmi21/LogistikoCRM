@@ -3,6 +3,7 @@ from typing import Union
 from django.core.mail import mail_admins
 from django.db.models import Q
 
+from common.utils.helpers import supports_regex_lookup
 from crm.forms.admin_forms import CompanyForm
 from crm.forms.admin_forms import LeadForm
 from crm.forms.admin_forms import RequestForm
@@ -13,7 +14,7 @@ from crm.models import Lead
 from crm.models import Request
 
 
-def check_city(obj: Union[Request, Company, Lead], 
+def check_city(obj: Union[Request, Company, Lead],
                form: Union[ContactForm, RequestForm, LeadForm, CompanyForm]) -> None:
 
     if obj.country:
@@ -21,13 +22,21 @@ def check_city(obj: Union[Request, Company, Lead],
             if obj.city_name:
                 obj.city_name = re.sub(r"[.,]$", '', obj.city_name.strip())
 
-                # re_str string must be acceptable for MySQL and PostgreSQL
-                re_str = fr"(?:\s|^){obj.city_name}(?:,|$)"
-                cities = City.objects.filter(
-                    Q(name__iexact=obj.city_name) |
-                    Q(alternative_names__regex=re_str),
-                    country=obj.country
-                )
+                # Database-agnostic: regex for MySQL/PostgreSQL/SQLite, icontains for SQL Server
+                if supports_regex_lookup():
+                    re_str = fr"(?:\s|^){obj.city_name}(?:,|$)"
+                    cities = City.objects.filter(
+                        Q(name__iexact=obj.city_name) |
+                        Q(alternative_names__regex=re_str),
+                        country=obj.country
+                    )
+                else:
+                    # SQL Server fallback
+                    cities = City.objects.filter(
+                        Q(name__iexact=obj.city_name) |
+                        Q(alternative_names__icontains=obj.city_name),
+                        country=obj.country
+                    )
                 obj.city = cities.first()
                 
                 if not obj.city:

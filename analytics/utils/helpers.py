@@ -1,9 +1,9 @@
-from abc import ABC
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from typing import Tuple
 from django.db.models import Aggregate
 from django.db.models import CharField
+from django.db.models import Value
 from django.db.models.functions import Trunc
 from django.db.models import Count
 from django.db.models import Case
@@ -24,11 +24,19 @@ from crm.models import Currency
 from crm.models import Rate
 
 
-class GroupConcat(Aggregate, ABC):
+class GroupConcat(Aggregate):
+    """
+    Database-agnostic GROUP_CONCAT aggregate function.
+    Supports: SQLite, MySQL, PostgreSQL, SQL Server
+    """
     function = 'GROUP_CONCAT'
     template = '%(function)s(%(distinct)s%(expressions)s%(ordering)s%(separator)s)'
+    allow_distinct = True
 
     def __init__(self, expression, distinct=False, ordering=None, separator=', ', **extra):
+        self._separator = separator
+        self._ordering = ordering
+        self._distinct = distinct
         super().__init__(
             expression,
             distinct='DISTINCT ' if distinct else '',
@@ -37,6 +45,36 @@ class GroupConcat(Aggregate, ABC):
             output_field=CharField(),
             **extra
         )
+
+    def as_sql(self, compiler, connection, **extra_context):
+        """Override to provide database-specific SQL."""
+        if connection.vendor == 'microsoft':
+            # SQL Server: STRING_AGG(expression, separator)
+            return self.as_microsoft(compiler, connection, **extra_context)
+        elif connection.vendor == 'postgresql':
+            # PostgreSQL: STRING_AGG(expression, separator)
+            return self.as_postgresql(compiler, connection, **extra_context)
+        # Default: MySQL/SQLite GROUP_CONCAT
+        return super().as_sql(compiler, connection, **extra_context)
+
+    def as_microsoft(self, compiler, connection, **extra_context):
+        """SQL Server implementation using STRING_AGG."""
+        return self._string_agg_sql(compiler, connection, **extra_context)
+
+    def as_postgresql(self, compiler, connection, **extra_context):
+        """PostgreSQL implementation using STRING_AGG."""
+        return self._string_agg_sql(compiler, connection, **extra_context)
+
+    def _string_agg_sql(self, compiler, connection, **extra_context):
+        """Generate STRING_AGG SQL for PostgreSQL and SQL Server."""
+        self.function = 'STRING_AGG'
+        # STRING_AGG syntax: STRING_AGG(expression, separator)
+        if self._distinct:
+            self.template = '%(function)s(DISTINCT %(expressions)s, \'%(separator_val)s\')'
+        else:
+            self.template = '%(function)s(%(expressions)s, \'%(separator_val)s\')'
+        extra_context['separator_val'] = self._separator
+        return super().as_sql(compiler, connection, **extra_context)
 
 
 def get_currency_info(request: WSGIRequest) -> Tuple[str, str, str]:

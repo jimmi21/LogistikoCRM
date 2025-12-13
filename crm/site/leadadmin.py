@@ -8,6 +8,7 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
+from common.utils.helpers import supports_regex_lookup
 from common.utils.parse_full_name import parse_contacts_name
 from crm.forms.admin_forms import LeadForm
 from crm.models import Company
@@ -219,10 +220,17 @@ class LeadAdmin(CrmModelAdmin):
                         q_params |= Q(secondary_email__contains=email)
                 if obj.phone:
                     digits = [i for i in obj.phone if i.isdigit()]
-                    digits_re = ''.join((f'[^0-9]*[{i}]{{1}}' for i in digits))
-                    phone_re = fr"{digits_re}"
-                    q_params |= Q(phone__iregex=phone_re)
-                    q_params |= Q(other_phone__iregex=phone_re)
+                    if supports_regex_lookup():
+                        # MySQL, PostgreSQL, SQLite - use regex
+                        digits_re = ''.join((f'[^0-9]*[{i}]{{1}}' for i in digits))
+                        phone_re = fr"{digits_re}"
+                        q_params |= Q(phone__iregex=phone_re)
+                        q_params |= Q(other_phone__iregex=phone_re)
+                    else:
+                        # SQL Server fallback - use icontains
+                        digits_str = ''.join(digits)
+                        q_params |= Q(phone__icontains=digits_str)
+                        q_params |= Q(other_phone__icontains=digits_str)
                 try:
                     contact = Contact.objects.get(
                         q_params,

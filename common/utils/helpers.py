@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.core.handlers.wsgi import WSGIRequest
 from django.core.mail import mail_admins
+from django.db import connection
 from django.db.models import Exists
 from django.db.models import OuterRef
 from django.db.models import Q
@@ -23,6 +24,14 @@ from django.utils.translation import gettext_lazy
 from django.utils.translation import override
 
 from chat.models import ChatMessage
+
+
+def supports_regex_lookup():
+    """
+    Check if the current database supports regex lookups.
+    SQL Server does not support __regex/__iregex lookups.
+    """
+    return connection.vendor not in ('microsoft',)
 
 COPY_STR = gettext_lazy("Copy")
 CONTENT_COPY_ICON = '<i class="material-icons"style="font-size: 17px;vertical-align: middle;">content_copy</i>'
@@ -54,14 +63,27 @@ def add_chat_context(request, extra_context, object_id, content_type):
 
 
 def add_phone_q_params(phone: str, q_params: Q = None) -> Q:
+    """
+    Add phone search Q parameters. Database-agnostic implementation.
+    Uses regex for MySQL/PostgreSQL/SQLite, icontains for SQL Server.
+    """
     q_params = q_params or Q()
     digits = [i for i in phone if i.isdigit()]
     if len(digits) > 4:
-        digits_re = ''.join((f'[^0-9]*[{i}]{{1}}' for i in digits))
-        phone_re = fr"{digits_re}"
-        q_params |= Q(phone__iregex=phone_re)
-        q_params |= Q(other_phone__iregex=phone_re)
-        q_params |= Q(mobile__iregex=phone_re)
+        if supports_regex_lookup():
+            # MySQL, PostgreSQL, SQLite - use regex
+            digits_re = ''.join((f'[^0-9]*[{i}]{{1}}' for i in digits))
+            phone_re = fr"{digits_re}"
+            q_params |= Q(phone__iregex=phone_re)
+            q_params |= Q(other_phone__iregex=phone_re)
+            q_params |= Q(mobile__iregex=phone_re)
+        else:
+            # SQL Server - use icontains fallback
+            # Search for the digits as a substring
+            digits_str = ''.join(digits)
+            q_params |= Q(phone__icontains=digits_str)
+            q_params |= Q(other_phone__icontains=digits_str)
+            q_params |= Q(mobile__icontains=digits_str)
     return q_params
 
 

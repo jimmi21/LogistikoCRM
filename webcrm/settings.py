@@ -38,19 +38,26 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default-key-for-development')
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Database - SECURITY FIX: Use environment variables
+# Supports: SQLite (dev), PostgreSQL, MySQL, SQL Server
+_db_engine = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+
 DATABASES = {
     'default': {
-        # SQLite for development
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),
+        'ENGINE': _db_engine,
         'NAME': os.getenv('DB_NAME', str(BASE_DIR / 'db.sqlite3')),
-
-        # For PostgreSQL/MySQL production
         'USER': os.getenv('DB_USER', ''),
         'PASSWORD': os.getenv('DB_PASSWORD', ''),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', ''),
     }
 }
+
+# SQL Server specific configuration
+if _db_engine == 'mssql':
+    DATABASES['default']['OPTIONS'] = {
+        'driver': os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server'),
+        'isolation_level': 'READ COMMITTED',
+    }
 
 # Email Configuration
 # For testing without real SMTP, set EMAIL_BACKEND_CONSOLE=true in .env

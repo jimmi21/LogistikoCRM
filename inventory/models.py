@@ -245,6 +245,11 @@ class StockMovement(models.Model):
         """
         Override save για auto-update του stock
         SECURITY FIX: Use transaction and select_for_update to prevent race conditions
+
+        Note: select_for_update() works with all supported databases:
+        - PostgreSQL/MySQL: SELECT ... FOR UPDATE
+        - SQL Server: Uses WITH (UPDLOCK) hint via mssql-django
+        - SQLite: No-op (single writer, so inherently safe)
         """
         from django.db import transaction
 
@@ -253,6 +258,7 @@ class StockMovement(models.Model):
             old_movement = None if is_new else StockMovement.objects.get(pk=self.pk)
 
             # Lock the product row to prevent concurrent updates (RACE CONDITION FIX)
+            # Works with all databases: PostgreSQL, MySQL, SQL Server (UPDLOCK), SQLite
             product = Product.objects.select_for_update().get(pk=self.product.pk)
 
             super().save(*args, **kwargs)
