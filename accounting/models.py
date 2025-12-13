@@ -9,6 +9,9 @@ import re
 from django.conf import settings
 from django.utils.text import slugify
 
+# Import ArchiveService for centralized file handling
+from accounting.services.archive_service import ArchiveService
+
 
 class ClientProfile(models.Model):
     """Επέκταση στοιχείων πελάτη για λογιστικό"""
@@ -242,11 +245,13 @@ class ClientObligation(models.Model):
 
 
 def get_safe_client_name(client):
-    """Generate safe folder name from client: {afm}_{name}"""
-    import re
-    safe_name = re.sub(r'[^\w\s-]', '', client.eponimia)[:20]
-    safe_name = safe_name.replace(' ', '_')
-    return f"{client.afm}_{safe_name}"
+    """
+    DEPRECATED: Use ArchiveService.get_safe_client_name()
+
+    Kept for backwards compatibility with existing code.
+    Will delegate to ArchiveService for consistent behavior.
+    """
+    return ArchiveService.get_safe_client_name(client)
 
 
 def obligation_upload_path(instance, filename):
@@ -395,10 +400,10 @@ class MonthlyObligation(models.Model):
     )
     
     attachment = models.FileField(
-        upload_to=obligation_upload_path,
         blank=True,
         null=True,
-        verbose_name='Συνημμένο Αρχείο'
+        verbose_name='Συνημμένο Αρχείο',
+        help_text='Κύριο αρχείο υποχρέωσης. Αποθηκεύεται μέσω ArchiveService.'
     )
     
     attachments = models.JSONField(
@@ -406,18 +411,216 @@ class MonthlyObligation(models.Model):
         blank=True,
         help_text='List of attachment paths for multiple files'
     )
-    
+
     created_at = models.DateTimeField('Δημιουργήθηκε', auto_now_add=True)
     updated_at = models.DateTimeField('Ενημερώθηκε', auto_now=True)
-    
+
     class Meta:
         verbose_name = 'Μηνιαία Υποχρέωση'
         verbose_name_plural = 'Μηνιαίες Υποχρεώσεις'
         unique_together = ['client', 'obligation_type', 'year', 'month']
         ordering = ['deadline', 'client__eponimia']
-        
+
     def __str__(self):
         return f"{self.client.eponimia} - {self.obligation_type.name} ({self.month}/{self.year})"
+
+    # =========================================================================
+    # MULTI-FILE ATTACHMENT METHODS (JSONField)
+    # =========================================================================
+
+    def get_attachments_list(self) -> list:
+        """
+        Επιστρέφει λίστα με όλα τα attachments.
+
+        Returns:
+            list: List of attachment dicts με structure:
+                {
+                    'id': str (unique identifier),
+                    'filename': str,
+                    'original_name': str,
+                    'path': str (relative to MEDIA_ROOT),
+                    'size': int (bytes),
+                    'uploaded_at': str (ISO format),
+                    'is_primary': bool,
+                    'description': str
+                }
+        """
+        if not self.attachments:
+            return []
+        return self.attachments if isinstance(self.attachments, list) else []
+
+    def add_attachment(self, uploaded_file, description: str = '',
+                      is_primary: bool = False, on_duplicate: str = 'ask') -> dict:
+        """
+        Προσθέτει αρχείο στη λίστα attachments.
+
+        Args:
+            uploaded_file: Django UploadedFile
+            description: Περιγραφή αρχείου (προαιρετικό)
+            is_primary: Αν είναι το κύριο αρχείο
+            on_duplicate: 'ask' | 'replace' | 'keep_both'
+
+        Returns:
+            dict: Result από ArchiveService.validate_and_save() + file_id
+
+        Example:
+            >>> result = obligation.add_attachment(file, description="ΦΠΑ Ιανουαρίου")
+            >>> if result['success']:
+            ...     print(f"File ID: {result['file_id']}")
+        """
+        import uuid
+        from accounting.services.archive_service import ArchiveService
+
+        # Generate path using ArchiveConfiguration
+        config = self.get_or_create_archive_config()
+        target_path = config.get_archive_path(self, uploaded_file.name)
+
+        # Validate and save
+        result = ArchiveService.validate_and_save(
+            uploaded_file,
+            target_path,
+            context='obligation',
+            on_duplicate=on_duplicate
+        )
+
+        if not result['success']:
+            return result
+
+        # Generate unique file ID
+        file_id = str(uuid.uuid4())[:8]
+
+        # Create attachment metadata
+        attachment_data = {
+            'id': file_id,
+            'filename': os.path.basename(result['path']),
+            'original_name': uploaded_file.name,
+            'path': result['path'],
+            'size': result.get('size', uploaded_file.size),
+            'uploaded_at': timezone.now().isoformat(),
+            'is_primary': is_primary or len(self.get_attachments_list()) == 0,
+            'description': description
+        }
+
+        # Get current attachments list
+        attachments = self.get_attachments_list()
+
+        # If this is primary, unset others
+        if attachment_data['is_primary']:
+            for att in attachments:
+                att['is_primary'] = False
+
+        # Add new attachment
+        attachments.append(attachment_data)
+        self.attachments = attachments
+        self.save(update_fields=['attachments'])
+
+        # Add file_id to result
+        result['file_id'] = file_id
+        result['attachment'] = attachment_data
+
+        return result
+
+    def remove_attachment(self, file_id: str, delete_file: bool = True) -> bool:
+        """
+        Αφαιρεί attachment από τη λίστα.
+
+        Args:
+            file_id: Το unique ID του attachment
+            delete_file: Αν θα διαγραφεί και το physical file
+
+        Returns:
+            bool: True αν βρέθηκε και διαγράφηκε
+        """
+        from django.core.files.storage import default_storage
+
+        attachments = self.get_attachments_list()
+        original_len = len(attachments)
+
+        # Find and remove attachment
+        removed_attachment = None
+        for att in attachments:
+            if att.get('id') == file_id:
+                removed_attachment = att
+                break
+
+        if not removed_attachment:
+            return False
+
+        attachments = [a for a in attachments if a.get('id') != file_id]
+
+        # Delete physical file if requested
+        if delete_file and removed_attachment.get('path'):
+            try:
+                default_storage.delete(removed_attachment['path'])
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not delete file {removed_attachment['path']}: {e}")
+
+        # Update database
+        self.attachments = attachments
+        self.save(update_fields=['attachments'])
+
+        return True
+
+    def get_primary_attachment(self) -> dict:
+        """
+        Επιστρέφει το primary attachment ή το πρώτο.
+
+        Returns:
+            dict | None: Attachment metadata ή None αν δεν υπάρχουν
+        """
+        attachments = self.get_attachments_list()
+
+        # Find primary
+        for att in attachments:
+            if att.get('is_primary'):
+                return att
+
+        # Return first if exists
+        return attachments[0] if attachments else None
+
+    def set_primary_attachment(self, file_id: str) -> bool:
+        """
+        Ορίζει ένα attachment ως primary.
+
+        Args:
+            file_id: Το unique ID του attachment
+
+        Returns:
+            bool: True αν βρέθηκε και ενημερώθηκε
+        """
+        attachments = self.get_attachments_list()
+        found = False
+
+        for att in attachments:
+            if att.get('id') == file_id:
+                att['is_primary'] = True
+                found = True
+            else:
+                att['is_primary'] = False
+
+        if found:
+            self.attachments = attachments
+            self.save(update_fields=['attachments'])
+
+        return found
+
+    def get_or_create_archive_config(self):
+        """
+        Παίρνει ή δημιουργεί ArchiveConfiguration για τον τύπο υποχρέωσης.
+
+        Returns:
+            ArchiveConfiguration instance
+        """
+        config, _ = ArchiveConfiguration.objects.get_or_create(
+            obligation_type=self.obligation_type,
+            defaults={
+                'filename_pattern': '{type_code}_{month}_{year}.pdf',
+                'folder_pattern': 'clients/{client_afm}_{client_name}/{year}/{month}/{type_code}/',
+            }
+        )
+        return config
     
     @property
     def cost(self):
@@ -463,51 +666,62 @@ class MonthlyObligation(models.Model):
         
         super().save(*args, **kwargs)
     
-    def archive_attachment(self, uploaded_file, subfolder=None):
+    def archive_attachment(self, uploaded_file, on_duplicate: str = 'replace'):
         """
-        Archive file to organized folder structure.
+        REFACTORED: Archives file using ArchiveService.
+
         Path: clients/{afm}_{name}/{year}/{month}/{type_code}/{filename}
 
-        Uses ARCHIVE_ROOT setting for base path (can be network drive).
+        Args:
+            uploaded_file: Django UploadedFile
+            on_duplicate: 'ask' | 'replace' | 'keep_both' (default: 'replace' for backwards compatibility)
+
+        Returns:
+            str: Saved path if successful
+
+        Raises:
+            Exception: If save fails
+
+        Note:
+            This method maintains backwards compatibility with existing code.
+            For new code, consider using add_attachment() for multi-file support.
         """
         import logging
         logger = logging.getLogger(__name__)
 
         logger.info(f"[ARCHIVE] Starting archive for: {self}")
 
-        try:
-            # Get or create config with consistent default pattern
-            config, created = ArchiveConfiguration.objects.get_or_create(
-                obligation_type=self.obligation_type,
-                defaults={
-                    'filename_pattern': '{type_code}_{month}_{year}.pdf',
-                    'folder_pattern': 'clients/{client_afm}_{client_name}/{year}/{month}/{type_code}/',
-                }
-            )
+        from accounting.services.archive_service import ArchiveService
 
-            # Get archive path from config
-            archive_path = config.get_archive_path(self, uploaded_file.name)
-            logger.info(f"[ARCHIVE] Target path: {archive_path}")
+        # Get ArchiveConfiguration
+        config = self.get_or_create_archive_config()
 
-            # Save file using Django's storage system
-            from django.core.files.storage import default_storage
-            from django.core.files.base import ContentFile
+        # Generate target path
+        target_path = config.get_archive_path(self, uploaded_file.name)
 
-            file_content = uploaded_file.read()
-            uploaded_file.seek(0)
+        logger.info(f"[ARCHIVE] Target path: {target_path}")
 
-            saved_path = default_storage.save(archive_path, ContentFile(file_content))
-            logger.info(f"[ARCHIVE] Saved to: {saved_path}")
+        # Validate and save using ArchiveService
+        result = ArchiveService.validate_and_save(
+            uploaded_file,
+            target_path,
+            context='obligation',
+            on_duplicate=on_duplicate
+        )
 
-            # Update model attachment field
-            self.attachment.name = saved_path
-            self.save(update_fields=['attachment'])
+        if not result['success']:
+            error_msg = result.get('error', 'Unknown error')
+            logger.error(f"[ARCHIVE] ERROR: {error_msg}")
+            raise Exception(error_msg)
 
-            return saved_path
+        saved_path = result['path']
+        logger.info(f"[ARCHIVE] Saved to: {saved_path}")
 
-        except Exception as e:
-            logger.error(f"[ARCHIVE] ERROR: {e}", exc_info=True)
-            raise
+        # Update model attachment field
+        self.attachment.name = saved_path
+        self.save(update_fields=['attachment'])
+
+        return saved_path
 
 
 class EmailTemplate(models.Model):
@@ -1191,9 +1405,13 @@ class Ticket(models.Model):
 
 
 def get_client_folder(client):
-    """Base folder path του πελάτη"""
-    safe_name = f"{client.afm}_{client.eponimia[:20]}".replace(" ", "_").replace("/", "_")
-    return os.path.join('clients', safe_name)
+    """
+    DEPRECATED: Use ArchiveService.get_client_root()
+
+    Kept for backwards compatibility with existing code.
+    Will delegate to ArchiveService for consistent behavior.
+    """
+    return ArchiveService.get_client_root(client)
 
 
 def client_document_path(instance, filename):

@@ -591,18 +591,25 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
             obj.completed_by = request.user
             obj.completed_date = timezone.now().date()
 
-        # Check if a new attachment was uploaded
+        # Save model first (needed for ID)
+        super().save_model(request, obj, form, change)
+
+        # REFACTORED: Archive attachment if uploaded
         if 'attachment' in form.changed_data and obj.attachment:
-            # Save the model first to get the ID
-            super().save_model(request, obj, form, change)
-            # Then archive the attachment to organized folder structure
             try:
-                obj.archive_attachment(obj.attachment)
-                self.message_user(request, f'📁 Το αρχείο αρχειοθετήθηκε: {obj.attachment.name}', messages.SUCCESS)
+                # Use archive_attachment με 'replace' strategy (admin behavior)
+                saved_path = obj.archive_attachment(obj.attachment.file, on_duplicate='replace')
+                self.message_user(
+                    request,
+                    f'📁 Το αρχείο αρχειοθετήθηκε: {saved_path}',
+                    messages.SUCCESS
+                )
             except Exception as e:
-                self.message_user(request, f'⚠️ Σφάλμα αρχειοθέτησης: {e}', messages.WARNING)
-        else:
-            super().save_model(request, obj, form, change)
+                self.message_user(
+                    request,
+                    f'⚠️ Σφάλμα αρχειοθέτησης: {str(e)}',
+                    messages.WARNING
+                )
 
     def get_urls(self):
         urls = super().get_urls()

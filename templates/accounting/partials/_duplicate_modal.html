@@ -1,0 +1,110 @@
+{% comment %}
+Duplicate File Modal
+Εμφανίζεται όταν ανέβει αρχείο που υπάρχει ήδη.
+Ζητάει από τον χρήστη να επιλέξει: Replace / Keep Both / Cancel
+{% endcomment %}
+
+<div class="modal fade" id="duplicateFileModal" tabindex="-1" aria-labelledby="duplicateFileModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <!-- Header -->
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title" id="duplicateFileModalLabel">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          Το αρχείο υπάρχει ήδη
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Body -->
+      <div class="modal-body">
+        <div class="alert alert-warning mb-4">
+          <strong>Προσοχή:</strong> Υπάρχει ήδη αρχείο με το όνομα:
+          <code id="duplicateFileName" class="text-dark">filename.pdf</code>
+        </div>
+
+        <!-- File Comparison -->
+        <div class="row g-3">
+          <!-- Existing File -->
+          <div class="col-md-6">
+            <div class="card h-100 border-secondary">
+              <div class="card-header bg-secondary text-white">
+                <i class="bi bi-file-earmark-fill me-2"></i>
+                Υπάρχον Αρχείο
+              </div>
+              <div class="card-body">
+                <dl class="mb-0">
+                  <dt class="text-muted small">Όνομα:</dt>
+                  <dd id="existingFileName" class="mb-3 text-truncate" title="">-</dd>
+
+                  <dt class="text-muted small">Μέγεθος:</dt>
+                  <dd id="existingFileSize" class="mb-3">-</dd>
+
+                  <dt class="text-muted small">Τροποποιήθηκε:</dt>
+                  <dd id="existingFileDate" class="mb-0">-</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+
+          <!-- New File -->
+          <div class="col-md-6">
+            <div class="card h-100 border-primary">
+              <div class="card-header bg-primary text-white">
+                <i class="bi bi-file-earmark-plus-fill me-2"></i>
+                Νέο Αρχείο
+              </div>
+              <div class="card-body">
+                <dl class="mb-0">
+                  <dt class="text-muted small">Όνομα:</dt>
+                  <dd id="newFileName" class="mb-3 text-truncate" title="">-</dd>
+
+                  <dt class="text-muted small">Μέγεθος:</dt>
+                  <dd id="newFileSize" class="mb-3">-</dd>
+
+                  <dt class="text-muted small">Κατάσταση:</dt>
+                  <dd class="mb-0">
+                    <span class="badge bg-success">Έτοιμο προς αποθήκευση</span>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Suggested Versioned Path (if keep_both) -->
+        <div id="suggestedPathContainer" class="mt-3" style="display: none;">
+          <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            <strong>Προτεινόμενο όνομα (Keep Both):</strong>
+            <code id="suggestedPath" class="text-dark">filename_v2.pdf</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle me-1"></i>
+          Ακύρωση
+        </button>
+
+        <button type="button" class="btn btn-primary" id="btnKeepBoth">
+          <i class="bi bi-files me-1"></i>
+          Διατήρηση και των δύο
+        </button>
+
+        <button type="button" class="btn btn-warning text-dark" id="btnReplace">
+          <i class="bi bi-arrow-repeat me-1"></i>
+          Αντικατάσταση
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% comment %}
+Usage:
+Include this template in your page, then use JavaScript:
+  DuplicateHandler.showModal(existingFile, newFile)
+{% endcomment %}
