@@ -52,20 +52,17 @@ def send_remainders() -> None:
     now = timezone.now()
     try:
         reminders = Reminder.objects.filter(active=True, reminder_date__lte=now)
-    except Exception:
-        # Table doesn't exist yet (migrations not run)
-        return
-    if reminders:
-        site = Site.objects.get_current()
-        template = loader.get_template("common/reminder_message.html")
-        for r in reminders:
-            content_obj = r.content_object
-            r_url = reverse('site:common_reminder_change', args=(r.id,))
-            obj_url = reverse(
-                f'site:{content_obj._meta.app_label}_{content_obj._meta.model_name}_change',    # NOQA
-                args=(content_obj.id,)
-            )
-            model_name = Reminder._meta.object_name     # NOQA
+        if reminders:
+            site = Site.objects.get_current()
+            template = loader.get_template("common/reminder_message.html")
+            for r in reminders:
+                content_obj = r.content_object
+                r_url = reverse('site:common_reminder_change', args=(r.id,))
+                obj_url = reverse(
+                    f'site:{content_obj._meta.app_label}_{content_obj._meta.model_name}_change',    # NOQA
+                    args=(content_obj.id,)
+                )
+                model_name = Reminder._meta.object_name     # NOQA
             user = r.owner
             trans_name = get_trans_for_user(model_name, user)
             subject = f'CRM {trans_name}: ' + " ".join(r.subject.splitlines())
@@ -101,8 +98,11 @@ def send_remainders() -> None:
                         'CRM reminder can not send him messages',
                         fail_silently=False,
                     )
-            if getattr(content_obj, 'remind_me', None):
-                content_obj.remind_me = False
-                content_obj.save(update_fields=['remind_me'])
-            r.active = False
-            r.save(update_fields=['send_notification_email', 'active'])
+                if getattr(content_obj, 'remind_me', None):
+                    content_obj.remind_me = False
+                    content_obj.save(update_fields=['remind_me'])
+                r.active = False
+                r.save(update_fields=['send_notification_email', 'active'])
+    except Exception:
+        # Table doesn't exist yet (migrations not run)
+        return
