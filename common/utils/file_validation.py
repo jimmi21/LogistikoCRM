@@ -93,9 +93,9 @@ def validate_file_upload(uploaded_file):
 
 
 def sanitize_filename(filename):
-    """
+    r"""
     Sanitize filename to prevent directory traversal attacks
-    
+
     Removes:
     - Path separators (/, \)
     - Special characters that could cause issues

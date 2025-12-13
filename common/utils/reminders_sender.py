@@ -50,7 +50,11 @@ class RemindersSender(threading.Thread, SingleInstance):
 
 def send_remainders() -> None:
     now = timezone.now()
-    reminders = Reminder.objects.filter(active=True, reminder_date__lte=now)
+    try:
+        reminders = Reminder.objects.filter(active=True, reminder_date__lte=now)
+    except Exception:
+        # Table doesn't exist yet (migrations not run)
+        return
     if reminders:
         site = Site.objects.get_current()
         template = loader.get_template("common/reminder_message.html")

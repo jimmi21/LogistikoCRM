@@ -1,7 +1,7 @@
 import re
 from django.template.defaultfilters import truncatechars
 
-regex = "^M(?:d|r|s)(?:\.|\s)|^Mrs(?:\.|\s)|^Miss(?:\.|\s)|^PhD(?:\.|\s)|^Dr(?:\.|\s)|^Eng(?:\.|\s)"
+regex = r"^M(?:d|r|s)(?:\.|\s)|^Mrs(?:\.|\s)|^Miss(?:\.|\s)|^PhD(?:\.|\s)|^Dr(?:\.|\s)|^Eng(?:\.|\s)"
 
 
 def parse_full_name(full_name: str) -> tuple:
