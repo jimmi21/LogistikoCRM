@@ -53,7 +53,11 @@ class SendMassmail(threading.Thread, SingleInstance):
     def run(self):
         while not apps.ready:
             time.sleep(0.01)  # wait for django to start
-        massmail_settings = MassmailSettings.objects.get(id=1)
+        try:
+            massmail_settings = MassmailSettings.objects.get(id=1)
+        except Exception:
+            # Table doesn't exist yet (migrations not run) or no settings row
+            return
         if not settings.MAILING or settings.TESTING:
             return
 
