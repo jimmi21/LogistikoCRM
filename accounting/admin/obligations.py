@@ -597,13 +597,17 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
         # REFACTORED: Archive attachment if uploaded
         if 'attachment' in form.changed_data and obj.attachment:
             try:
-                # Use archive_attachment με 'replace' strategy (admin behavior)
-                saved_path = obj.archive_attachment(obj.attachment.file, on_duplicate='replace')
-                self.message_user(
-                    request,
-                    f'📁 Το αρχείο αρχειοθετήθηκε: {saved_path}',
-                    messages.SUCCESS
-                )
+                # Get the uploaded file from form (UploadedFile object)
+                uploaded_file = form.cleaned_data.get('attachment')
+
+                if uploaded_file:
+                    # Use archive_attachment με 'replace' strategy (admin behavior)
+                    saved_path = obj.archive_attachment(uploaded_file, on_duplicate='replace')
+                    self.message_user(
+                        request,
+                        f'📁 Το αρχείο αρχειοθετήθηκε: {saved_path}',
+                        messages.SUCCESS
+                    )
             except Exception as e:
                 self.message_user(
                     request,
