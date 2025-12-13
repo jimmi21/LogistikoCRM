@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: dpeconomy-db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: dpeconomy
+      POSTGRES_USER: dpeconomy
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dpeconomy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dpeconomy-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dpeconomy-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dpeconomy-network
+
+  web:
+    build: .
+    container_name: dpeconomy-web
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn webcrm.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    volumes:
+      - .:/code
+      - static_volume:/code/staticfiles
+      - media_volume:/code/media
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-please-change-this-key}
+      - DATABASE_URL=postgresql://dpeconomy:${DB_PASSWORD:-changeme}@db:5432/dpeconomy
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dpeconomy-network
+
+  celery:
+    build: .
+    container_name: dpeconomy-celery
+    command: celery -A webcrm worker -l info
+    volumes:
+      - .:/code
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-please-change-this-key}
+      - DATABASE_URL=postgresql://dpeconomy:${DB_PASSWORD:-changeme}@db:5432/dpeconomy
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - web
+    networks:
+      - dpeconomy-network
+
+  celery-beat:
+    build: .
+    container_name: dpeconomy-celery-beat
+    command: celery -A webcrm beat -l info
+    volumes:
+      - .:/code
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-please-change-this-key}
+      - DATABASE_URL=postgresql://dpeconomy:${DB_PASSWORD:-changeme}@db:5432/dpeconomy
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - web
+    networks:
+      - dpeconomy-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  dpeconomy-network:
+    driver: bridge
