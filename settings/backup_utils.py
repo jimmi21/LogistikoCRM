@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Backup utilities for LogistikoCRM.
+Backup utilities for D.P. Economy.
 
 Provides functions to create and restore backups of database and media files.
 """

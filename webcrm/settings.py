@@ -402,7 +402,7 @@ SIMPLE_JWT = {
 
 # drf-spectacular (OpenAPI/Swagger) Configuration
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'LogistikoCRM API',
+    'TITLE': 'D.P. Economy API',
     'DESCRIPTION': 'API για Λογιστικό CRM - Django backend για React frontend integration',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -436,7 +436,7 @@ MYDATA_IS_SANDBOX = True
 
 
 Q_CLUSTER = {
-    'name': 'LogistikoCRM',
+    'name': 'D.P. Economy',
     'workers': 2,
     'timeout': 90,
     'retry': 120,
@@ -450,7 +450,7 @@ Q_CLUSTER = {
 
 
 # ==============================================================================
-# 🏢 PERSONALIZATION - LogistikoCRM Configuration
+# 🏢 PERSONALIZATION - D.P. Economy Configuration
 # ==============================================================================
 
 # Company Information
@@ -485,14 +485,14 @@ EMAIL_SUBJECT_PREFIX_REMINDER = "⏰ Υπενθύμιση Προθεσμίας"
 EMAIL_SUBJECT_PREFIX_OVERDUE = "⚠️ Καθυστερημένη Υποχρέωση"
 
 # Branding
-SITE_TITLE = 'LogistikoCRM - Λογιστικό Σύστημα'
+SITE_TITLE = 'D.P. Economy - Λογιστικό Σύστημα'
 ADMIN_HEADER = "ΔΙΑΧΕΙΡΙΣΗ ΛΟΓΙΣΤΙΚΟΥ"
-ADMIN_TITLE = "LogistikoCRM Admin"
+ADMIN_TITLE = "D.P. Economy Admin"
 INDEX_TITLE = 'Κεντρικό Μενού'
 
 # Copyright
 COPYRIGHT_STRING = f"{COMPANY_NAME}. Copyright © {dt.now().year}"
-PROJECT_NAME = "LogistikoCRM"
+PROJECT_NAME = "D.P. Economy"
 
 # Business Hours (for scheduling)
 BUSINESS_HOURS_START = "09:00"

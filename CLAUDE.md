@@ -1,8 +1,8 @@
-# CLAUDE.md - Οδηγός LogistikoCRM για AI Assistants
+# CLAUDE.md - Οδηγός D.P. Economy για AI Assistants
 
 ## 📋 Επισκόπηση Project
 
-**LogistikoCRM** είναι ένα production-ready Django CRM σύστημα ειδικά σχεδιασμένο για ελληνικά λογιστικά γραφεία. Βασίζεται στο open-source Django-CRM με εξειδικευμένες λειτουργίες για λογιστική και φορολογική συμμόρφωση.
+**D.P. Economy** είναι ένα production-ready Django CRM σύστημα ειδικά σχεδιασμένο για ελληνικά λογιστικά γραφεία. Βασίζεται στο open-source Django-CRM με εξειδικευμένες λειτουργίες για λογιστική και φορολογική συμμόρφωση.
 
 **Βασικά χαρακτηριστικά:**
 - Enterprise-grade CRM με ενσωμάτωση myDATA (ΑΑΔΕ)
@@ -73,7 +73,7 @@
 ## 📁 Δομή Project
 
 ```
-LogistikoCRM/
+D.P. Economy/
 ├── accounting/          # 🏦 Κύριο app - πελάτες, υποχρεώσεις, αρχεία
 │   ├── models.py        # ClientProfile, MonthlyObligation, Ticket
 │   ├── admin.py         # Προσαρμοσμένο admin interface

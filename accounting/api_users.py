@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-User Management API for LogistikoCRM
+User Management API for D.P. Economy
 =====================================
 CRUD endpoints for managing users (admin only).
 """

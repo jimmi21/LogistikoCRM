@@ -1,4 +1,4 @@
-# 📋 Production Deployment Checklist για LogistikoCRM
+# 📋 Production Deployment Checklist για D.P. Economy
 ## Λογιστικό Γραφείο - Ready for Production
 
 Αυτό το checklist διασφαλίζει ότι το σύστημα είναι έτοιμο για χρήση σε production environment.

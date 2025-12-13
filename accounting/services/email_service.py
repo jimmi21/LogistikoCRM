@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Email Service for LogistikoCRM
+Email Service for D.P. Economy
 Author: ddiplas
 Version: 3.0
 Description: Complete email service with retry logic, rate limiting,

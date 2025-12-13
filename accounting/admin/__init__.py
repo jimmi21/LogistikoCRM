@@ -59,9 +59,9 @@ from .mixins import (
 # ============================================================================
 
 admin.site.index_template = 'admin/custom_index.html'
-admin.site.site_header = 'LogistikoCRM Administration'
-admin.site.site_title = 'LogistikoCRM'
-admin.site.index_title = 'Καλώς ήρθατε στο LogistikoCRM'
+admin.site.site_header = 'D.P. Economy Administration'
+admin.site.site_title = 'D.P. Economy'
+admin.site.index_title = 'Καλώς ήρθατε στο D.P. Economy'
 
 
 # ============================================================================

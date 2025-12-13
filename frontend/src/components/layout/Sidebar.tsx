@@ -71,7 +71,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-sm">LC</span>
               </div>
-              <span className="text-lg font-semibold text-gray-900 truncate">LogistikoCRM</span>
+              <span className="text-lg font-semibold text-gray-900 truncate">D.P. Economy</span>
             </div>
           )}
           {isCollapsed && (
@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
         {/* Footer */}
         <div className={`p-3 border-t border-gray-200 ${isCollapsed ? 'text-center' : ''}`}>
           <div className="text-xs text-gray-400 text-center truncate">
-            {isCollapsed ? 'v1.0' : 'LogistikoCRM v1.0'}
+            {isCollapsed ? 'v1.0' : 'D.P. Economy v1.0'}
           </div>
         </div>
       </aside>

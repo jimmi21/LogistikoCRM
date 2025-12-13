@@ -1,6 +1,6 @@
 ## VoIP Telephony Systems
 
-LogistikoCRM supports **two separate VoIP integrations** for different use cases:
+D.P. Economy supports **two separate VoIP integrations** for different use cases:
 
 | Feature | Zadarma (voip app) | Fritz!Box (accounting app) |
 |---------|-------------------|---------------------------|

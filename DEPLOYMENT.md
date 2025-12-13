@@ -1,4 +1,4 @@
-# 🚀 LogistikoCRM - Production Deployment Guide
+# 🚀 D.P. Economy - Production Deployment Guide
 
 Complete deployment guide for accounting office (Λογιστικό Γραφείο)
 
@@ -23,8 +23,8 @@ sudo apt update && sudo apt install -y     python3.10 python3-pip python3-venv  
 
 ```bash
 cd /var/www
-git clone <repo-url> LogistikoCRM
-cd LogistikoCRM
+git clone <repo-url> D.P. Economy
+cd D.P. Economy
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -67,7 +67,7 @@ python manage.py collectstatic --noinput
 ```bash
 # Daily backup at 2 AM
 crontab -e
-0 2 * * * /var/www/LogistikoCRM/scripts/backup_cron.sh
+0 2 * * * /var/www/D.P. Economy/scripts/backup_cron.sh
 ```
 
 ## Support

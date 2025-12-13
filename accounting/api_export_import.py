@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Export/Import API for LogistikoCRM
+Export/Import API for D.P. Economy
 ===================================
 Handles Excel export and import for clients matching the admin template.
 """

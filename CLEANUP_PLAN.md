@@ -1,4 +1,4 @@
-# LogistikoCRM Code Health Audit & Cleanup Plan
+# D.P. Economy Code Health Audit & Cleanup Plan
 
 **Audit Date:** December 3, 2025
 **Branch:** `claude/audit-code-health-016o91QK8gJE39339BSszAPj`
@@ -22,7 +22,7 @@
 ### 1. UNPROTECTED DOOR CONTROL ENDPOINTS
 
 **Severity:** CRITICAL - Physical Security Risk
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 **Lines:** 2668-2776
 
 **Issue:** Door control endpoints have NO authentication:
@@ -53,7 +53,7 @@ def door_status(request):
 ### 2. DELETE DEAD CODE FILE: `admin2 .py`
 
 **Severity:** CRITICAL - Causes confusion, 44KB of dead code
-**File:** `/home/user/LogistikoCRM/accounting/admin2 .py`
+**File:** `/home/user/D.P. Economy/accounting/admin2 .py`
 
 **Issue:**
 - Filename has a SPACE character before `.py`
@@ -63,7 +63,7 @@ def door_status(request):
 
 **Fix Required:**
 ```bash
-rm "/home/user/LogistikoCRM/accounting/admin2 .py"
+rm "/home/user/D.P. Economy/accounting/admin2 .py"
 ```
 
 **Effort:** 5 min
@@ -73,7 +73,7 @@ rm "/home/user/LogistikoCRM/accounting/admin2 .py"
 ### 3. DELETE DEAD CODE FILE: `views_τουμπανο.py`
 
 **Severity:** CRITICAL - 62KB of dead code, Greek backup file
-**File:** `/home/user/LogistikoCRM/accounting/views_τουμπανο.py`
+**File:** `/home/user/D.P. Economy/accounting/views_τουμπανο.py`
 
 **Issue:**
 - Greek filename suggests it was a backup/development copy
@@ -83,7 +83,7 @@ rm "/home/user/LogistikoCRM/accounting/admin2 .py"
 
 **Fix Required:**
 ```bash
-rm "/home/user/LogistikoCRM/accounting/views_τουμπανο.py"
+rm "/home/user/D.P. Economy/accounting/views_τουμπανο.py"
 ```
 
 **Effort:** 5 min
@@ -93,7 +93,7 @@ rm "/home/user/LogistikoCRM/accounting/views_τουμπανο.py"
 ### 4. REMOVE DUPLICATE FUNCTION: `quick_complete_obligation()`
 
 **Severity:** CRITICAL - Two definitions cause confusion
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** Function defined TWICE:
 - **Line 238:** Original version with FormData/JSON and file upload support
@@ -110,7 +110,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 ### 5. REMOVE DUPLICATE FUNCTION: `advanced_bulk_complete()`
 
 **Severity:** CRITICAL - Two definitions cause confusion
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** Function defined TWICE:
 - **Line 458:** First version with extensive debugging
@@ -127,7 +127,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 ### 6. DUPLICATE CLASS: `VoIPCallsListView`
 
 **Severity:** HIGH - Dead code, confusing
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** Class defined TWICE:
 - **Line 1141:** First definition (DEAD - never reached)
@@ -142,7 +142,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 ### 7. UNREFERENCED FUNCTION: `bulk_complete_view()`
 
 **Severity:** MEDIUM - 74 lines of dead code
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 **Lines:** 384-457
 
 **Issue:** Defined but NOT in `urls.py`. Replaced by `bulk_complete_obligations()`
@@ -156,7 +156,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 ### 8. CONSOLIDATE VoIP APPS (voip/ vs accounting/)
 
 **Severity:** HIGH - Confusing architecture
-**Files:** `/home/user/LogistikoCRM/voip/` entire directory
+**Files:** `/home/user/D.P. Economy/voip/` entire directory
 
 **Issue:** Two VoIP systems:
 - `/voip/` - Zadarma (outbound) - appears DEPRECATED
@@ -212,7 +212,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 ### 11. CLEAN UP `crm/apps.py` COMMENTED CODE
 
 **Severity:** MEDIUM - Dead commented code
-**File:** `/home/user/LogistikoCRM/crm/apps.py`
+**File:** `/home/user/D.P. Economy/crm/apps.py`
 **Lines:** 15-39
 
 **Issue:** 25+ lines of commented-out IMAP code that will never be uncommented
@@ -251,7 +251,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 ### 13. CACHING ON AUTHENTICATED ENDPOINTS
 
 **Severity:** MEDIUM - Potential data leak
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** `@cache_page()` on staff-only endpoints may cache responses globally
 
@@ -282,7 +282,7 @@ Python uses the LAST definition, meaning the first 500+ line version is DEAD COD
 
 ### 15. REMOVE LEGACY URL ROUTE
 
-**File:** `/home/user/LogistikoCRM/accounting/urls.py:48`
+**File:** `/home/user/D.P. Economy/accounting/urls.py:48`
 ```python
 path("quick-complete/<int:obligation_id>/", views.quick_complete_obligation, name="quick_complete"),  # Legacy
 ```
@@ -295,7 +295,7 @@ path("quick-complete/<int:obligation_id>/", views.quick_complete_obligation, nam
 
 ### 16. DELETE DISABLED `crm_imap.py`
 
-**File:** `/home/user/LogistikoCRM/crm/utils/crm_imap.py`
+**File:** `/home/user/D.P. Economy/crm/utils/crm_imap.py`
 
 **Issue:** Completely stub implementation with docstring "DISABLED"
 
@@ -306,9 +306,9 @@ path("quick-complete/<int:obligation_id>/", views.quick_complete_obligation, nam
 ### 17. EMPTY URL PATTERNS
 
 **Files:**
-- `/home/user/LogistikoCRM/chat/urls.py` - `urlpatterns = []`
-- `/home/user/LogistikoCRM/analytics/urls.py` - Placeholder comment
-- `/home/user/LogistikoCRM/help/urls.py` - `urlpatterns = []`
+- `/home/user/D.P. Economy/chat/urls.py` - `urlpatterns = []`
+- `/home/user/D.P. Economy/analytics/urls.py` - Placeholder comment
+- `/home/user/D.P. Economy/help/urls.py` - `urlpatterns = []`
 
 **Issue:** Empty or placeholder URL patterns - incomplete features
 
@@ -318,7 +318,7 @@ path("quick-complete/<int:obligation_id>/", views.quick_complete_obligation, nam
 
 ### 18. REMOVE COMMENTED IMPORTS IN voip/urls.py
 
-**File:** `/home/user/LogistikoCRM/voip/urls.py:1-2`
+**File:** `/home/user/D.P. Economy/voip/urls.py:1-2`
 ```python
 # from django.contrib.auth.decorators import login_required
 # from django.contrib.admin.views.decorators import staff_member_required
@@ -352,7 +352,7 @@ path("quick-complete/<int:obligation_id>/", views.quick_complete_obligation, nam
 
 ### 20. FRITZ!BOX WEBHOOK AUTH IMPROVEMENT
 
-**File:** `/home/user/LogistikoCRM/accounting/views.py:784-898`
+**File:** `/home/user/D.P. Economy/accounting/views.py:784-898`
 
 **Issue:** Uses manual Bearer token validation instead of DRF authentication classes
 
@@ -374,7 +374,7 @@ from rest_framework.authentication import TokenAuthentication
 
 ### 21. ADD EXPLICIT PERMISSION CLASS TO DocumentViewSet
 
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** `ClientDocumentViewSet` uses default `IsAuthenticated` but should be explicit
 
@@ -390,7 +390,7 @@ class ClientDocumentViewSet(viewsets.ModelViewSet):
 
 ### 22. ZADARMA WEBHOOK HMAC REVIEW
 
-**File:** `/home/user/LogistikoCRM/voip/views/voipwebhook.py:83-103`
+**File:** `/home/user/D.P. Economy/voip/views/voipwebhook.py:83-103`
 
 **Issue:** Custom HMAC-SHA1 implementation should be reviewed by security expert
 
@@ -400,7 +400,7 @@ class ClientDocumentViewSet(viewsets.ModelViewSet):
 
 ### 23. REMOVE EMOJI FROM LOGGER MESSAGES
 
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** Logger messages contain emojis which may cause encoding issues
 
@@ -417,7 +417,7 @@ logger.error(f"HTTP {response.status_code}")
 
 ### 24. ADD ClientDocumentViewSet EXPLICIT QUERYSET FILTER
 
-**File:** `/home/user/LogistikoCRM/accounting/views.py`
+**File:** `/home/user/D.P. Economy/accounting/views.py`
 
 **Issue:** Ensure documents are only accessible by authorized users
 
@@ -445,8 +445,8 @@ logger.error(f"HTTP {response.status_code}")
 ```bash
 # 1. Fix door control auth
 # 2. Delete dead files
-rm "/home/user/LogistikoCRM/accounting/admin2 .py"
-rm "/home/user/LogistikoCRM/accounting/views_τουμπανο.py"
+rm "/home/user/D.P. Economy/accounting/admin2 .py"
+rm "/home/user/D.P. Economy/accounting/views_τουμπανο.py"
 ```
 
 ### Phase 2: Duplicate Code (Day 1-2)
@@ -504,4 +504,4 @@ grep -r "# TODO" --include="*.py"
 ---
 
 *Generated by Claude Code Health Audit*
-*Codebase: LogistikoCRM*
+*Codebase: D.P. Economy*

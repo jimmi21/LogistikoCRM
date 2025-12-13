@@ -2,7 +2,7 @@
 """
 Authentication API Views for React Frontend Integration
 ========================================================
-JWT-based authentication endpoints for the LogistikoCRM React frontend.
+JWT-based authentication endpoints for the D.P. Economy React frontend.
 
 Endpoints:
     POST /api/auth/login/    - Obtain JWT tokens
@@ -266,7 +266,7 @@ def api_test(request):
     """
     return api_success(
         data={
-            'message': 'LogistikoCRM API is working!',
+            'message': 'D.P. Economy API is working!',
             'authenticated': request.user.is_authenticated,
             'user': request.user.username if request.user.is_authenticated else None,
         },

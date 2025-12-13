@@ -361,7 +361,7 @@ class Command(BaseCommand):
             return
         
         try:
-            subject = f'[LogistikoCRM] Υποχρεώσεις {self.month}/{self.year} - Report'
+            subject = f'[D.P. Economy] Υποχρεώσεις {self.month}/{self.year} - Report'
             
             message = f"""
 Καλησπέρα,
@@ -398,7 +398,7 @@ class Command(BaseCommand):
             message += f"""
 
 Με εκτίμηση,
-LogistikoCRM System
+D.P. Economy System
 {timezone.now().strftime('%d/%m/%Y %H:%M')}
 """
             

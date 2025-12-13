@@ -1,6 +1,6 @@
 """
 Obligation Completion Views
-Author: LogistikoCRM
+Author: D.P. Economy
 Version: 1.0
 Description: Views για διαχείριση ολοκλήρωσης υποχρεώσεων με file upload και email.
 """

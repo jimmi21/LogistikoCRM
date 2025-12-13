@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Email Utilities for LogistikoCRM
+Email Utilities for D.P. Economy
 Author: Claude
 Version: 1.0
 Description: Retry logic, rate limiting, and connection pooling for email sending.

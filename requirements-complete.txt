@@ -1,5 +1,5 @@
 # ============================================================================
-# LogistikoCRM - Complete Requirements (Based on setup.cfg)
+# D.P. Economy - Complete Requirements (Based on setup.cfg)
 # Auto-generated from setup.cfg dependencies
 # ============================================================================
 

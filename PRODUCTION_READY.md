@@ -1,4 +1,4 @@
-# ✅ Production Security & Features - LogistikoCRM
+# ✅ Production Security & Features - D.P. Economy
 
 Αυτό το document περιγράφει όλες τις αλλαγές που έγιναν για να είναι το σύστημα **έτοιμο για παραγωγή** σε λογιστικό γραφείο.
 

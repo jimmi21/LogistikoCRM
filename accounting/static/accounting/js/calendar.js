@@ -1,6 +1,6 @@
 /**
  * Calendar View JavaScript
- * FullCalendar integration for LogistikoCRM obligations
+ * FullCalendar integration for D.P. Economy obligations
  * Greek language, responsive design
  */
 

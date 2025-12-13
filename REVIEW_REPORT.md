@@ -1,4 +1,4 @@
-# Quality Review Report - LogistikoCRM Frontend & API
+# Quality Review Report - D.P. Economy Frontend & API
 
 **Date:** 2025-12-05
 **Branch:** `claude/quality-review-consolidation-01EXLqvcoT8eL2rhbv1mCL4b`

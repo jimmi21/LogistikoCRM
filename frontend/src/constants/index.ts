@@ -1,5 +1,5 @@
 /**
- * Consolidated constants for the LogistikoCRM frontend
+ * Consolidated constants for the D.P. Economy frontend
  * All shared constants should be imported from this file
  */
 
