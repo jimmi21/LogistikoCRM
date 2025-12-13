@@ -47,7 +47,7 @@ yarl==1.20.1
 
 # GeoIP
 geoip2==5.2.0
-maxminddb==2.8.2
+maxminddb==3.0.0
 
 # Security & Environment
 python-dotenv>=1.0.0
