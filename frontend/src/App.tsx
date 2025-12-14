@@ -23,6 +23,7 @@ import {
   UserManagement,
   MyData,
 } from './pages';
+import Backup from './pages/Backup';
 
 // Create a client for React Query
 const queryClient = new QueryClient({
@@ -191,6 +192,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/backup"
+            element={
+              <ProtectedRoute>
+                <Backup />
               </ProtectedRoute>
             }
           />

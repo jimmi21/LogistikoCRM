@@ -16,6 +16,7 @@ import {
   X,
   Loader2,
   RefreshCw,
+  HardDrive,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useToast } from '../components/Toast';
@@ -446,6 +447,27 @@ export default function Settings() {
                         <div>
                           <h3 className="font-semibold text-gray-900">Χρήστες</h3>
                           <p className="text-sm text-gray-500">Διαχείριση λογαριασμών</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="text-gray-400" size={20} />
+                    </div>
+                  </Link>
+                )}
+
+                {/* Backup - Only for staff/superuser */}
+                {user?.is_staff && (
+                  <Link
+                    to="/settings/backup"
+                    className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-green-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                          <HardDrive size={24} className="text-green-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Backup & Restore</h3>
+                          <p className="text-sm text-gray-500">Αντίγραφα ασφαλείας</p>
                         </div>
                       </div>
                       <ChevronRight className="text-gray-400" size={20} />
