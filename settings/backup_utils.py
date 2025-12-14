@@ -18,6 +18,12 @@ from django.db import connection
 
 logger = logging.getLogger(__name__)
 
+# Μέγιστο μέγεθος backup αρχείου (500MB)
+MAX_BACKUP_SIZE = 500 * 1024 * 1024
+
+# Απαιτούμενα αρχεία στο backup ZIP
+REQUIRED_BACKUP_FILES = ['database.json']
+
 
 def create_backup(user=None, include_media=True, notes=''):
     """
@@ -97,7 +103,61 @@ def create_backup(user=None, include_media=True, notes=''):
         raise
 
 
-def restore_backup(backup_id, user=None, mode='replace'):
+def validate_backup_file(file_path):
+    """
+    Επικυρώνει ότι το αρχείο είναι έγκυρο backup ZIP.
+
+    Args:
+        file_path: Path προς το αρχείο
+
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    # Έλεγχος ύπαρξης
+    if not os.path.exists(file_path):
+        return False, "Το αρχείο δεν υπάρχει"
+
+    # Έλεγχος μεγέθους
+    file_size = os.path.getsize(file_path)
+    if file_size > MAX_BACKUP_SIZE:
+        return False, f"Το αρχείο υπερβαίνει το μέγιστο όριο ({MAX_BACKUP_SIZE // (1024*1024)}MB)"
+
+    # Έλεγχος ότι είναι valid ZIP
+    if not zipfile.is_zipfile(file_path):
+        return False, "Το αρχείο δεν είναι έγκυρο ZIP"
+
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zipf:
+            # Έλεγχος για corrupted ZIP
+            bad_file = zipf.testzip()
+            if bad_file:
+                return False, f"Corrupted αρχείο στο ZIP: {bad_file}"
+
+            # Έλεγχος για απαιτούμενα αρχεία
+            namelist = zipf.namelist()
+            for required in REQUIRED_BACKUP_FILES:
+                if required not in namelist:
+                    return False, f"Λείπει απαιτούμενο αρχείο: {required}"
+
+            # Έλεγχος για path traversal attacks (../)
+            for name in namelist:
+                if '..' in name or name.startswith('/'):
+                    return False, f"Μη έγκυρο path στο ZIP: {name}"
+
+            # Επικύρωση database.json format
+            try:
+                db_content = zipf.read('database.json').decode('utf-8')
+                json.loads(db_content)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                return False, f"Μη έγκυρο database.json: {e}"
+
+    except zipfile.BadZipFile:
+        return False, "Κατεστραμμένο ZIP αρχείο"
+
+    return True, None
+
+
+def restore_backup(backup_id, user=None, mode='replace', create_safety_backup=True):
     """
     Επαναφέρει backup.
 
@@ -105,22 +165,54 @@ def restore_backup(backup_id, user=None, mode='replace'):
         backup_id: ID του BackupHistory record
         user: Ο χρήστης που κάνει restore
         mode: 'replace' (αντικατάσταση) ή 'merge' (συγχώνευση)
+        create_safety_backup: Δημιουργία backup πριν το restore (default: True)
 
     Returns:
-        True αν επιτυχές, False αλλιώς
+        dict με status και πληροφορίες
     """
     from .models import BackupHistory
     from django.utils import timezone
 
+    result = {
+        'success': False,
+        'safety_backup_id': None,
+        'error': None
+    }
+
     try:
         backup = BackupHistory.objects.get(pk=backup_id)
     except BackupHistory.DoesNotExist:
-        logger.error(f"Backup {backup_id} not found")
-        return False
+        result['error'] = f"Backup {backup_id} not found"
+        logger.error(result['error'])
+        return result
 
     if not backup.file_exists():
-        logger.error(f"Backup file not found: {backup.file_path}")
-        return False
+        result['error'] = f"Backup file not found: {backup.file_path}"
+        logger.error(result['error'])
+        return result
+
+    # Επικύρωση του backup αρχείου
+    is_valid, error_msg = validate_backup_file(backup.file_path)
+    if not is_valid:
+        result['error'] = f"Invalid backup file: {error_msg}"
+        logger.error(result['error'])
+        return result
+
+    # Δημιουργία safety backup πριν το restore (για replace mode)
+    safety_backup = None
+    if create_safety_backup and mode == 'replace':
+        logger.info("Creating safety backup before restore...")
+        try:
+            safety_backup = create_backup(
+                user=user,
+                include_media=False,
+                notes=f"Safety backup πριν restore από: {backup.filename}"
+            )
+            result['safety_backup_id'] = safety_backup.id
+            logger.info(f"Safety backup created: {safety_backup.filename}")
+        except Exception as e:
+            logger.warning(f"Failed to create safety backup: {e}")
+            # Συνεχίζουμε ακόμα και αν αποτύχει το safety backup
 
     try:
         with zipfile.ZipFile(backup.file_path, 'r') as zipf:
@@ -133,6 +225,9 @@ def restore_backup(backup_id, user=None, mode='replace'):
             if backup.includes_media:
                 media_files = [f for f in zipf.namelist() if f.startswith('media/')]
                 for media_file in media_files:
+                    # Skip directories
+                    if media_file.endswith('/'):
+                        continue
                     target_path = os.path.join(
                         settings.MEDIA_ROOT,
                         media_file.replace('media/', '', 1)
@@ -150,11 +245,13 @@ def restore_backup(backup_id, user=None, mode='replace'):
         backup.save()
 
         logger.info(f"Backup restored: {backup.filename} (mode: {mode})")
-        return True
+        result['success'] = True
+        return result
 
     except Exception as e:
         logger.error(f"Backup restore failed: {e}")
-        raise
+        result['error'] = str(e)
+        return result
 
 
 def _dump_database():

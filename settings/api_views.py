@@ -10,7 +10,7 @@ from rest_framework.parsers import MultiPartParser
 from django.http import FileResponse
 
 from .models import BackupSettings, BackupHistory
-from .backup_utils import create_backup, restore_backup, get_backup_list
+from .backup_utils import create_backup, restore_backup, get_backup_list, validate_backup_file
 
 
 class HasBackupPermission:
@@ -83,7 +83,8 @@ class BackupCreateAPIView(APIView):
 
     def post(self, request):
         """Δημιουργεί νέο backup."""
-        if not request.user.has_perm('settings.can_create_backup'):
+        # Staff users or users with specific permission
+        if not (request.user.is_staff or request.user.has_perm('settings.can_create_backup')):
             return Response({'error': 'Permission denied'}, status=403)
 
         notes = request.data.get('notes', '')
@@ -114,17 +115,23 @@ class BackupDownloadAPIView(APIView):
 
     def get(self, request, pk):
         """Download backup file."""
-        if not request.user.has_perm('settings.can_download_backup'):
+        # Staff users or users with specific permission
+        if not (request.user.is_staff or request.user.has_perm('settings.can_download_backup')):
             return Response({'error': 'Permission denied'}, status=403)
 
         try:
             backup = BackupHistory.objects.get(pk=pk)
             if backup.file_exists():
-                return FileResponse(
-                    open(backup.file_path, 'rb'),
+                # Use context manager pattern for proper file handling
+                file_handle = open(backup.file_path, 'rb')
+                response = FileResponse(
+                    file_handle,
                     as_attachment=True,
                     filename=backup.filename
                 )
+                # FileResponse closes the file automatically when streaming completes
+                response.set_headers(file_handle)
+                return response
             return Response({'error': 'File not found'}, status=404)
         except BackupHistory.DoesNotExist:
             return Response({'error': 'Backup not found'}, status=404)
@@ -136,18 +143,33 @@ class BackupRestoreAPIView(APIView):
 
     def post(self, request, pk):
         """Restore backup."""
-        if not request.user.has_perm('settings.can_restore_backup'):
+        # Staff users or users with specific permission
+        if not (request.user.is_staff or request.user.has_perm('settings.can_restore_backup')):
             return Response({'error': 'Permission denied'}, status=403)
 
         mode = request.data.get('mode', 'replace')
         if mode not in ['replace', 'merge']:
             return Response({'error': 'Invalid mode'}, status=400)
 
+        # Optional: skip safety backup
+        create_safety = request.data.get('create_safety_backup', True)
+
         try:
-            success = restore_backup(pk, user=request.user, mode=mode)
-            if success:
-                return Response({'status': 'success', 'mode': mode})
-            return Response({'error': 'Restore failed'}, status=500)
+            result = restore_backup(
+                pk,
+                user=request.user,
+                mode=mode,
+                create_safety_backup=create_safety
+            )
+            if result['success']:
+                response_data = {
+                    'status': 'success',
+                    'mode': mode
+                }
+                if result.get('safety_backup_id'):
+                    response_data['safety_backup_id'] = result['safety_backup_id']
+                return Response(response_data)
+            return Response({'error': result.get('error', 'Restore failed')}, status=500)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
@@ -159,18 +181,25 @@ class BackupUploadRestoreAPIView(APIView):
 
     def post(self, request):
         """Upload και restore backup."""
-        if not request.user.has_perm('settings.can_restore_backup'):
+        # Staff users or users with specific permission
+        if not (request.user.is_staff or request.user.has_perm('settings.can_restore_backup')):
             return Response({'error': 'Permission denied'}, status=403)
 
         if 'file' not in request.FILES:
             return Response({'error': 'No file provided'}, status=400)
 
         mode = request.data.get('mode', 'replace')
+        if mode not in ['replace', 'merge']:
+            return Response({'error': 'Invalid mode'}, status=400)
+
         uploaded_file = request.FILES['file']
+
+        # Έλεγχος extension
+        if not uploaded_file.name.endswith('.zip'):
+            return Response({'error': 'Only ZIP files are allowed'}, status=400)
 
         # Αποθήκευση uploaded αρχείου
         import os
-        import tempfile
         from django.utils import timezone
 
         settings_obj = BackupSettings.get_settings()
@@ -184,6 +213,13 @@ class BackupUploadRestoreAPIView(APIView):
             for chunk in uploaded_file.chunks():
                 f.write(chunk)
 
+        # Επικύρωση του uploaded αρχείου
+        is_valid, error_msg = validate_backup_file(file_path)
+        if not is_valid:
+            # Διαγραφή invalid αρχείου
+            os.remove(file_path)
+            return Response({'error': f'Invalid backup file: {error_msg}'}, status=400)
+
         # Δημιουργία record
         backup = BackupHistory.objects.create(
             filename=filename,
@@ -195,11 +231,26 @@ class BackupUploadRestoreAPIView(APIView):
             notes='Uploaded backup'
         )
 
+        # Optional: skip safety backup
+        create_safety = request.data.get('create_safety_backup', True)
+
         # Restore
         try:
-            success = restore_backup(backup.id, user=request.user, mode=mode)
-            if success:
-                return Response({'status': 'success', 'backup_id': backup.id})
-            return Response({'error': 'Restore failed'}, status=500)
+            result = restore_backup(
+                backup.id,
+                user=request.user,
+                mode=mode,
+                create_safety_backup=create_safety
+            )
+            if result['success']:
+                response_data = {
+                    'status': 'success',
+                    'backup_id': backup.id,
+                    'mode': mode
+                }
+                if result.get('safety_backup_id'):
+                    response_data['safety_backup_id'] = result['safety_backup_id']
+                return Response(response_data)
+            return Response({'error': result.get('error', 'Restore failed')}, status=500)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
