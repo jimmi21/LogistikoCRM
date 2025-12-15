@@ -34,8 +34,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # print(get_random_secret_key())
 SECRET_KEY = os.getenv('SECRET_KEY', 'default-key-for-development')
 
-# Add your hosts to the list.
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+# Add your hosts to the list (configured below)
 
 # Database - SECURITY FIX: Use environment variables
 DATABASES = {
@@ -86,11 +85,14 @@ ADMINS = [("<Admin1>", "dpeconsolutions@gmail.com")]   # specify admin
 # SECURITY WARNING: don't run with debug turned on in production!
 # SECURITY FIX: Default to False, only enable in dev with explicit env var
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+# ALLOWED_HOSTS - Ρυθμίσεις για τοπικό δίκτυο
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '192.168.178.28',
-    '192.168.178.*',
+    '192.168.*.*',      # Όλα τα τοπικά δίκτυα 192.168.x.x
+    '10.*.*.*',         # Εταιρικά δίκτυα 10.x.x.x
+    '172.16.*.*',       # Private networks 172.16.x.x
 ]
 
 FORMS_URLFIELD_ASSUME_HTTPS = True
@@ -363,11 +365,15 @@ if TESTING:
     LANGUAGES = [('en', ''), ('uk', '')]
 
 
-    # CORS Settings
+    # CORS Settings - Επιτρέπει πρόσβαση από τοπικό δίκτυο
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
-    ]
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+# Για development στο τοπικό δίκτυο - επιτρέπει όλες τις origins
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Μόνο αν DEBUG=True
 CORS_ALLOW_CREDENTIALS = True
 
 # Django REST Framework
