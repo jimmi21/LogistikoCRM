@@ -266,6 +266,7 @@ def _dump_database():
         '--exclude=contenttypes',
         '--exclude=auth.permission',
         '--exclude=sessions',
+        '--exclude=admin.logentry',
         '--indent=2',
         stdout=output
     )
@@ -281,6 +282,7 @@ def _restore_database(json_data, mode='replace'):
         mode: 'replace' ή 'merge'
     """
     import tempfile
+    from django.contrib.auth.models import Group
 
     # Γράψε σε temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
@@ -292,8 +294,13 @@ def _restore_database(json_data, mode='replace'):
             # Διαγραφή υπαρχόντων δεδομένων (προσεκτικά!)
             call_command('flush', '--no-input')
 
-        # Φόρτωση δεδομένων
-        call_command('loaddata', temp_path)
+        # Δημιουργία default groups αν δεν υπάρχουν
+        default_groups = ['Administrators', 'Managers', 'Users', 'Λογιστές', 'Υπάλληλοι']
+        for group_name in default_groups:
+            Group.objects.get_or_create(name=group_name)
+
+        # Φόρτωση δεδομένων με ignorenonexistent για missing FKs
+        call_command('loaddata', temp_path, '--ignorenonexistent')
 
     finally:
         os.unlink(temp_path)
