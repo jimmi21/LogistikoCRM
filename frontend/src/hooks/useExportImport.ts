@@ -22,7 +22,7 @@ interface ImportResponse {
  * Download clients Excel file
  */
 export async function downloadClientsExcel() {
-  const response = await apiClient.get('/api/v1/export/clients/csv/', {
+  const response = await apiClient.get('api/v1/export/clients/csv/', {
     responseType: 'blob',
   });
 
@@ -53,7 +53,7 @@ export const downloadClientsCSV = downloadClientsExcel;
  * Download clients template Excel file
  */
 export async function downloadClientsTemplate() {
-  const response = await apiClient.get('/api/v1/export/clients/template/', {
+  const response = await apiClient.get('api/v1/export/clients/template/', {
     responseType: 'blob',
   });
 
@@ -80,7 +80,7 @@ export async function downloadClientsTemplate() {
  * Download obligation types CSV
  */
 export async function downloadObligationTypesCSV() {
-  const response = await apiClient.get('/api/v1/export/obligation-types/csv/', {
+  const response = await apiClient.get('api/v1/export/obligation-types/csv/', {
     responseType: 'blob',
   });
 
@@ -98,7 +98,7 @@ export async function downloadObligationTypesCSV() {
  * Download obligation profiles CSV
  */
 export async function downloadObligationProfilesCSV() {
-  const response = await apiClient.get('/api/v1/export/obligation-profiles/csv/', {
+  const response = await apiClient.get('api/v1/export/obligation-profiles/csv/', {
     responseType: 'blob',
   });
 
@@ -116,7 +116,7 @@ export async function downloadObligationProfilesCSV() {
  * Download client-obligation assignments CSV
  */
 export async function downloadClientObligationsCSV() {
-  const response = await apiClient.get('/api/v1/export/client-obligations/csv/', {
+  const response = await apiClient.get('api/v1/export/client-obligations/csv/', {
     responseType: 'blob',
   });
 

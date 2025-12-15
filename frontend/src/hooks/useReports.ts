@@ -112,7 +112,7 @@ function getFilenameFromResponse(response: any, defaultFilename: string): string
  * Download clients report (Excel)
  */
 export async function downloadClientsReport() {
-  const response = await apiClient.get('/api/v1/export/clients/csv/', {
+  const response = await apiClient.get('api/v1/export/clients/csv/', {
     responseType: 'blob',
   });
   const filename = getFilenameFromResponse(response, 'Pelates.xlsx');
@@ -124,7 +124,7 @@ export async function downloadClientsReport() {
  * @param period - Report period filter
  */
 export async function downloadObligationsReport(period: ReportPeriod = 'month') {
-  const response = await apiClient.get(`/api/reports/export/download/?type=obligations&format=xlsx&period=${period}`, {
+  const response = await apiClient.get(`api/reports/export/download/?type=obligations&format=xlsx&period=${period}`, {
     responseType: 'blob',
   });
   const filename = getFilenameFromResponse(response, `Ypoxreoseis_${period}.xlsx`);

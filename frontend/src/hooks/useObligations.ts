@@ -34,7 +34,7 @@ export function useObligations(params?: ObligationParams) {
   return useQuery({
     queryKey: [OBLIGATIONS_KEY, params],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<Obligation>>('/api/v1/obligations/', {
+      const response = await apiClient.get<PaginatedResponse<Obligation>>('api/v1/obligations/', {
         params,
       });
       return response.data;
@@ -47,7 +47,7 @@ export function useObligation(id: number) {
   return useQuery({
     queryKey: [OBLIGATIONS_KEY, id],
     queryFn: async () => {
-      const response = await apiClient.get<Obligation>(`/api/v1/obligations/${id}/`);
+      const response = await apiClient.get<Obligation>(`api/v1/obligations/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -60,7 +60,7 @@ export function useCreateObligation() {
 
   return useMutation({
     mutationFn: async (data: ObligationFormData) => {
-      const response = await apiClient.post<Obligation>('/api/v1/obligations/', data);
+      const response = await apiClient.post<Obligation>('api/v1/obligations/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -74,7 +74,7 @@ export function useUpdateObligation(id: number) {
 
   return useMutation({
     mutationFn: async (data: Partial<ObligationFormData>) => {
-      const response = await apiClient.patch<Obligation>(`/api/v1/obligations/${id}/`, data);
+      const response = await apiClient.patch<Obligation>(`api/v1/obligations/${id}/`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -88,7 +88,7 @@ export function useDeleteObligation() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.delete(`/api/v1/obligations/${id}/`);
+      await apiClient.delete(`api/v1/obligations/${id}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
@@ -104,7 +104,7 @@ export function useObligationTypes() {
   return useQuery({
     queryKey: [OBLIGATION_TYPES_KEY],
     queryFn: async () => {
-      const response = await apiClient.get<ObligationTypeData[]>('/api/v1/obligation-types/');
+      const response = await apiClient.get<ObligationTypeData[]>('api/v1/obligation-types/');
       return response.data;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
@@ -120,7 +120,7 @@ export function useBulkCreateObligations() {
 
   return useMutation({
     mutationFn: async (data: BulkObligationFormData) => {
-      const response = await apiClient.post('/api/v1/obligations/bulk_create/', data);
+      const response = await apiClient.post('api/v1/obligations/bulk_create/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -134,7 +134,7 @@ export function useBulkUpdateObligations() {
 
   return useMutation({
     mutationFn: async (data: BulkUpdateFormData) => {
-      const response = await apiClient.post('/api/v1/obligations/bulk_update/', data);
+      const response = await apiClient.post('api/v1/obligations/bulk_update/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -148,7 +148,7 @@ export function useBulkDeleteObligations() {
 
   return useMutation({
     mutationFn: async (obligationIds: number[]) => {
-      const response = await apiClient.post('/api/v1/obligations/bulk_delete/', {
+      const response = await apiClient.post('api/v1/obligations/bulk_delete/', {
         obligation_ids: obligationIds,
       });
       return response.data;
@@ -164,7 +164,7 @@ export function useBulkDeleteObligations() {
 // ============================================
 
 export async function exportObligationsToExcel(params?: ObligationParams): Promise<void> {
-  const response = await apiClient.get('/api/v1/obligations/export/', {
+  const response = await apiClient.get('api/v1/obligations/export/', {
     params,
     responseType: 'blob',
   });
@@ -203,7 +203,7 @@ export function useObligationTypesGrouped() {
     queryKey: ['obligation-types-grouped'],
     queryFn: async () => {
       // Note: apiClient baseURL already includes /accounting, so don't prefix it again
-      const response = await apiClient.get<ObligationGroup[]>('/api/v1/obligation-types/grouped/');
+      const response = await apiClient.get<ObligationGroup[]>('api/v1/obligation-types/grouped/');
       return response.data;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
@@ -235,7 +235,7 @@ export function useGenerateMonthlyObligations() {
     mutationFn: async (data: GenerateMonthRequest) => {
       // Note: apiClient baseURL already includes /accounting, so don't prefix it again
       const response = await apiClient.post<GenerateMonthResult>(
-        '/api/v1/obligations/generate-month/',
+        'api/v1/obligations/generate-month/',
         data
       );
       return response.data;

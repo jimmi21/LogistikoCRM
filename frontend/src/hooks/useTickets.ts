@@ -67,7 +67,7 @@ export function useTickets(filters: TicketsFilters = {}) {
       if (filters.page) params.page = filters.page;
       if (filters.page_size) params.page_size = filters.page_size;
 
-      const response = await apiClient.get<TicketsListResponse>('/api/v1/tickets/', {
+      const response = await apiClient.get<TicketsListResponse>('api/v1/tickets/', {
         params,
       });
       return response.data;
@@ -83,7 +83,7 @@ export function useTicket(id: number) {
   return useQuery({
     queryKey: [TICKETS_KEY, id],
     queryFn: async () => {
-      const response = await apiClient.get<TicketFull>(`/api/v1/tickets/${id}/`);
+      const response = await apiClient.get<TicketFull>(`api/v1/tickets/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -97,7 +97,7 @@ export function useTicketsStats() {
   return useQuery({
     queryKey: [TICKETS_STATS_KEY],
     queryFn: async () => {
-      const response = await apiClient.get<TicketsStats>('/api/v1/tickets/stats/');
+      const response = await apiClient.get<TicketsStats>('api/v1/tickets/stats/');
       return response.data;
     },
     staleTime: 60000, // 1 minute
@@ -112,7 +112,7 @@ export function useCreateTicket() {
 
   return useMutation({
     mutationFn: async (data: CreateTicketData) => {
-      const response = await apiClient.post('/api/v1/tickets/', data);
+      const response = await apiClient.post('api/v1/tickets/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -130,7 +130,7 @@ export function useUpdateTicket() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: UpdateTicketData }) => {
-      const response = await apiClient.patch(`/api/v1/tickets/${id}/`, data);
+      const response = await apiClient.patch(`api/v1/tickets/${id}/`, data);
       return response.data;
     },
     onSuccess: (_, variables) => {
@@ -148,7 +148,7 @@ export function useDeleteTicket() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const response = await apiClient.delete(`/api/v1/tickets/${id}/`);
+      const response = await apiClient.delete(`api/v1/tickets/${id}/`);
       return response.data;
     },
     onSuccess: () => {
@@ -172,7 +172,7 @@ export function useChangeTicketStatus() {
       id: number;
       status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
     }) => {
-      const response = await apiClient.post(`/api/v1/tickets/${id}/change_status/`, {
+      const response = await apiClient.post(`api/v1/tickets/${id}/change_status/`, {
         status,
       });
       return response.data;
@@ -193,7 +193,7 @@ export function useAssignTicket() {
 
   return useMutation({
     mutationFn: async ({ id, userId }: { id: number; userId?: number }) => {
-      const response = await apiClient.post(`/api/v1/tickets/${id}/assign/`, {
+      const response = await apiClient.post(`api/v1/tickets/${id}/assign/`, {
         user_id: userId,
       });
       return response.data;

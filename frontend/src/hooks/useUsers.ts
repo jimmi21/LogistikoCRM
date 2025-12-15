@@ -127,7 +127,7 @@ export function useDeleteUser() {
 
   return useMutation<{ success: boolean; message: string }, Error, number>({
     mutationFn: async (userId) => {
-      const response = await apiClient.delete(`/api/v1/users/${userId}/delete/`);
+      const response = await apiClient.delete(`api/v1/users/${userId}/delete/`);
       return response.data;
     },
     onSuccess: () => {

@@ -29,7 +29,7 @@ export function useNotifications() {
   return useQuery<NotificationsResponse>({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const response = await apiClient.get('/api/notifications/');
+      const response = await apiClient.get('api/notifications/');
       return response.data;
     },
     staleTime: 1000 * 60 * 2, // 2 minutes

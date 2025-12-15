@@ -65,7 +65,7 @@ export function useCall(id: number) {
   return useQuery({
     queryKey: [CALLS_KEY, id],
     queryFn: async () => {
-      const response = await apiClient.get<VoIPCallFull>(`/api/v1/calls/${id}/`);
+      const response = await apiClient.get<VoIPCallFull>(`api/v1/calls/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -94,7 +94,7 @@ export function useMatchCallToClient() {
 
   return useMutation({
     mutationFn: async ({ callId, clientId }: { callId: number; clientId: number }) => {
-      const response = await apiClient.post(`/api/v1/calls/${callId}/match_client/`, {
+      const response = await apiClient.post(`api/v1/calls/${callId}/match_client/`, {
         client_id: clientId,
       });
       return response.data;
@@ -124,7 +124,7 @@ export function useCreateTicketFromCall() {
       description?: string;
       priority?: 'low' | 'medium' | 'high' | 'urgent';
     }) => {
-      const response = await apiClient.post(`/api/v1/calls/${callId}/create_ticket/`, {
+      const response = await apiClient.post(`api/v1/calls/${callId}/create_ticket/`, {
         title,
         description,
         priority,
@@ -147,7 +147,7 @@ export function useUpdateCallNotes() {
 
   return useMutation({
     mutationFn: async ({ callId, notes }: { callId: number; notes: string }) => {
-      const response = await apiClient.patch(`/api/v1/calls/${callId}/`, {
+      const response = await apiClient.patch(`api/v1/calls/${callId}/`, {
         notes,
       });
       return response.data;
@@ -167,7 +167,7 @@ export function useDeleteCall() {
 
   return useMutation({
     mutationFn: async (callId: number) => {
-      await apiClient.delete(`/api/v1/calls/${callId}/`);
+      await apiClient.delete(`api/v1/calls/${callId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [CALLS_KEY] });
