@@ -344,4 +344,9 @@ urlpatterns = [
     # myDATA API (ΦΠΑ/ΑΑΔΕ)
     # ==================================================
     path("api/mydata/", include("mydata.urls")),
+
+    # ==================================================
+    # BACKUP & RESTORE API
+    # ==================================================
+    path("api/settings/backup/", include("settings.backup_urls")),
 ]
