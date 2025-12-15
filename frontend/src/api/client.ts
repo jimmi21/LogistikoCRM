@@ -68,27 +68,27 @@ apiClient.interceptors.response.use(
 // Auth API functions
 export const authApi = {
   login: async (username: string, password: string) => {
-    const response = await apiClient.post('/api/auth/login/', { username, password });
+    const response = await apiClient.post('api/auth/login/', { username, password });
     return response.data;
   },
 
   refreshToken: async (refresh: string) => {
-    const response = await apiClient.post('/api/auth/refresh/', { refresh });
+    const response = await apiClient.post('api/auth/refresh/', { refresh });
     return response.data;
   },
 
   verifyToken: async (token: string) => {
-    const response = await apiClient.post('/api/auth/verify/', { token });
+    const response = await apiClient.post('api/auth/verify/', { token });
     return response.data;
   },
 
   getCurrentUser: async () => {
-    const response = await apiClient.get('/api/auth/me/');
+    const response = await apiClient.get('api/auth/me/');
     return response.data;
   },
 
   updateProfile: async (data: { first_name?: string; last_name?: string; email?: string }) => {
-    const response = await apiClient.patch('/api/auth/me/', data);
+    const response = await apiClient.patch('api/auth/me/', data);
     return response.data;
   },
 };
@@ -96,12 +96,12 @@ export const authApi = {
 // Clients API functions
 export const clientsApi = {
   getAll: async (params?: { search?: string; page?: number; page_size?: number }) => {
-    const response = await apiClient.get('/api/v1/clients/', { params });
+    const response = await apiClient.get('api/v1/clients/', { params });
     return response.data;
   },
 
   getById: async (id: number) => {
-    const response = await apiClient.get(`/api/v1/clients/${id}/`);
+    const response = await apiClient.get(`api/v1/clients/${id}/`);
     return response.data;
   },
 };
@@ -109,12 +109,12 @@ export const clientsApi = {
 // Obligations API functions
 export const obligationsApi = {
   getAll: async (params?: { search?: string; page?: number; page_size?: number; status?: string }) => {
-    const response = await apiClient.get('/api/v1/obligations/', { params });
+    const response = await apiClient.get('api/v1/obligations/', { params });
     return response.data;
   },
 
   getById: async (id: number) => {
-    const response = await apiClient.get(`/api/v1/obligations/${id}/`);
+    const response = await apiClient.get(`api/v1/obligations/${id}/`);
     return response.data;
   },
 };
@@ -143,7 +143,7 @@ export interface GlobalSearchResponse {
 
 export const searchApi = {
   globalSearch: async (query: string): Promise<GlobalSearchResponse> => {
-    const response = await apiClient.get('/api/v1/search/', { params: { q: query } });
+    const response = await apiClient.get('api/v1/search/', { params: { q: query } });
     return response.data;
   },
 };
@@ -188,7 +188,7 @@ export const gsisApi = {
   // Αναζήτηση στοιχείων με ΑΦΜ
   lookupAfm: async (afm: string): Promise<AFMLookupResponse> => {
     try {
-      const response = await apiClient.post('/api/v1/afm-lookup/', { afm });
+      const response = await apiClient.post('api/v1/afm-lookup/', { afm });
       return response.data;
     } catch (error: unknown) {
       // Extract error message from axios error response
@@ -204,19 +204,19 @@ export const gsisApi = {
 
   // Κατάσταση ρυθμίσεων GSIS
   getStatus: async (): Promise<GSISStatusResponse> => {
-    const response = await apiClient.get('/api/v1/gsis/status/');
+    const response = await apiClient.get('api/v1/gsis/status/');
     return response.data;
   },
 
   // Ενημέρωση ρυθμίσεων GSIS
   updateSettings: async (data: { afm: string; username: string; password?: string; is_active?: boolean }) => {
-    const response = await apiClient.post('/api/v1/gsis/settings/', data);
+    const response = await apiClient.post('api/v1/gsis/settings/', data);
     return response.data;
   },
 
   // Δοκιμή σύνδεσης
   testConnection: async () => {
-    const response = await apiClient.post('/api/v1/gsis/test/');
+    const response = await apiClient.post('api/v1/gsis/test/');
     return response.data;
   },
 };
@@ -549,25 +549,25 @@ export interface BackupRestoreResponse {
 export const backupApi = {
   // Get backup settings
   getSettings: async (): Promise<BackupSettings> => {
-    const response = await apiClient.get('/api/settings/backup/settings/');
+    const response = await apiClient.get('api/settings/backup/settings/');
     return response.data;
   },
 
   // Update backup settings
   updateSettings: async (data: Partial<BackupSettings>): Promise<{ status: string }> => {
-    const response = await apiClient.patch('/api/settings/backup/settings/', data);
+    const response = await apiClient.patch('api/settings/backup/settings/', data);
     return response.data;
   },
 
   // Get list of backups
   getList: async (): Promise<BackupItem[]> => {
-    const response = await apiClient.get('/api/settings/backup/list/');
+    const response = await apiClient.get('api/settings/backup/list/');
     return response.data;
   },
 
   // Create a new backup
   create: async (data?: { notes?: string; include_media?: boolean }): Promise<BackupCreateResponse> => {
-    const response = await apiClient.post('/api/settings/backup/create/', data || {});
+    const response = await apiClient.post('api/settings/backup/create/', data || {});
     return response.data;
   },
 
@@ -579,7 +579,7 @@ export const backupApi = {
 
   // Restore backup
   restore: async (id: number, data?: { mode?: 'replace' | 'merge'; create_safety_backup?: boolean }): Promise<BackupRestoreResponse> => {
-    const response = await apiClient.post(`/api/settings/backup/${id}/restore/`, data || {});
+    const response = await apiClient.post(`api/settings/backup/${id}/restore/`, data || {});
     return response.data;
   },
 
@@ -595,7 +595,7 @@ export const backupApi = {
       formData.append('create_safety_backup', String(data.create_safety_backup));
     }
 
-    const response = await apiClient.post('/api/settings/backup/upload-restore/', formData, {
+    const response = await apiClient.post('api/settings/backup/upload-restore/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -603,7 +603,7 @@ export const backupApi = {
 
   // Delete backup (if implemented)
   delete: async (id: number): Promise<{ status: string }> => {
-    const response = await apiClient.delete(`/api/settings/backup/${id}/`);
+    const response = await apiClient.delete(`api/settings/backup/${id}/`);
     return response.data;
   },
 };

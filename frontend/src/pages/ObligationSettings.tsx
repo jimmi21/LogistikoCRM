@@ -400,12 +400,12 @@ function ObligationProfileModal({ isOpen, onClose, profile, allTypes }: ProfileM
         const toRemove = currentTypeIds.filter(id => !selectedTypeIds.includes(id));
 
         if (toAdd.length > 0) {
-          await apiClient.post(`/api/v1/settings/obligation-profiles/${profileId}/add_types/`, {
+          await apiClient.post(`api/v1/settings/obligation-profiles/${profileId}/add_types/`, {
             obligation_type_ids: toAdd
           });
         }
         if (toRemove.length > 0) {
-          await apiClient.post(`/api/v1/settings/obligation-profiles/${profileId}/remove_types/`, {
+          await apiClient.post(`api/v1/settings/obligation-profiles/${profileId}/remove_types/`, {
             obligation_type_ids: toRemove
           });
         }

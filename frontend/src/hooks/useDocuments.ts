@@ -49,7 +49,7 @@ export function useDocument(id: number) {
   return useQuery({
     queryKey: [DOCUMENTS_KEY, id],
     queryFn: async () => {
-      const response = await apiClient.get<ClientDocument>(`/api/v1/documents/${id}/`);
+      const response = await apiClient.get<ClientDocument>(`api/v1/documents/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -192,7 +192,7 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: async (documentId: number) => {
-      await apiClient.delete(`/api/v1/documents/${documentId}/`);
+      await apiClient.delete(`api/v1/documents/${documentId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [DOCUMENTS_KEY] });
@@ -209,7 +209,7 @@ export function useDetachDocument() {
   return useMutation({
     mutationFn: async (documentId: number) => {
       const response = await apiClient.post(
-        `/api/v1/documents/${documentId}/detach-from-obligation/`
+        `api/v1/documents/${documentId}/detach-from-obligation/`
       );
       return response.data;
     },

@@ -254,7 +254,7 @@ export function useCreateTicket(clientId: number) {
       description?: string;
       priority?: 'low' | 'medium' | 'high' | 'urgent';
     }) => {
-      const response = await apiClient.post(`/api/v1/clients/${clientId}/tickets/`, {
+      const response = await apiClient.post(`api/v1/clients/${clientId}/tickets/`, {
         title,
         description,
         priority,
@@ -288,7 +288,7 @@ export function useUpdateTicket(clientId: number) {
         assigned_to?: number | null;
       };
     }) => {
-      const response = await apiClient.patch(`/api/v1/tickets/${ticketId}/`, data);
+      const response = await apiClient.patch(`api/v1/tickets/${ticketId}/`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -306,7 +306,7 @@ export function useDeleteTicket(clientId: number) {
 
   return useMutation({
     mutationFn: async (ticketId: number) => {
-      const response = await apiClient.delete(`/api/v1/tickets/${ticketId}/`);
+      const response = await apiClient.delete(`api/v1/tickets/${ticketId}/`);
       return response.data;
     },
     onSuccess: () => {
@@ -324,7 +324,7 @@ export function useUpdateClientFull(clientId: number) {
 
   return useMutation({
     mutationFn: async (data: Partial<ClientFull>) => {
-      const response = await apiClient.patch(`/api/v1/clients/${clientId}/`, data);
+      const response = await apiClient.patch(`api/v1/clients/${clientId}/`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -451,7 +451,7 @@ export function useClientMyDataCredentials(clientId: number) {
     queryFn: async () => {
       try {
         const response = await apiClient.get<MyDataCredentialsData>(
-          `/api/mydata/credentials/by-client/${clientId}/`
+          `api/mydata/credentials/by-client/${clientId}/`
         );
         return response.data;
       } catch (error: unknown) {
@@ -484,16 +484,16 @@ export function useSaveMyDataCredentials(clientId: number) {
     }) => {
       // Try to get existing credentials first
       try {
-        const existing = await apiClient.get(`/api/mydata/credentials/by-client/${clientId}/`);
+        const existing = await apiClient.get(`api/mydata/credentials/by-client/${clientId}/`);
         // Update existing
         const response = await apiClient.patch(
-          `/api/mydata/credentials/${existing.data.id}/`,
+          `api/mydata/credentials/${existing.data.id}/`,
           { ...data, client: clientId }
         );
         return response.data;
       } catch {
         // Create new
-        const response = await apiClient.post('/api/mydata/credentials/', {
+        const response = await apiClient.post('api/mydata/credentials/', {
           ...data,
           client: clientId,
           is_active: data.is_active ?? true,
@@ -517,7 +517,7 @@ export function useVerifyMyDataCredentials(clientId: number) {
   return useMutation({
     mutationFn: async (credentialsId: number) => {
       const response = await apiClient.post<{ success: boolean; is_verified: boolean; error?: string }>(
-        `/api/mydata/credentials/${credentialsId}/verify/`
+        `api/mydata/credentials/${credentialsId}/verify/`
       );
       return response.data;
     },
@@ -535,7 +535,7 @@ export function useSyncMyDataVAT(clientId: number) {
 
   return useMutation({
     mutationFn: async ({ credentialsId, days = 30 }: { credentialsId: number; days?: number }) => {
-      const response = await apiClient.post(`/api/mydata/credentials/${credentialsId}/sync/`, {
+      const response = await apiClient.post(`api/mydata/credentials/${credentialsId}/sync/`, {
         days,
       });
       return response.data;
