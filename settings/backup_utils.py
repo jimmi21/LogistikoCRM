@@ -276,6 +276,7 @@ def _dump_database():
         '--natural-primary',
         '--exclude=contenttypes',
         '--exclude=sessions',
+        '--exclude=admin.logentry',
         '--indent=2',
         stdout=output
     )

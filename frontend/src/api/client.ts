@@ -508,4 +508,104 @@ export const mydataApi = {
   },
 };
 
+// Backup API
+export interface BackupItem {
+  id: number;
+  filename: string;
+  file_size: number;
+  file_size_display: string;
+  includes_db: boolean;
+  includes_media: boolean;
+  created_at: string;
+  created_by?: string;
+  notes: string;
+  restored_at?: string;
+  file_exists: boolean;
+}
+
+export interface BackupSettings {
+  backup_path: string;
+  include_media: boolean;
+  max_backups: number;
+}
+
+export interface BackupCreateResponse {
+  status: string;
+  backup: {
+    id: number;
+    filename: string;
+    file_size: number;
+    file_size_display: string;
+  };
+}
+
+export interface BackupRestoreResponse {
+  status: string;
+  mode: string;
+  safety_backup_id?: number;
+  backup_id?: number;
+}
+
+export const backupApi = {
+  // Get backup settings
+  getSettings: async (): Promise<BackupSettings> => {
+    const response = await apiClient.get('/api/settings/backup/settings/');
+    return response.data;
+  },
+
+  // Update backup settings
+  updateSettings: async (data: Partial<BackupSettings>): Promise<{ status: string }> => {
+    const response = await apiClient.patch('/api/settings/backup/settings/', data);
+    return response.data;
+  },
+
+  // Get list of backups
+  getList: async (): Promise<BackupItem[]> => {
+    const response = await apiClient.get('/api/settings/backup/list/');
+    return response.data;
+  },
+
+  // Create a new backup
+  create: async (data?: { notes?: string; include_media?: boolean }): Promise<BackupCreateResponse> => {
+    const response = await apiClient.post('/api/settings/backup/create/', data || {});
+    return response.data;
+  },
+
+  // Download backup - returns blob URL
+  getDownloadUrl: (id: number): string => {
+    const token = localStorage.getItem('accessToken');
+    return `${API_BASE_URL}/api/settings/backup/${id}/download/?token=${token}`;
+  },
+
+  // Restore backup
+  restore: async (id: number, data?: { mode?: 'replace' | 'merge'; create_safety_backup?: boolean }): Promise<BackupRestoreResponse> => {
+    const response = await apiClient.post(`/api/settings/backup/${id}/restore/`, data || {});
+    return response.data;
+  },
+
+  // Upload and restore backup
+  uploadAndRestore: async (
+    file: File,
+    data?: { mode?: 'replace' | 'merge'; create_safety_backup?: boolean }
+  ): Promise<BackupRestoreResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (data?.mode) formData.append('mode', data.mode);
+    if (data?.create_safety_backup !== undefined) {
+      formData.append('create_safety_backup', String(data.create_safety_backup));
+    }
+
+    const response = await apiClient.post('/api/settings/backup/upload-restore/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Delete backup (if implemented)
+  delete: async (id: number): Promise<{ status: string }> => {
+    const response = await apiClient.delete(`/api/settings/backup/${id}/`);
+    return response.data;
+  },
+};
+
 export default apiClient;
