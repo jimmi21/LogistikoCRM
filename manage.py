@@ -4,7 +4,7 @@ import sys
 
 
 if __name__ == '__main__':
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'webcrm.settings')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'webcrm.settings_local')
     os.environ.setdefault('DJANGO_RUNSERVER_HIDE_WARNING', 'true')
     try:
         from django.core.management import execute_from_command_line
