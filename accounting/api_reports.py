@@ -93,22 +93,22 @@ def reports_stats(request):
             status='completed',
             completed_date__gte=twelve_months_ago
         ).annotate(
-            month=TruncMonth('completed_date')
-        ).values('month').annotate(
+            completed_month=TruncMonth('completed_date')
+        ).values('completed_month').annotate(
             count=Count('id')
-        ).order_by('month')
+        ).order_by('completed_month')
     )
 
     # Format monthly activity for frontend
     monthly_data = []
 
     for item in monthly_activity:
-        if item['month']:
-            month_idx = item['month'].month - 1
+        if item['completed_month']:
+            month_idx = item['completed_month'].month - 1
             monthly_data.append({
                 'month': GREEK_MONTHS_SHORT[month_idx],
-                'month_num': item['month'].month,
-                'year': item['month'].year,
+                'month_num': item['completed_month'].month,
+                'year': item['completed_month'].year,
                 'count': item['count']
             })
 
