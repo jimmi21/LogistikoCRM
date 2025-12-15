@@ -1,0 +1,23 @@
+# LogistikoCRM - Απλή Development Έκδοση
+# Χρήση: docker compose -f docker-compose.dev.yml up
+# Χρησιμοποιεί SQLite - ιδανικό για γρήγορο testing
+
+services:
+  web:
+    build: .
+    container_name: logistiko_dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_ENV=development
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-not-for-production
+      - ALLOWED_HOSTS=*
+    volumes:
+      - .:/app
+      - ./db.sqlite3:/app/db.sqlite3
+      - ./media:/app/media
+      - ./logs:/app/logs
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"

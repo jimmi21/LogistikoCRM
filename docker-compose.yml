@@ -1,0 +1,122 @@
+# LogistikoCRM Docker Compose
+# Χρήση: docker compose up -d
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: logistiko_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: logistikocrm
+      POSTGRES_USER: logistiko
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-logistiko_secure_2025}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logistiko -d logistikocrm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: logistiko_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Web Application
+  web:
+    build: .
+    container_name: logistiko_web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-development}
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=logistikocrm
+      - DB_USER=logistiko
+      - DB_PASSWORD=${DB_PASSWORD:-logistiko_secure_2025}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_HOSTS=*
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+      - logs_volume:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn webcrm.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+
+  # Celery Worker
+  celery:
+    build: .
+    container_name: logistiko_celery
+    restart: unless-stopped
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=logistikocrm
+      - DB_USER=logistiko
+      - DB_PASSWORD=${DB_PASSWORD:-logistiko_secure_2025}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+      - media_volume:/app/media
+      - logs_volume:/app/logs
+    depends_on:
+      - db
+      - redis
+      - web
+    command: celery -A webcrm worker -l info
+
+  # Celery Beat Scheduler
+  celery-beat:
+    build: .
+    container_name: logistiko_beat
+    restart: unless-stopped
+    environment:
+      - DJANGO_ENV=${DJANGO_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=logistikocrm
+      - DB_USER=logistiko
+      - DB_PASSWORD=${DB_PASSWORD:-logistiko_secure_2025}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+      - celery
+    command: celery -A webcrm beat -l info
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+  logs_volume:

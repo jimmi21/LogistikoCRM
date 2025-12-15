@@ -9,26 +9,46 @@ ENVIRONMENT = os.getenv('DJANGO_ENV', 'development')
 
 if ENVIRONMENT == 'production':
     DEBUG = False
-    ALLOWED_HOSTS = ['192.168.178.28', '192.168.178.*', 'localhost']
-    
+    # Πρόσθεσε τις IPs που χρειάζεσαι
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
     # Security για production
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'SAMEORIGIN'
-    
+
     # Session security
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_AGE = 86400  # 24 hours
-    
+
 else:  # development
     DEBUG = True
+    # Δέχεται όλες τις IPs για εύκολο local development
     ALLOWED_HOSTS = ['*']
 
-# CSRF για local network
+# Αυτόματη ανίχνευση τοπικής IP για CSRF
+def get_local_ip():
+    """Βρίσκει την τοπική IP του server"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+LOCAL_IP = get_local_ip()
+
+# CSRF για local network - αυτόματη ρύθμιση
 CSRF_TRUSTED_ORIGINS = [
-    'http://192.168.178.28:8000',
+    f'http://{LOCAL_IP}:8000',
+    f'http://{LOCAL_IP}:3000',
     'http://localhost:8000',
-    'http://127.0.0.1:8000'
+    'http://localhost:3000',
+    'http://127.0.0.1:8000',
+    'http://127.0.0.1:3000',
 ]
 
 # Improved Logging
