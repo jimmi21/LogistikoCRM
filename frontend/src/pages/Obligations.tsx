@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   useObligations,
@@ -433,6 +434,12 @@ export default function Obligations() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link to="/settings/obligations">
+            <Button variant="outline" title="Ρυθμίσεις τύπων υποχρεώσεων">
+              <Settings className="w-4 h-4 mr-2" />
+              Ρυθμίσεις
+            </Button>
+          </Link>
           <Button variant="secondary" onClick={() => setIsGenerateMonthModalOpen(true)}>
             <CalendarPlus className="w-4 h-4 mr-2" />
             Δημιουργία Μήνα
