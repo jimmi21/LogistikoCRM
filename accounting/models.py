@@ -203,12 +203,23 @@ class ObligationType(models.Model):
         """Ελέγχει αν η υποχρέωση ισχύει για συγκεκριμένο μήνα"""
         if self.frequency == 'monthly':
             return True
-        
-        if self.frequency in ['quarterly', 'annual'] and self.applicable_months:
-            applicable = [int(m) for m in self.applicable_months.split(',')]
+
+        if self.frequency == 'quarterly':
+            # Τριμηνιαία: default μήνες 1,4,7,10 (υποβολή για προηγούμενο τρίμηνο)
+            if self.applicable_months:
+                applicable = [int(m.strip()) for m in self.applicable_months.split(',')]
+            else:
+                applicable = [1, 4, 7, 10]  # Default για τριμηνιαία
             return month in applicable
-        
-        return False
+
+        if self.frequency == 'annual':
+            # Ετήσια: αν έχει συγκεκριμένους μήνες, έλεγξε, αλλιώς επέτρεψε
+            if self.applicable_months:
+                applicable = [int(m.strip()) for m in self.applicable_months.split(',')]
+                return month in applicable
+            return True  # Χωρίς συγκεκριμένο μήνα, επέτρεψε δημιουργία
+
+        return True  # Default: επέτρεψε για άλλες συχνότητες
 
 
 class ClientObligation(models.Model):

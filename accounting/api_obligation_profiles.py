@@ -108,25 +108,24 @@ def clients_obligation_status(request):
 
     result = []
     for client in clients_qs:
-        has_profile = hasattr(client, 'obligation_settings') and client.obligation_settings is not None
         obligation_types_count = 0
         profile_names = []
+        has_profile = False
 
-        if has_profile:
+        # Check if client has obligation_settings using try/except (safer for OneToOne)
+        try:
             client_obl = client.obligation_settings
-            if client_obl.is_active:
-                # Count individual types
-                individual_types = client_obl.obligation_types.filter(is_active=True).count()
-                # Count types from profiles
-                profile_types = set()
+            if client_obl and client_obl.is_active:
+                has_profile = True
+                # Get all obligation types (individual + from profiles)
+                all_types = client_obl.get_all_obligation_types()
+                obligation_types_count = len(all_types)
+
+                # Get profile names
                 for profile in client_obl.obligation_profiles.all():
                     profile_names.append(profile.name)
-                    for ot in profile.obligations.filter(is_active=True):
-                        profile_types.add(ot.id)
-                # Use get_all_obligation_types for accurate count
-                obligation_types_count = len(client_obl.get_all_obligation_types())
-            else:
-                has_profile = False
+        except ClientObligation.DoesNotExist:
+            pass
 
         result.append({
             'id': client.id,
