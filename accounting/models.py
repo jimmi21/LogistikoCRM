@@ -378,35 +378,38 @@ class MonthlyObligation(models.Model):
     notes = models.TextField('Σημειώσεις', blank=True)
     
     time_spent = models.DecimalField(
-        'Χρόνος Εργασίας (ώρες)', 
-        max_digits=5, 
-        decimal_places=2, 
-        null=True, 
+        'Χρόνος Εργασίας (ώρες)',
+        max_digits=5,
+        decimal_places=2,
+        null=True,
         blank=True,
         help_text='π.χ. 1.5 για 1 ώρα και 30 λεπτά'
     )
     hourly_rate = models.DecimalField(
-        'Ωριαία Χρέωση (€)', 
-        max_digits=8, 
-        decimal_places=2, 
-        null=True, 
+        'Ωριαία Χρέωση (€)',
+        max_digits=8,
+        decimal_places=2,
+        null=True,
         blank=True,
         default=50.00
     )
-    
+
+    # DEPRECATED: Τα αρχεία πλέον αποθηκεύονται στο ClientDocument
+    # Τα πεδία κρατούνται προσωρινά για backwards compatibility
     attachment = models.FileField(
         upload_to=obligation_upload_path,
         blank=True,
         null=True,
-        verbose_name='Συνημμένο Αρχείο'
+        verbose_name='[DEPRECATED] Συνημμένο Αρχείο',
+        help_text='Χρησιμοποιήστε ClientDocument αντί αυτού'
     )
-    
+
     attachments = models.JSONField(
         default=list,
         blank=True,
-        help_text='List of attachment paths for multiple files'
+        help_text='[DEPRECATED] List of attachment paths - use ClientDocument'
     )
-    
+
     created_at = models.DateTimeField('Δημιουργήθηκε', auto_now_add=True)
     updated_at = models.DateTimeField('Ενημερώθηκε', auto_now=True)
     
@@ -463,51 +466,90 @@ class MonthlyObligation(models.Model):
         
         super().save(*args, **kwargs)
     
-    def archive_attachment(self, uploaded_file, subfolder=None):
+    # === Document Management Methods ===
+
+    def get_documents(self, current_only=True):
         """
-        Archive file to organized folder structure.
-        Path: clients/{afm}_{name}/{year}/{month}/{type_code}/{filename}
+        Επιστρέφει τα έγγραφα αυτής της υποχρέωσης.
 
-        Uses ARCHIVE_ROOT setting for base path (can be network drive).
+        Args:
+            current_only: Αν True, επιστρέφει μόνο τις τρέχουσες εκδόσεις
         """
-        import logging
-        logger = logging.getLogger(__name__)
+        qs = self.documents.all()
+        if current_only:
+            qs = qs.filter(is_current=True)
+        return qs.order_by('-uploaded_at')
 
-        logger.info(f"[ARCHIVE] Starting archive for: {self}")
+    def get_primary_document(self):
+        """Επιστρέφει το κύριο έγγραφο (πρώτο τρέχον)"""
+        return self.documents.filter(is_current=True).first()
 
-        try:
-            # Get or create config with consistent default pattern
-            config, created = ArchiveConfiguration.objects.get_or_create(
-                obligation_type=self.obligation_type,
-                defaults={
-                    'filename_pattern': '{type_code}_{month}_{year}.pdf',
-                    'folder_pattern': 'clients/{client_afm}_{client_name}/{year}/{month}/{type_code}/',
-                }
-            )
+    def has_documents(self):
+        """Έλεγχος αν υπάρχουν έγγραφα"""
+        return self.documents.filter(is_current=True).exists()
 
-            # Get archive path from config
-            archive_path = config.get_archive_path(self, uploaded_file.name)
-            logger.info(f"[ARCHIVE] Target path: {archive_path}")
+    @property
+    def documents_count(self):
+        """Αριθμός τρεχόντων εγγράφων"""
+        return self.documents.filter(is_current=True).count()
 
-            # Save file using Django's storage system
-            from django.core.files.storage import default_storage
-            from django.core.files.base import ContentFile
+    def add_document(self, uploaded_file, user=None, description=''):
+        """
+        Προσθήκη νέου εγγράφου στην υποχρέωση.
 
-            file_content = uploaded_file.read()
-            uploaded_file.seek(0)
+        Αν υπάρχει ήδη έγγραφο, ρωτάει αν θέλει να δημιουργήσει νέα έκδοση.
+        Αυτός ο έλεγχος γίνεται στο view/admin, όχι εδώ.
 
-            saved_path = default_storage.save(archive_path, ContentFile(file_content))
-            logger.info(f"[ARCHIVE] Saved to: {saved_path}")
+        Args:
+            uploaded_file: Το αρχείο που ανέβηκε
+            user: Ο χρήστης που το ανέβασε
+            description: Περιγραφή
 
-            # Update model attachment field
-            self.attachment.name = saved_path
-            self.save(update_fields=['attachment'])
+        Returns:
+            ClientDocument instance
+        """
+        # Import here to avoid circular import
+        from accounting.models import ClientDocument
 
-            return saved_path
+        doc = ClientDocument(
+            client=self.client,
+            obligation=self,
+            file=uploaded_file,
+            original_filename=os.path.basename(uploaded_file.name),
+            description=description,
+            uploaded_by=user,
+            year=self.year,
+            month=self.month,
+        )
+        doc.save()
+        return doc
 
-        except Exception as e:
-            logger.error(f"[ARCHIVE] ERROR: {e}", exc_info=True)
-            raise
+    def get_email_attachments(self):
+        """
+        Επιστρέφει λίστα αρχείων για αποστολή email.
+        Χρησιμοποιείται από το email system.
+        """
+        attachments = []
+        for doc in self.get_documents():
+            if doc.file:
+                try:
+                    attachments.append(doc.file.path)
+                except (ValueError, FileNotFoundError):
+                    pass
+        return attachments
+
+    @property
+    def folder_path(self):
+        """Επιστρέφει το path του φακέλου για αυτή την υποχρέωση"""
+        client_folder = get_client_folder(self.client)
+        category = self.obligation_type.code if self.obligation_type else 'general'
+        return os.path.join(
+            settings.MEDIA_ROOT,
+            client_folder,
+            str(self.year),
+            f"{self.month:02d}",
+            category
+        )
 
 
 class EmailTemplate(models.Model):
@@ -870,11 +912,15 @@ class ScheduledEmail(models.Model):
         return f"{display} - {self.subject} ({self.send_at.strftime('%d/%m/%Y %H:%M')})"
     
     def get_attachments(self):
-        """Get all attachments from obligations"""
+        """
+        Get all attachments from obligations.
+        Uses the new unified ClientDocument system.
+        """
         attachments = []
         for obl in self.obligations.all():
-            if obl.attachment:
-                attachments.append(obl.attachment)
+            # New: Use get_email_attachments() which returns file paths
+            obl_attachments = obl.get_email_attachments()
+            attachments.extend(obl_attachments)
         return attachments
     
     def mark_as_sent(self):
@@ -1191,61 +1237,329 @@ class Ticket(models.Model):
 
 
 def get_client_folder(client):
-    """Base folder path του πελάτη"""
-    safe_name = f"{client.afm}_{client.eponimia[:20]}".replace(" ", "_").replace("/", "_")
-    return os.path.join('clients', safe_name)
+    """
+    Base folder path του πελάτη.
+    Pattern: clients/{ΑΦΜ}_{Επωνυμία}/
+    """
+    import re
+    # Καθαρισμός επωνυμίας - κρατάμε μόνο alphanumeric και ελληνικά
+    safe_name = re.sub(r'[^\w\s-]', '', client.eponimia)[:20]
+    safe_name = safe_name.replace(' ', '_').strip('_')
+    return os.path.join('clients', f"{client.afm}_{safe_name}")
 
 
 def client_document_path(instance, filename):
-    """Οργανωμένο path με κατηγορίες"""
+    """
+    Ενιαίο path για όλα τα έγγραφα πελατών.
+    Pattern: clients/{ΑΦΜ}_{Επωνυμία}/{YYYY}/{MM}/{category}/{filename}
+
+    Αν υπάρχει obligation, χρησιμοποιεί το year/month της υποχρέωσης.
+    Αλλιώς χρησιμοποιεί την τρέχουσα ημερομηνία.
+    """
     client_folder = get_client_folder(instance.client)
     category = instance.document_category if instance.document_category else 'general'
-    date_path = datetime.now().strftime('%Y/%m')
-    return os.path.join(client_folder, category, date_path, filename)
+
+    # Χρήση year/month από obligation αν υπάρχει, αλλιώς τρέχουσα ημερομηνία
+    if instance.obligation:
+        year = str(instance.obligation.year)
+        month = f"{instance.obligation.month:02d}"
+    else:
+        now = datetime.now()
+        year = str(now.year)
+        month = f"{now.month:02d}"
+
+    return os.path.join(client_folder, year, month, category, filename)
 
 
 class ClientDocument(models.Model):
-    """Έγγραφα πελατών με οργανωμένη αρχειοθέτηση"""
-    
+    """
+    Ενιαίο model για όλα τα έγγραφα πελατών.
+
+    Χρησιμοποιείται τόσο για γενικά έγγραφα όσο και για
+    συνημμένα υποχρεώσεων. Υποστηρίζει versioning.
+    """
+
     CATEGORY_CHOICES = [
-        ('contracts', '📜 Συμβάσεις'),
-        ('invoices', '🧾 Τιμολόγια'),
-        ('tax', '📋 Φορολογικά'),
-        ('myf', '📊 ΜΥΦ'),
-        ('vat', '💶 ΦΠΑ'),
-        ('payroll', '👥 Μισθοδοσία'),
-        ('general', '📁 Γενικά'),
+        ('contracts', 'Συμβάσεις'),
+        ('invoices', 'Τιμολόγια'),
+        ('tax', 'Φορολογικά'),
+        ('myf', 'ΜΥΦ'),
+        ('vat', 'ΦΠΑ'),
+        ('apd', 'ΑΠΔ'),
+        ('payroll', 'Μισθοδοσία'),
+        ('efka', 'ΕΦΚΑ'),
+        ('general', 'Γενικά'),
     ]
-    
-    client = models.ForeignKey(ClientProfile, on_delete=models.CASCADE, related_name='documents')
-    obligation = models.ForeignKey(MonthlyObligation, null=True, blank=True, on_delete=models.SET_NULL)
-    file = models.FileField(upload_to=client_document_path)
-    filename = models.CharField(max_length=255)
-    file_type = models.CharField(max_length=50)
-    document_category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
-    description = models.TextField(blank=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    
+
+    # === Σχέσεις ===
+    client = models.ForeignKey(
+        ClientProfile,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        verbose_name='Πελάτης'
+    )
+    obligation = models.ForeignKey(
+        MonthlyObligation,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='documents',
+        verbose_name='Υποχρέωση'
+    )
+
+    # === Αρχείο ===
+    file = models.FileField(
+        upload_to=client_document_path,
+        verbose_name='Αρχείο'
+    )
+    original_filename = models.CharField(
+        max_length=255,
+        verbose_name='Αρχικό Όνομα',
+        help_text='Το όνομα του αρχείου όπως ανέβηκε'
+    )
+    filename = models.CharField(
+        max_length=255,
+        verbose_name='Όνομα Αρχείου'
+    )
+    file_type = models.CharField(
+        max_length=50,
+        verbose_name='Τύπος'
+    )
+    file_size = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Μέγεθος (bytes)'
+    )
+
+    # === Κατηγοριοποίηση ===
+    document_category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='general',
+        db_index=True,
+        verbose_name='Κατηγορία'
+    )
+
+    # === Χρονικά στοιχεία για filtering ===
+    year = models.PositiveIntegerField(
+        verbose_name='Έτος',
+        db_index=True,
+        help_text='Έτος αναφοράς (από υποχρέωση ή upload)'
+    )
+    month = models.PositiveIntegerField(
+        verbose_name='Μήνας',
+        db_index=True,
+        help_text='Μήνας αναφοράς (από υποχρέωση ή upload)'
+    )
+
+    # === Versioning ===
+    version = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Έκδοση'
+    )
+    is_current = models.BooleanField(
+        default=True,
+        db_index=True,
+        verbose_name='Τρέχουσα Έκδοση'
+    )
+    previous_version = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='next_versions',
+        verbose_name='Προηγούμενη Έκδοση'
+    )
+
+    # === Metadata ===
+    description = models.TextField(
+        blank=True,
+        verbose_name='Περιγραφή'
+    )
+    uploaded_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Ημ/νία Upload'
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='uploaded_documents',
+        verbose_name='Ανέβηκε από'
+    )
+
     class Meta:
         ordering = ['-uploaded_at']
         verbose_name = 'Έγγραφο Πελάτη'
         verbose_name_plural = 'Έγγραφα Πελατών'
-    
+        indexes = [
+            models.Index(fields=['client', 'year', 'month']),
+            models.Index(fields=['client', 'document_category']),
+            models.Index(fields=['obligation', 'is_current']),
+        ]
+
     def __str__(self):
-        return f"{self.filename} - {self.client.eponimia}"
-    
+        version_str = f" (v{self.version})" if self.version > 1 else ""
+        return f"{self.filename}{version_str} - {self.client.eponimia}"
+
     def save(self, *args, **kwargs):
+        # Auto-extract file info
         if self.file:
-            self.filename = self.file.name.split('/')[-1]
-            self.file_type = self.filename.split('.')[-1].lower()
-        
-        # Auto-create folders
-        if self.client:
-            client_path = os.path.join(settings.MEDIA_ROOT, get_client_folder(self.client))
-            for category, _ in self.CATEGORY_CHOICES:
-                os.makedirs(os.path.join(client_path, category), exist_ok=True)
-        
+            # Κρατάμε το αρχικό όνομα
+            if not self.original_filename:
+                self.original_filename = os.path.basename(self.file.name)
+
+            self.filename = os.path.basename(self.file.name)
+            self.file_type = self.filename.split('.')[-1].lower() if '.' in self.filename else ''
+
+            # File size
+            try:
+                self.file_size = self.file.size
+            except (OSError, AttributeError):
+                pass
+
+        # Auto-set year/month
+        if not self.year or not self.month:
+            if self.obligation:
+                self.year = self.obligation.year
+                self.month = self.obligation.month
+            else:
+                now = datetime.now()
+                self.year = self.year or now.year
+                self.month = self.month or now.month
+
+        # Auto-set category from obligation type
+        if self.obligation and self.document_category == 'general':
+            self.document_category = self._get_category_from_obligation()
+
+        # Ensure folders exist
+        if self.client and not self.pk:  # Only on create
+            self._ensure_folders_exist()
+
         super().save(*args, **kwargs)
+
+    def _get_category_from_obligation(self):
+        """Αυτόματη κατηγορία βάσει τύπου υποχρέωσης"""
+        if not self.obligation or not self.obligation.obligation_type:
+            return 'general'
+
+        type_code = self.obligation.obligation_type.code.upper()
+
+        category_map = {
+            'ΦΠΑ': 'vat', 'VAT': 'vat', 'FPA': 'vat',
+            'ΜΥΦ': 'myf', 'MYF': 'myf',
+            'ΑΠΔ': 'apd', 'APD': 'apd',
+            'ΕΦΚΑ': 'efka', 'EFKA': 'efka', 'IKA': 'efka',
+            'Ε1': 'tax', 'Ε3': 'tax', 'E1': 'tax', 'E3': 'tax',
+            'PAYROLL': 'payroll', 'ΜΙΣΘ': 'payroll',
+        }
+
+        for key, cat in category_map.items():
+            if key in type_code:
+                return cat
+        return 'general'
+
+    def _ensure_folders_exist(self):
+        """Δημιουργία φακέλων αν δεν υπάρχουν"""
+        try:
+            client_path = os.path.join(
+                settings.MEDIA_ROOT,
+                get_client_folder(self.client)
+            )
+            year_path = os.path.join(client_path, str(self.year))
+            month_path = os.path.join(year_path, f"{self.month:02d}")
+
+            for category, _ in self.CATEGORY_CHOICES:
+                os.makedirs(os.path.join(month_path, category), exist_ok=True)
+        except Exception:
+            pass  # Fail silently - Django will create on upload
+
+    @classmethod
+    def check_existing(cls, client, obligation=None, category=None):
+        """
+        Έλεγχος αν υπάρχει ήδη αρχείο για αυτόν τον συνδυασμό.
+        Επιστρέφει το υπάρχον αρχείο ή None.
+        """
+        qs = cls.objects.filter(client=client, is_current=True)
+
+        if obligation:
+            qs = qs.filter(obligation=obligation)
+        if category:
+            qs = qs.filter(document_category=category)
+
+        return qs.first()
+
+    def create_new_version(self, new_file, user=None):
+        """
+        Δημιουργεί νέα έκδοση του εγγράφου.
+        Το παλιό γίνεται is_current=False.
+
+        Returns: new ClientDocument instance
+        """
+        # Mark this as not current
+        self.is_current = False
+        self.save(update_fields=['is_current'])
+
+        # Create new version
+        new_doc = ClientDocument(
+            client=self.client,
+            obligation=self.obligation,
+            file=new_file,
+            original_filename=os.path.basename(new_file.name),
+            document_category=self.document_category,
+            year=self.year,
+            month=self.month,
+            version=self.version + 1,
+            is_current=True,
+            previous_version=self,
+            description=self.description,
+            uploaded_by=user,
+        )
+        new_doc.save()
+        return new_doc
+
+    def get_all_versions(self):
+        """Επιστρέφει όλες τις εκδόσεις (συμπεριλαμβανομένης αυτής)"""
+        # Find the root
+        root = self
+        while root.previous_version:
+            root = root.previous_version
+
+        # Get all versions from root
+        versions = [root]
+        current = root
+        while True:
+            next_version = current.next_versions.first()
+            if not next_version:
+                break
+            versions.append(next_version)
+            current = next_version
+
+        return versions
+
+    @property
+    def file_size_display(self):
+        """Μέγεθος σε human-readable format"""
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024:
+                return f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} TB"
+
+    @property
+    def folder_path(self):
+        """Επιστρέφει το path του φακέλου (χωρίς το filename)"""
+        if self.file:
+            return os.path.dirname(self.file.path)
+        return None
+
+    @property
+    def full_path(self):
+        """Επιστρέφει το πλήρες path του αρχείου"""
+        if self.file:
+            return self.file.path
+        return None
 
 
 # Signals for auto-folder creation

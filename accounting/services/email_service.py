@@ -454,13 +454,15 @@ class EmailService:
             user=user
         )
 
-        # Prepare attachments
+        # Prepare attachments - use new unified document system
         attachments = []
-        if include_attachment and obligation.attachment:
+        if include_attachment:
             try:
-                attachments.append(obligation.attachment)
+                # New: Get attachments from ClientDocument via get_email_attachments()
+                email_attachments = obligation.get_email_attachments()
+                attachments.extend(email_attachments)
             except Exception as e:
-                logger.warning(f"Could not add attachment: {e}")
+                logger.warning(f"Could not add attachments: {e}")
 
         # Send email
         return EmailService.send_email(
@@ -624,13 +626,14 @@ class EmailService:
             user=user
         )
 
-        # Prepare attachments
+        # Prepare attachments - use new unified document system
         attachments = []
-        if include_attachments and obligation.attachment:
+        if include_attachments:
             try:
-                attachments.append(obligation.attachment)
+                email_attachments = obligation.get_email_attachments()
+                attachments.extend(email_attachments)
             except Exception as e:
-                logger.warning(f"Could not add attachment: {e}")
+                logger.warning(f"Could not add attachments: {e}")
 
         # Create log entry
         email_log = EmailLog.objects.create(

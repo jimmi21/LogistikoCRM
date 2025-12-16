@@ -419,10 +419,201 @@ class ClientProfileAdmin(admin.ModelAdmin):
 
 @admin.register(ClientDocument)
 class ClientDocumentAdmin(admin.ModelAdmin):
-    list_display = ['filename', 'client', 'document_category', 'file_type', 'uploaded_at']
-    list_filter = ['document_category', 'file_type', 'uploaded_at']
-    search_fields = ['client__eponimia', 'client__afm', 'filename', 'description']
-    raw_id_fields = ['client', 'obligation']
+    """
+    Admin για έγγραφα πελατών με υποστήριξη versioning.
+    """
+    list_display = [
+        'filename',
+        'client_link',
+        'document_category',
+        'period_display',
+        'version_display',
+        'file_size_display',
+        'uploaded_at',
+        'open_folder_button',
+    ]
+    list_filter = [
+        'document_category',
+        'file_type',
+        'is_current',
+        'year',
+        ('uploaded_at', admin.DateFieldListFilter),
+    ]
+    search_fields = [
+        'client__eponimia',
+        'client__afm',
+        'filename',
+        'original_filename',
+        'description'
+    ]
+    raw_id_fields = ['client', 'obligation', 'previous_version']
+    readonly_fields = [
+        'filename',
+        'original_filename',
+        'file_type',
+        'file_size',
+        'version',
+        'is_current',
+        'uploaded_at',
+        'uploaded_by',
+        'folder_path_display',
+        'version_history',
+    ]
+    list_per_page = 50
+    date_hierarchy = 'uploaded_at'
+
+    fieldsets = (
+        ('Αρχείο', {
+            'fields': ('file', 'original_filename', 'filename', 'file_type', 'file_size')
+        }),
+        ('Σχέσεις', {
+            'fields': ('client', 'obligation', 'document_category')
+        }),
+        ('Περίοδος', {
+            'fields': ('year', 'month')
+        }),
+        ('Versioning', {
+            'fields': ('version', 'is_current', 'previous_version', 'version_history'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('description', 'uploaded_at', 'uploaded_by', 'folder_path_display'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    actions = ['show_all_versions', 'mark_as_current']
+
+    # === Custom Display Methods ===
+
+    @admin.display(description='Πελάτης')
+    def client_link(self, obj):
+        """Link στον πελάτη"""
+        if obj.client:
+            url = reverse('admin:accounting_clientprofile_change', args=[obj.client.id])
+            return format_html('<a href="{}">{}</a>', url, obj.client.eponimia[:30])
+        return '-'
+
+    @admin.display(description='Περίοδος')
+    def period_display(self, obj):
+        """Εμφάνιση περιόδου ΜΜ/ΕΕΕΕ"""
+        return f"{obj.month:02d}/{obj.year}"
+
+    @admin.display(description='Έκδοση')
+    def version_display(self, obj):
+        """Εμφάνιση έκδοσης με status"""
+        if obj.is_current:
+            return format_html(
+                '<span style="color: #28a745; font-weight: bold;">v{} ✓</span>',
+                obj.version
+            )
+        return format_html(
+            '<span style="color: #999;">v{}</span>',
+            obj.version
+        )
+
+    @admin.display(description='Μέγεθος')
+    def file_size_display(self, obj):
+        """Human-readable file size"""
+        return obj.file_size_display
+
+    @admin.display(description='📁')
+    def open_folder_button(self, obj):
+        """Button για άνοιγμα φακέλου"""
+        if obj.folder_path:
+            # URL για view που θα επιστρέψει το path
+            url = reverse('accounting:open_document_folder', args=[obj.id])
+            return format_html(
+                '<a href="{}" target="_blank" title="Άνοιγμα φακέλου: {}" '
+                'style="background: #417690; color: white; padding: 2px 6px; '
+                'border-radius: 3px; text-decoration: none; font-size: 10px;">📁</a>',
+                url, obj.folder_path
+            )
+        return '-'
+
+    @admin.display(description='Folder Path')
+    def folder_path_display(self, obj):
+        """Εμφάνιση πλήρους path"""
+        if obj.folder_path:
+            return format_html(
+                '<code style="background: #f4f4f4; padding: 4px 8px; '
+                'border-radius: 3px; font-size: 11px;">{}</code>',
+                obj.folder_path
+            )
+        return '-'
+
+    @admin.display(description='Ιστορικό Εκδόσεων')
+    def version_history(self, obj):
+        """Εμφάνιση όλων των εκδόσεων"""
+        versions = obj.get_all_versions()
+        if len(versions) <= 1:
+            return 'Μόνο μία έκδοση'
+
+        html = '<ul style="margin: 0; padding-left: 20px;">'
+        for v in versions:
+            status = '✓ Τρέχουσα' if v.is_current else ''
+            url = reverse('admin:accounting_clientdocument_change', args=[v.id])
+            html += f'<li><a href="{url}">v{v.version}</a> - {v.uploaded_at.strftime("%d/%m/%Y %H:%M")} {status}</li>'
+        html += '</ul>'
+        return format_html(html)
+
+    # === Actions ===
+
+    @admin.action(description='📜 Εμφάνιση όλων των εκδόσεων')
+    def show_all_versions(self, request, queryset):
+        """Φιλτράρισμα για εμφάνιση όλων των εκδόσεων"""
+        # Redirect στο changelist με φίλτρο
+        messages.info(request, f'Επιλέξατε {queryset.count()} έγγραφα')
+
+    @admin.action(description='✓ Ορισμός ως τρέχουσα έκδοση')
+    def mark_as_current(self, request, queryset):
+        """Ορίζει τα επιλεγμένα ως τρέχουσες εκδόσεις"""
+        for doc in queryset:
+            # Βρες όλες τις εκδόσεις του ίδιου αρχείου
+            ClientDocument.objects.filter(
+                client=doc.client,
+                obligation=doc.obligation,
+                document_category=doc.document_category,
+                year=doc.year,
+                month=doc.month,
+            ).update(is_current=False)
+
+            # Όρισε αυτό ως τρέχον
+            doc.is_current = True
+            doc.save(update_fields=['is_current'])
+
+        messages.success(request, f'✅ Ορίστηκαν {queryset.count()} ως τρέχουσες εκδόσεις')
+
+    # === Override save_model for versioning ===
+
+    def save_model(self, request, obj, form, change):
+        """
+        Κατά το save, ελέγχουμε αν υπάρχει ήδη αρχείο και ρωτάμε για versioning.
+        """
+        # Αν είναι νέο document
+        if not change:
+            obj.uploaded_by = request.user
+
+            # Έλεγχος αν υπάρχει ήδη αρχείο για αυτόν τον συνδυασμό
+            existing = ClientDocument.check_existing(
+                client=obj.client,
+                obligation=obj.obligation,
+                category=obj.document_category if obj.document_category != 'general' else None
+            )
+
+            if existing and 'confirm_replace' not in request.POST:
+                # Θα χειριστεί στο response_add
+                pass
+
+        super().save_model(request, obj, form, change)
+
+    def get_queryset(self, request):
+        """Default: εμφάνιση μόνο τρεχουσών εκδόσεων εκτός αν φιλτράρει"""
+        qs = super().get_queryset(request)
+        # Αν δεν υπάρχει φίλτρο is_current, δείξε μόνο τις τρέχουσες
+        if 'is_current__exact' not in request.GET:
+            qs = qs.filter(is_current=True)
+        return qs.select_related('client', 'obligation', 'uploaded_by')
 
 
 @admin.register(ArchiveConfiguration)

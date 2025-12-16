@@ -896,6 +896,81 @@ def file_delete(request, client_id, file_path):
 
 
 # =============================================================================
+# OPEN FOLDER VIEW
+# =============================================================================
+
+@staff_member_required
+def open_document_folder(request, document_id):
+    """
+    Επιστρέφει σελίδα με το path του φακέλου για τοπικό άνοιγμα.
+
+    Στα Windows, ο χρήστης μπορεί να κάνει copy το path και να το
+    επικολλήσει στον Explorer. Σε μελλοντική έκδοση μπορεί να
+    χρησιμοποιηθεί JavaScript με file:// protocol (με περιορισμούς
+    ασφαλείας του browser).
+    """
+    document = get_object_or_404(ClientDocument, id=document_id)
+
+    folder_path = document.folder_path
+    full_file_path = document.full_path
+
+    # Windows path conversion (αν χρειάζεται)
+    windows_path = None
+    if folder_path:
+        windows_path = folder_path.replace('/', '\\')
+
+    context = {
+        'document': document,
+        'folder_path': folder_path,
+        'full_file_path': full_file_path,
+        'windows_path': windows_path,
+        'client': document.client,
+    }
+
+    # Αν ζητηθεί JSON response
+    if request.headers.get('Accept') == 'application/json':
+        return JsonResponse({
+            'folder_path': folder_path,
+            'full_file_path': full_file_path,
+            'windows_path': windows_path,
+            'client_name': document.client.eponimia if document.client else None,
+        })
+
+    return render(request, 'accounting/open_folder.html', context)
+
+
+@staff_member_required
+def open_client_folder(request, client_id):
+    """
+    Άνοιγμα φακέλου πελάτη.
+    """
+    client = get_object_or_404(ClientProfile, id=client_id)
+
+    from ..models import get_client_folder
+    archive_root = getattr(settings, 'ARCHIVE_ROOT', settings.MEDIA_ROOT)
+    client_folder = get_client_folder(client)
+    folder_path = os.path.join(archive_root, client_folder)
+
+    # Windows path conversion
+    windows_path = folder_path.replace('/', '\\')
+
+    context = {
+        'client': client,
+        'folder_path': folder_path,
+        'windows_path': windows_path,
+    }
+
+    if request.headers.get('Accept') == 'application/json':
+        return JsonResponse({
+            'folder_path': folder_path,
+            'windows_path': windows_path,
+            'client_name': client.eponimia,
+        })
+
+    return render(request, 'accounting/open_folder.html', context)
+
+
+# =============================================================================
 # ARCHIVE SETTINGS VIEW
 # =============================================================================
 

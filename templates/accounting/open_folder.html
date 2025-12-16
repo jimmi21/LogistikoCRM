@@ -1,0 +1,173 @@
+{% extends "accounting/base.html" %}
+{% load static i18n %}
+
+{% block title %}Φάκελος - LogistikoCRM{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-folder-fill me-2"></i>
+                        Άνοιγμα Φακέλου
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if client %}
+                    <div class="mb-4">
+                        <h6 class="text-muted">Πελάτης</h6>
+                        <p class="mb-0 fw-bold">
+                            <a href="{% url 'admin:accounting_clientprofile_change' client.id %}">
+                                {{ client.eponimia }}
+                            </a>
+                            <small class="text-muted">({{ client.afm }})</small>
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    {% if document %}
+                    <div class="mb-4">
+                        <h6 class="text-muted">Έγγραφο</h6>
+                        <p class="mb-0">
+                            <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
+                            <strong>{{ document.filename }}</strong>
+                            <span class="badge bg-secondary ms-2">{{ document.document_category }}</span>
+                            {% if document.version > 1 %}
+                            <span class="badge bg-info ms-1">v{{ document.version }}</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Path Display -->
+                    <div class="mb-4">
+                        <h6 class="text-muted">Path Φακέλου</h6>
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control font-monospace"
+                                   id="folderPath"
+                                   value="{{ folder_path }}"
+                                   readonly>
+                            <button class="btn btn-outline-primary"
+                                    type="button"
+                                    onclick="copyPath('folderPath')"
+                                    title="Αντιγραφή στο clipboard">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Windows Path -->
+                    {% if windows_path %}
+                    <div class="mb-4">
+                        <h6 class="text-muted">Windows Path</h6>
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control font-monospace"
+                                   id="windowsPath"
+                                   value="{{ windows_path }}"
+                                   readonly>
+                            <button class="btn btn-outline-primary"
+                                    type="button"
+                                    onclick="copyPath('windowsPath')"
+                                    title="Αντιγραφή στο clipboard">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted mt-1 d-block">
+                            Κάντε copy το path και επικολλήστε το στο Windows Explorer
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Full File Path (if document) -->
+                    {% if full_file_path %}
+                    <div class="mb-4">
+                        <h6 class="text-muted">Πλήρες Path Αρχείου</h6>
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control font-monospace"
+                                   id="fullPath"
+                                   value="{{ full_file_path }}"
+                                   readonly>
+                            <button class="btn btn-outline-primary"
+                                    type="button"
+                                    onclick="copyPath('fullPath')"
+                                    title="Αντιγραφή στο clipboard">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Instructions -->
+                    <div class="alert alert-info mb-0">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Οδηγίες
+                        </h6>
+                        <ol class="mb-0 small">
+                            <li>Κάντε κλικ στο <i class="bi bi-clipboard"></i> για να αντιγράψετε το path</li>
+                            <li>Ανοίξτε τον Windows Explorer (Win + E)</li>
+                            <li>Επικολλήστε το path στη γραμμή διεύθυνσης (Ctrl + V)</li>
+                            <li>Πατήστε Enter</li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button class="btn btn-secondary" onclick="history.back()">
+                            <i class="bi bi-arrow-left me-1"></i>
+                            Πίσω
+                        </button>
+                        {% if client %}
+                        <a href="{% url 'accounting:client_files' client.id %}" class="btn btn-primary">
+                            <i class="bi bi-folder me-1"></i>
+                            Όλα τα αρχεία πελάτη
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Copy Success Toast -->
+            <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+                <div id="copyToast" class="toast align-items-center text-white bg-success border-0" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-check-circle me-1"></i>
+                            Αντιγράφηκε στο clipboard!
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyPath(inputId) {
+    const input = document.getElementById(inputId);
+    input.select();
+    input.setSelectionRange(0, 99999); // For mobile
+
+    navigator.clipboard.writeText(input.value).then(() => {
+        // Show toast
+        const toastEl = document.getElementById('copyToast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
+        toast.show();
+    }).catch(err => {
+        // Fallback for older browsers
+        document.execCommand('copy');
+        const toastEl = document.getElementById('copyToast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 2000 });
+        toast.show();
+    });
+}
+</script>
+{% endblock %}
