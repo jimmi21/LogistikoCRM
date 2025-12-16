@@ -32,7 +32,7 @@ from .models import (
 
 class ObligationTypeSettingsSerializer(serializers.ModelSerializer):
     """Full serializer for ObligationType in settings"""
-    profile_name = serializers.CharField(source='profile.name', read_only=True, default=None)
+    profile_names = serializers.SerializerMethodField()
     exclusion_group_name = serializers.CharField(source='exclusion_group.name', read_only=True, default=None)
 
     class Meta:
@@ -48,8 +48,8 @@ class ObligationTypeSettingsSerializer(serializers.ModelSerializer):
             'applicable_months',
             'exclusion_group',
             'exclusion_group_name',
-            'profile',
-            'profile_name',
+            'profiles',  # ManyToMany field
+            'profile_names',
             'priority',
             'is_active',
         ]
@@ -57,6 +57,10 @@ class ObligationTypeSettingsSerializer(serializers.ModelSerializer):
             'code': {'required': True},
             'name': {'required': True},
         }
+
+    def get_profile_names(self, obj):
+        """Get list of profile names"""
+        return list(obj.profiles.values_list('name', flat=True))
 
     def validate_code(self, value):
         """Ensure code is unique (case-insensitive)"""
@@ -76,7 +80,7 @@ class ObligationTypeSettingsSerializer(serializers.ModelSerializer):
 
 class ObligationTypeListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views"""
-    profile_name = serializers.CharField(source='profile.name', read_only=True, default=None)
+    profile_names = serializers.SerializerMethodField()
     exclusion_group_name = serializers.CharField(source='exclusion_group.name', read_only=True, default=None)
 
     class Meta:
@@ -88,12 +92,16 @@ class ObligationTypeListSerializer(serializers.ModelSerializer):
             'frequency',
             'deadline_type',
             'deadline_day',
-            'profile',
-            'profile_name',
+            'profiles',  # ManyToMany field
+            'profile_names',
             'exclusion_group',
             'exclusion_group_name',
             'is_active',
         ]
+
+    def get_profile_names(self, obj):
+        """Get list of profile names"""
+        return list(obj.profiles.values_list('name', flat=True))
 
 
 class ObligationProfileSettingsSerializer(serializers.ModelSerializer):
@@ -115,11 +123,11 @@ class ObligationProfileSettingsSerializer(serializers.ModelSerializer):
         }
 
     def get_obligation_types_count(self, obj):
-        return obj.obligations.filter(is_active=True).count()
+        return obj.obligation_types.filter(is_active=True).count()
 
     def get_obligation_types(self, obj):
         """Return list of obligation types linked to this profile"""
-        types = obj.obligations.filter(is_active=True).values('id', 'name', 'code')
+        types = obj.obligation_types.filter(is_active=True).values('id', 'name', 'code')
         return list(types)
 
     def validate_name(self, value):
@@ -206,12 +214,12 @@ class ObligationTypeSettingsViewSet(viewsets.ModelViewSet):
     PUT    /api/v1/settings/obligation-types/{id}/  - Update type
     DELETE /api/v1/settings/obligation-types/{id}/  - Delete type
     """
-    queryset = ObligationType.objects.all().select_related('profile', 'exclusion_group')
+    queryset = ObligationType.objects.all().select_related('exclusion_group').prefetch_related('profiles')
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     pagination_class = None  # Return all types without pagination (frontend expects array, not paginated object)
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'frequency', 'profile', 'exclusion_group']
+    filterset_fields = ['is_active', 'frequency', 'profiles', 'exclusion_group']
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['priority', 'name', 'code', 'is_active']
     ordering = ['priority', 'name']
@@ -259,7 +267,7 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
     PUT    /api/v1/settings/obligation-profiles/{id}/  - Update profile
     DELETE /api/v1/settings/obligation-profiles/{id}/  - Delete profile
     """
-    queryset = ObligationProfile.objects.all().prefetch_related('obligations')
+    queryset = ObligationProfile.objects.all().prefetch_related('obligation_types')
     serializer_class = ObligationProfileSettingsSerializer
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
@@ -283,8 +291,8 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        # Unlink obligation types before deleting
-        instance.obligations.update(profile=None)
+        # Unlink obligation types before deleting (ManyToMany - just clear)
+        instance.obligation_types.clear()
         instance.delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -293,13 +301,13 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
     def types(self, request, pk=None):
         """Get all obligation types linked to this profile"""
         profile = self.get_object()
-        types = profile.obligations.filter(is_active=True)
+        types = profile.obligation_types.filter(is_active=True)
         serializer = ObligationTypeListSerializer(types, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def add_types(self, request, pk=None):
-        """Add obligation types to this profile"""
+        """Add obligation types to this profile (ManyToMany - can be in multiple profiles)"""
         profile = self.get_object()
         type_ids = request.data.get('obligation_type_ids', [])
 
@@ -310,7 +318,9 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
             )
 
         types = ObligationType.objects.filter(id__in=type_ids, is_active=True)
-        types.update(profile=profile)
+        # ManyToMany: add each type to this profile
+        for obl_type in types:
+            obl_type.profiles.add(profile)
 
         return Response({
             'success': True,
@@ -329,8 +339,10 @@ class ObligationProfileSettingsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        types = ObligationType.objects.filter(id__in=type_ids, profile=profile)
-        types.update(profile=None)
+        types = ObligationType.objects.filter(id__in=type_ids)
+        # ManyToMany: remove each type from this profile
+        for obl_type in types:
+            obl_type.profiles.remove(profile)
 
         return Response({
             'success': True,

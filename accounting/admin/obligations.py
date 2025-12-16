@@ -98,23 +98,24 @@ class ObligationProfileAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
 
-        ObligationType.objects.filter(profile=obj).update(profile=None)
+        # Clear current types from this profile (ManyToMany)
+        obj.obligation_types.clear()
 
+        # Add selected types
         selected_types = form.cleaned_data.get('obligation_types', [])
         for obl_type in selected_types:
-            obl_type.profile = obj
-            obl_type.save()
+            obl_type.profiles.add(obj)
 
         messages.success(request, f'✅ Profile "{obj.name}" ενημερώθηκε με {len(selected_types)} υποχρεώσεις!')
 
     def get_obligation_count(self, obj):
-        return obj.obligations.count()
+        return obj.obligation_types.count()
     get_obligation_count.short_description = 'Πλήθος'
 
     def get_obligations_list(self, obj):
-        obligations = obj.obligations.all()[:3]
+        obligations = obj.obligation_types.all()[:3]
         names = [o.name for o in obligations]
-        if obj.obligations.count() > 3:
+        if obj.obligation_types.count() > 3:
             names.append('...')
         return ', '.join(names) if names else '—'
     get_obligations_list.short_description = 'Υποχρεώσεις'
@@ -122,8 +123,12 @@ class ObligationProfileAdmin(admin.ModelAdmin):
 
 @admin.register(ObligationType)
 class ObligationTypeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'frequency', 'deadline_type', 'profile', 'exclusion_group', 'is_active', 'priority']
-    list_filter = ['frequency', 'is_active', 'profile', 'exclusion_group']
+    list_display = ['name', 'code', 'frequency', 'deadline_type', 'get_profiles', 'exclusion_group', 'is_active', 'priority']
+    list_filter = ['frequency', 'is_active', 'profiles', 'exclusion_group']
+
+    def get_profiles(self, obj):
+        return ', '.join([p.name for p in obj.profiles.all()]) or '—'
+    get_profiles.short_description = 'Profiles'
     search_fields = ['name', 'code']
     list_editable = ['priority', 'is_active']
 
@@ -190,7 +195,7 @@ class ClientObligationAdmin(admin.ModelAdmin):
                 # Validate ΦΠΑ exclusion
                 all_types = list(types)
                 for profile in profiles:
-                    all_types.extend(profile.obligations.all())
+                    all_types.extend(profile.obligation_types.all())
 
                 type_names = [t.name for t in all_types]
                 has_monthly = any('ΦΠΑ Μηνιαίο' in name or 'ΦΠΑ ΜΗΝΙΑΙΟ' in name.upper() for name in type_names)

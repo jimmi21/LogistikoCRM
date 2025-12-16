@@ -467,9 +467,9 @@ def export_obligation_profiles_csv(request):
     writer = csv.writer(response)
     writer.writerow(['ID', 'Όνομα', 'Περιγραφή', 'Τύποι Υποχρεώσεων'])
 
-    profiles = ObligationProfile.objects.all().prefetch_related('obligations')
+    profiles = ObligationProfile.objects.all().prefetch_related('obligation_types')
     for profile in profiles:
-        type_codes = ', '.join([ot.code for ot in profile.obligations.all()])
+        type_codes = ', '.join([ot.code for ot in profile.obligation_types.all()])
         writer.writerow([profile.id, profile.name or '', profile.description or '', type_codes])
 
     return response

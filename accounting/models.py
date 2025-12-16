@@ -158,10 +158,10 @@ class ObligationType(models.Model):
                                        verbose_name='Ομάδα Αλληλοαποκλεισμού',
                                        help_text='Υποχρεώσεις στην ίδια ομάδα αλληλοαποκλείονται')
     
-    profile = models.ForeignKey(ObligationProfile, on_delete=models.SET_NULL, null=True, blank=True,
-                               verbose_name='Profile Υποχρεώσεων',
-                               related_name='obligations',
-                               help_text='Αν ανήκει σε profile (π.χ. Μισθοδοσία)')
+    profiles = models.ManyToManyField(ObligationProfile, blank=True,
+                                     verbose_name='Profiles Υποχρεώσεων',
+                                     related_name='obligation_types',
+                                     help_text='Σε ποια profiles ανήκει (μπορεί σε πολλά)')
     
     priority = models.IntegerField('Προτεραιότητα', default=0)
     is_active = models.BooleanField('Ενεργή', default=True)
@@ -245,10 +245,10 @@ class ClientObligation(models.Model):
     def get_all_obligation_types(self):
         """Επιστρέφει όλες τις υποχρεώσεις (μεμονωμένες + από profiles)"""
         obligations = set(self.obligation_types.all())
-        
+
         for profile in self.obligation_profiles.all():
-            obligations.update(profile.obligations.all())
-        
+            obligations.update(profile.obligation_types.all())
+
         return list(obligations)
 
 

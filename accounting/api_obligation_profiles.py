@@ -301,7 +301,7 @@ def obligation_profiles_list(request):
     GET /api/v1/obligation-profiles/
     Returns all reusable obligation profiles
     """
-    profiles = ObligationProfile.objects.all().prefetch_related('obligations')
+    profiles = ObligationProfile.objects.all().prefetch_related('obligation_types')
     serializer = ObligationProfileSerializer(profiles, many=True)
     return Response(serializer.data)
 

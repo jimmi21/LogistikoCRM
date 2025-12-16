@@ -70,7 +70,7 @@ function ObligationTypeModal({ isOpen, onClose, type, profiles, groups }: TypeMo
     deadline_day: type?.deadline_day || null,
     applicable_months: type?.applicable_months || '',
     exclusion_group: type?.exclusion_group || null,
-    profile: type?.profile || null,
+    profiles: type?.profiles || [],  // ManyToMany - array
     priority: type?.priority || 0,
     is_active: type?.is_active ?? true,
   });
@@ -88,12 +88,22 @@ function ObligationTypeModal({ isOpen, onClose, type, profiles, groups }: TypeMo
       deadline_day: type?.deadline_day || null,
       applicable_months: type?.applicable_months || '',
       exclusion_group: type?.exclusion_group || null,
-      profile: type?.profile || null,
+      profiles: type?.profiles || [],  // ManyToMany - array
       priority: type?.priority || 0,
       is_active: type?.is_active ?? true,
     });
     setError(null);
   }, [type]);
+
+  // Toggle profile in selection
+  const toggleProfile = (profileId: number) => {
+    const current = formData.profiles || [];
+    if (current.includes(profileId)) {
+      setFormData({ ...formData, profiles: current.filter(id => id !== profileId) });
+    } else {
+      setFormData({ ...formData, profiles: [...current, profileId] });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,21 +260,32 @@ function ObligationTypeModal({ isOpen, onClose, type, profiles, groups }: TypeMo
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Προφίλ</label>
-              <select
-                value={formData.profile || ''}
-                onChange={(e) =>
-                  setFormData({ ...formData, profile: e.target.value ? parseInt(e.target.value) : null })
-                }
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">-- Χωρίς προφίλ --</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Προφίλ
+                <span className="ml-2 text-xs text-gray-500">
+                  ({(formData.profiles || []).length} επιλεγμένα)
+                </span>
+              </label>
+              <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
+                {profiles.length === 0 ? (
+                  <p className="p-2 text-gray-500 text-sm">Δεν υπάρχουν προφίλ.</p>
+                ) : (
+                  profiles.map((p) => (
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(formData.profiles || []).includes(p.id)}
+                        onChange={() => toggleProfile(p.id)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{p.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ομάδα Αλληλοαποκλεισμού</label>
@@ -984,7 +1005,22 @@ export default function ObligationSettings() {
                               <span className="ml-1 text-gray-400">({type.deadline_day}η)</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-gray-600">{type.profile_name || '-'}</td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {type.profile_names && type.profile_names.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {type.profile_names.map((name, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded"
+                                  >
+                                    {name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             {type.is_active ? (
                               <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">
