@@ -99,21 +99,21 @@ def clients_obligation_status(request):
     if active_only:
         clients_qs = clients_qs.filter(is_active=True)
 
-    # Prefetch obligation data
+    # Prefetch obligation data - related_name is 'obligation_settings'
     clients_qs = clients_qs.select_related().prefetch_related(
-        'clientobligation',
-        'clientobligation__obligation_types',
-        'clientobligation__obligation_profiles'
+        'obligation_settings',
+        'obligation_settings__obligation_types',
+        'obligation_settings__obligation_profiles'
     )
 
     result = []
     for client in clients_qs:
-        has_profile = hasattr(client, 'clientobligation') and client.clientobligation is not None
+        has_profile = hasattr(client, 'obligation_settings') and client.obligation_settings is not None
         obligation_types_count = 0
         profile_names = []
 
         if has_profile:
-            client_obl = client.clientobligation
+            client_obl = client.obligation_settings
             if client_obl.is_active:
                 # Count individual types
                 individual_types = client_obl.obligation_types.filter(is_active=True).count()
