@@ -5,11 +5,13 @@ Author: Claude
 Description: REST API for Client Obligation Profiles and Monthly Generation
 
 Endpoints:
+- GET  /api/v1/clients/obligation-status/        - Get all clients with obligation status
 - GET  /api/v1/clients/{id}/obligation-profile/  - Get client's obligation profile
 - PUT  /api/v1/clients/{id}/obligation-profile/  - Update client's obligation profile
 - GET  /api/v1/obligation-types/grouped/         - Get obligation types grouped by category
 - GET  /api/v1/obligation-profiles/              - Get reusable obligation profiles
 - POST /api/v1/obligations/generate-month/       - Generate monthly obligations from profiles
+- POST /api/v1/obligations/bulk-assign/          - Bulk assign obligations to clients
 """
 
 from rest_framework import status, serializers
@@ -60,6 +62,104 @@ class ClientObligationProfileSerializer(serializers.Serializer):
     obligation_types = ObligationTypeGroupedSerializer(many=True)
     obligation_profile_ids = serializers.ListField(child=serializers.IntegerField())
     obligation_profiles = ObligationProfileSerializer(many=True)
+
+
+# ============================================
+# CLIENT OBLIGATION STATUS ENDPOINT
+# ============================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def clients_obligation_status(request):
+    """
+    GET /api/v1/clients/obligation-status/
+    Returns all clients with their obligation profile status
+
+    Query params:
+    - active_only: true/false (default: true)
+
+    Response:
+    [
+        {
+            id: 1,
+            afm: "123456789",
+            eponimia: "ΕΤΑΙΡΕΙΑ ΑΕ",
+            is_active: true,
+            has_obligation_profile: true,
+            obligation_types_count: 5,
+            obligation_profile_names: ["Μισθοδοσία", "ΦΠΑ"]
+        },
+        ...
+    ]
+    """
+    active_only = request.query_params.get('active_only', 'true').lower() == 'true'
+
+    # Get clients
+    clients_qs = ClientProfile.objects.all()
+    if active_only:
+        clients_qs = clients_qs.filter(is_active=True)
+
+    # Prefetch obligation data - related_name is 'obligation_settings'
+    clients_qs = clients_qs.select_related().prefetch_related(
+        'obligation_settings',
+        'obligation_settings__obligation_types',
+        'obligation_settings__obligation_profiles'
+    )
+
+    result = []
+    for client in clients_qs:
+        obligation_types_count = 0
+        profile_names = []
+        has_profile = False
+        obligation_types_detail = []  # Detailed info with groups
+        groups_used = set()  # Track which groups are used
+
+        # Check if client has obligation_settings using try/except (safer for OneToOne)
+        try:
+            client_obl = client.obligation_settings
+            if client_obl and client_obl.is_active:
+                has_profile = True
+                # Get all obligation types (individual + from profiles)
+                all_types = client_obl.get_all_obligation_types()
+                obligation_types_count = len(all_types)
+
+                # Get profile names
+                for profile in client_obl.obligation_profiles.all():
+                    profile_names.append(profile.name)
+
+                # Get detailed obligation types with groups
+                for ot in all_types:
+                    group_name = None
+                    group_id = None
+                    if ot.exclusion_group:
+                        group_name = ot.exclusion_group.name
+                        group_id = ot.exclusion_group.id
+                        groups_used.add(group_name)
+
+                    obligation_types_detail.append({
+                        'id': ot.id,
+                        'name': ot.name,
+                        'code': ot.code,
+                        'frequency': ot.frequency,
+                        'group_id': group_id,
+                        'group_name': group_name,
+                    })
+        except ClientObligation.DoesNotExist:
+            pass
+
+        result.append({
+            'id': client.id,
+            'afm': client.afm,
+            'eponimia': client.eponimia,
+            'is_active': client.is_active,
+            'has_obligation_profile': has_profile,
+            'obligation_types_count': obligation_types_count,
+            'obligation_profile_names': profile_names,
+            'obligation_types': obligation_types_detail,  # Detailed types with groups
+            'groups_used': list(groups_used),  # Quick list of group names
+        })
+
+    return Response(result)
 
 
 # ============================================
@@ -201,7 +301,7 @@ def obligation_profiles_list(request):
     GET /api/v1/obligation-profiles/
     Returns all reusable obligation profiles
     """
-    profiles = ObligationProfile.objects.all().prefetch_related('obligations')
+    profiles = ObligationProfile.objects.all().prefetch_related('obligation_types')
     serializer = ObligationProfileSerializer(profiles, many=True)
     return Response(serializer.data)
 

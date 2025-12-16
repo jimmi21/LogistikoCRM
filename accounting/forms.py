@@ -210,7 +210,7 @@ class ObligationProfileForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            self.initial['obligation_types'] = self.instance.obligations.all()
+            self.initial['obligation_types'] = self.instance.obligation_types.all()
 
 
 # ============================================================================

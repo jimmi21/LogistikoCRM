@@ -32,6 +32,7 @@ import {
   useUpdateClientObligationProfile,
 } from '../hooks/useClientDetails';
 import { useObligationTypesGrouped } from '../hooks/useObligations';
+import { useObligationProfilesList } from '../hooks/useObligationSettings';
 import type { ClientFull } from '../types';
 
 // Import tab components
@@ -95,6 +96,7 @@ export default function ClientDetails() {
 
   // Obligation Profile hooks
   const { data: obligationTypesGrouped, isLoading: typesLoading } = useObligationTypesGrouped();
+  const { data: obligationProfiles, isLoading: profilesListLoading } = useObligationProfilesList();
   const { data: clientObligationProfile, isLoading: profileLoading } = useClientObligationProfile(clientId);
   const updateProfileMutation = useUpdateClientObligationProfile(clientId);
 
@@ -304,8 +306,9 @@ export default function ClientDetails() {
           {activeTab === 'profile' && (
             <ClientProfileTab
               groupedTypes={obligationTypesGrouped || []}
+              profiles={obligationProfiles || []}
               clientProfile={clientObligationProfile}
-              isLoading={typesLoading || profileLoading}
+              isLoading={typesLoading || profileLoading || profilesListLoading}
               onSave={(typeIds, profileIds) => {
                 updateProfileMutation.mutate({
                   obligation_type_ids: typeIds,

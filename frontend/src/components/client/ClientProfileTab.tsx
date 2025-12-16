@@ -6,39 +6,61 @@ import {
   ExternalLink,
   AlertCircle,
   CheckCircle,
+  Users,
+  Layers,
 } from 'lucide-react';
 import { Button } from '../../components';
-import type { ObligationGroup } from '../../types';
+import type { ObligationGroup, ObligationProfileFull } from '../../types';
 import { FREQUENCY_LABELS } from '../../types';
 
 // Props interface
 export interface ClientProfileTabProps {
   groupedTypes: ObligationGroup[];
+  profiles: ObligationProfileFull[];  // Add profiles
   clientProfile: { obligation_type_ids: number[]; obligation_profile_ids: number[] } | undefined;
   isLoading: boolean;
   onSave: (typeIds: number[], profileIds: number[]) => void;
   isSaving: boolean;
+  onBulkAssign?: (typeIds: number[], profileIds: number[]) => void;  // Bulk assign callback
 }
 
 export default function ClientProfileTab({
   groupedTypes,
+  profiles,
   clientProfile,
   isLoading,
   onSave,
   isSaving,
+  onBulkAssign,
 }: ClientProfileTabProps) {
   // Local state for selected obligations
   const [selectedTypeIds, setSelectedTypeIds] = useState<Set<number>>(new Set());
+  const [selectedProfileIds, setSelectedProfileIds] = useState<Set<number>>(new Set());
   const [hasChanges, setHasChanges] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [exclusionWarning, setExclusionWarning] = useState<string | null>(null);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
 
   // Initialize from client profile when it loads
   useEffect(() => {
     if (clientProfile) {
       setSelectedTypeIds(new Set(clientProfile.obligation_type_ids));
+      setSelectedProfileIds(new Set(clientProfile.obligation_profile_ids || []));
     }
   }, [clientProfile]);
+
+  // Toggle profile selection
+  const toggleProfile = (profileId: number) => {
+    const newSelected = new Set(selectedProfileIds);
+    if (newSelected.has(profileId)) {
+      newSelected.delete(profileId);
+    } else {
+      newSelected.add(profileId);
+    }
+    setSelectedProfileIds(newSelected);
+    setHasChanges(true);
+    setSaveSuccess(false);
+  };
 
   // Build a map of type id to group info for exclusion logic
   const typeToGroupMap = new Map<number, { groupId: number | null; groupName: string; types: typeof groupedTypes[0]['types'] }>();
@@ -134,12 +156,19 @@ export default function ClientProfileTab({
 
   // Handle save
   const handleSave = () => {
-    onSave(Array.from(selectedTypeIds), clientProfile?.obligation_profile_ids || []);
+    onSave(Array.from(selectedTypeIds), Array.from(selectedProfileIds));
     setHasChanges(false);
     setSaveSuccess(true);
     setExclusionWarning(null);
     // Reset success message after 3 seconds
     setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  // Handle bulk assign
+  const handleBulkAssign = () => {
+    if (onBulkAssign) {
+      setShowBulkAssignModal(true);
+    }
   };
 
   if (isLoading) {
@@ -168,6 +197,17 @@ export default function ClientProfileTab({
               Αποθηκεύτηκε
             </span>
           )}
+          {onBulkAssign && (
+            <Button
+              variant="secondary"
+              onClick={handleBulkAssign}
+              disabled={selectedTypeIds.size === 0 && selectedProfileIds.size === 0}
+              title="Ανάθεση αυτών των επιλογών σε πολλούς πελάτες"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Μαζική Ανάθεση
+            </Button>
+          )}
           <Button
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
@@ -181,6 +221,50 @@ export default function ClientProfileTab({
           </Button>
         </div>
       </div>
+
+      {/* Profiles Section */}
+      {profiles && profiles.length > 0 && (
+        <div className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30">
+          <div className="flex items-center justify-between bg-blue-100 px-4 py-3 border-b border-blue-200">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-600" />
+              <h4 className="font-medium text-blue-900">Profiles Υποχρεώσεων</h4>
+              <span className="px-2 py-0.5 text-xs bg-blue-200 text-blue-700 rounded">
+                {selectedProfileIds.size} επιλεγμένα
+              </span>
+            </div>
+          </div>
+          <div className="divide-y divide-blue-100">
+            {profiles.map((profile) => (
+              <label
+                key={profile.id}
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-blue-50"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedProfileIds.has(profile.id)}
+                    onChange={() => toggleProfile(profile.id)}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">{profile.name}</span>
+                    {profile.description && (
+                      <span className="text-xs text-gray-500 ml-2">- {profile.description}</span>
+                    )}
+                  </div>
+                </div>
+                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">
+                  {profile.obligation_types_count} τύποι
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="px-4 py-2 bg-blue-50 text-xs text-blue-700 border-t border-blue-200">
+            Τα profiles περιλαμβάνουν προκαθορισμένες ομάδες υποχρεώσεων
+          </div>
+        </div>
+      )}
 
       {/* Exclusion warning */}
       {exclusionWarning && (
@@ -282,6 +366,11 @@ export default function ClientProfileTab({
       <div className="bg-gray-50 rounded-lg p-4">
         <p className="text-sm text-gray-600">
           <span className="font-medium text-gray-900">{selectedTypeIds.size}</span> υποχρεώσεις επιλεγμένες
+          {selectedProfileIds.size > 0 && (
+            <span className="ml-2">
+              + <span className="font-medium text-blue-600">{selectedProfileIds.size}</span> profiles
+            </span>
+          )}
         </p>
       </div>
 

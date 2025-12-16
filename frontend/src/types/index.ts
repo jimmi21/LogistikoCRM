@@ -684,8 +684,8 @@ export interface ObligationTypeFull {
   applicable_months?: string | null;
   exclusion_group: number | null;
   exclusion_group_name: string | null;
-  profile: number | null;
-  profile_name: string | null;
+  profiles: number[];  // ManyToMany - array of profile IDs
+  profile_names: string[];  // Array of profile names
   priority: number;
   is_active: boolean;
 }
@@ -700,7 +700,7 @@ export interface ObligationTypeFormData {
   deadline_day?: number | null;
   applicable_months?: string;
   exclusion_group?: number | null;
-  profile?: number | null;
+  profiles?: number[];  // ManyToMany - array of profile IDs
   priority?: number;
   is_active: boolean;
 }

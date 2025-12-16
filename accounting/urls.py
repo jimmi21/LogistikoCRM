@@ -19,6 +19,7 @@ from .api_dashboard import (
     dashboard_client_stats
 )
 from .api_obligation_profiles import (
+    clients_obligation_status,
     client_obligation_profile,
     obligation_types_grouped,
     obligation_profiles_list,
@@ -230,6 +231,7 @@ urlpatterns = [
     # ============================================
     # OBLIGATION PROFILE APIs
     # ============================================
+    path("api/v1/clients/obligation-status/", clients_obligation_status, name="clients_obligation_status"),
     path("api/v1/clients/<int:client_id>/obligation-profile/", client_obligation_profile, name="client_obligation_profile"),
     path("api/v1/obligation-types/grouped/", obligation_types_grouped, name="obligation_types_grouped"),
     path("api/v1/obligation-profiles/", obligation_profiles_list, name="obligation_profiles_list"),
