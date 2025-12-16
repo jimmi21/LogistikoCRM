@@ -108,6 +108,11 @@ from .completion.completion_views import (
     open_document_folder,
     open_client_folder,
 )
+from .api_document_upload import (
+    check_existing_document,
+    upload_document_with_version,
+    document_preview,
+)
 
 
 app_name = "accounting"
@@ -329,6 +334,13 @@ urlpatterns = [
     # Archive Settings
     path("settings/archive/", archive_settings_view, name="archive_settings"),
     path("settings/archive/create/", archive_config_create, name="archive_config_create"),
+
+    # ==================================================
+    # DOCUMENT UPLOAD API WITH VERSIONING
+    # ==================================================
+    path("api/v1/documents/check-existing/", check_existing_document, name="api_check_existing_document"),
+    path("api/v1/documents/upload-with-version/", upload_document_with_version, name="api_upload_document_with_version"),
+    path("api/v1/documents/<int:document_id>/preview/", document_preview, name="api_document_preview"),
 
     # ==================================================
     # EXPORT/IMPORT ENDPOINTS

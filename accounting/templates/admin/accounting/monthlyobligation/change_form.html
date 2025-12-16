@@ -1,0 +1,855 @@
+{% extends "admin/change_form.html" %}
+{% load static i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+/* ============================================
+   DOCUMENT UPLOAD STYLES
+   ============================================ */
+
+/* Drop zone styling */
+.document-dropzone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 30px 20px;
+    text-align: center;
+    background: #fafafa;
+    transition: all 0.3s ease;
+    margin: 10px 0;
+    cursor: pointer;
+}
+
+.document-dropzone:hover {
+    border-color: #667eea;
+    background: #f5f7ff;
+}
+
+.document-dropzone.dragover {
+    border-color: #28a745;
+    background: #e8f5e9;
+    transform: scale(1.01);
+}
+
+.document-dropzone.uploading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.document-dropzone-icon {
+    font-size: 48px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.document-dropzone-text {
+    color: #666;
+    font-size: 14px;
+}
+
+.document-dropzone-text strong {
+    color: #667eea;
+}
+
+/* Upload progress */
+.upload-progress {
+    display: none;
+    margin: 10px 0;
+}
+
+.upload-progress.show {
+    display: block;
+}
+
+.upload-progress-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: #e0e0e0;
+    overflow: hidden;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+/* Document list */
+.document-list {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+
+.document-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+}
+
+.document-item:hover {
+    background: #e9ecef;
+}
+
+.document-icon {
+    font-size: 24px;
+    margin-right: 12px;
+}
+
+.document-icon.pdf { color: #dc3545; }
+.document-icon.image { color: #28a745; }
+.document-icon.default { color: #6c757d; }
+
+.document-info {
+    flex: 1;
+}
+
+.document-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.document-meta {
+    font-size: 12px;
+    color: #666;
+}
+
+.document-version {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e0e0e0;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-left: 8px;
+}
+
+.document-version.current {
+    background: #28a745;
+    color: white;
+}
+
+.document-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.document-actions button {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.btn-preview {
+    background: #667eea;
+    color: white;
+}
+
+.btn-preview:hover {
+    background: #5a6fe0;
+}
+
+.btn-download {
+    background: #28a745;
+    color: white;
+}
+
+.btn-download:hover {
+    background: #218838;
+}
+
+.btn-folder {
+    background: #ffc107;
+    color: #333;
+}
+
+.btn-folder:hover {
+    background: #e0a800;
+}
+
+/* ============================================
+   VERSION CONFIRMATION MODAL
+   ============================================ */
+
+.version-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.version-modal-overlay.show {
+    display: flex;
+}
+
+.version-modal {
+    background: white;
+    border-radius: 12px;
+    width: 500px;
+    max-width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.version-modal-header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 20px;
+}
+
+.version-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.version-modal-body {
+    padding: 20px;
+}
+
+.existing-file-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.existing-file-info h4 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 14px;
+}
+
+.existing-file-details {
+    font-size: 13px;
+    color: #666;
+}
+
+.version-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.version-option {
+    display: flex;
+    align-items: flex-start;
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.version-option:hover {
+    border-color: #667eea;
+    background: #f5f7ff;
+}
+
+.version-option.selected {
+    border-color: #667eea;
+    background: #f5f7ff;
+}
+
+.version-option input[type="radio"] {
+    margin-right: 12px;
+    margin-top: 3px;
+}
+
+.version-option-content {
+    flex: 1;
+}
+
+.version-option-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.version-option-desc {
+    font-size: 12px;
+    color: #666;
+}
+
+.version-modal-footer {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.version-modal-footer button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-cancel {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.btn-cancel:hover {
+    background: #ccc;
+}
+
+.btn-confirm {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.btn-confirm:hover {
+    opacity: 0.9;
+}
+
+/* ============================================
+   FILE PREVIEW MODAL
+   ============================================ */
+
+.preview-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.preview-modal-overlay.show {
+    display: flex;
+}
+
+.preview-modal {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 1200px;
+    height: 90%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.preview-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: #333;
+    color: white;
+}
+
+.preview-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.preview-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.preview-close:hover {
+    color: #ff5252;
+}
+
+.preview-modal-body {
+    flex: 1;
+    overflow: auto;
+    background: #f5f5f5;
+}
+
+.preview-modal-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.preview-modal-body img {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    margin: auto;
+}
+
+.preview-not-available {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #666;
+}
+
+.preview-not-available-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+/* ============================================
+   TOAST NOTIFICATIONS
+   ============================================ */
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+}
+
+.toast {
+    background: white;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toastSlideIn 0.3s ease;
+    max-width: 400px;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.toast.success {
+    border-left: 4px solid #28a745;
+}
+
+.toast.error {
+    border-left: 4px solid #dc3545;
+}
+
+.toast.warning {
+    border-left: 4px solid #ffc107;
+}
+
+.toast.info {
+    border-left: 4px solid #17a2b8;
+}
+
+.toast-icon {
+    font-size: 20px;
+}
+
+.toast.success .toast-icon { color: #28a745; }
+.toast.error .toast-icon { color: #dc3545; }
+.toast.warning .toast-icon { color: #ffc107; }
+.toast.info .toast-icon { color: #17a2b8; }
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    color: #333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{{ block.super }}
+
+<!-- Version Confirmation Modal -->
+<div id="versionModalOverlay" class="version-modal-overlay">
+    <div class="version-modal">
+        <div class="version-modal-header">
+            <h3>Υπάρχον Αρχείο</h3>
+        </div>
+        <div class="version-modal-body">
+            <div class="existing-file-info">
+                <h4>Βρέθηκε υπάρχον αρχείο:</h4>
+                <div class="existing-file-details">
+                    <p><strong>Όνομα:</strong> <span id="existingFilename"></span></p>
+                    <p><strong>Έκδοση:</strong> <span id="existingVersion"></span></p>
+                    <p><strong>Ανέβηκε:</strong> <span id="existingUploadedAt"></span></p>
+                </div>
+            </div>
+            <p style="margin-bottom: 15px; color: #666;">Τι θέλετε να κάνετε;</p>
+            <div class="version-options">
+                <label class="version-option">
+                    <input type="radio" name="versionAction" value="new_version" checked>
+                    <div class="version-option-content">
+                        <div class="version-option-title">Δημιουργία νέας έκδοσης</div>
+                        <div class="version-option-desc">Κρατάει το παλιό αρχείο και δημιουργεί νέα έκδοση</div>
+                    </div>
+                </label>
+                <label class="version-option">
+                    <input type="radio" name="versionAction" value="replace">
+                    <div class="version-option-content">
+                        <div class="version-option-title">Αντικατάσταση</div>
+                        <div class="version-option-desc">Διαγράφει το παλιό αρχείο και το αντικαθιστά με το νέο</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+        <div class="version-modal-footer">
+            <button type="button" class="btn-cancel" onclick="closeVersionModal()">Ακύρωση</button>
+            <button type="button" class="btn-confirm" onclick="confirmVersionAction()">Συνέχεια</button>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModalOverlay" class="preview-modal-overlay">
+    <div class="preview-modal">
+        <div class="preview-modal-header">
+            <h3 id="previewTitle">Προεπισκόπηση</h3>
+            <button type="button" class="preview-close" onclick="closePreviewModal()">&times;</button>
+        </div>
+        <div class="preview-modal-body" id="previewContent">
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+{% endblock %}
+
+{% block admin_change_form_document_ready %}
+{{ block.super }}
+<script>
+(function() {
+    'use strict';
+
+    // Configuration
+    const API_BASE = '/accounting/api/v1';
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    // State
+    let pendingFile = null;
+    let pendingFileData = null;
+
+    // ============================================
+    // TOAST NOTIFICATIONS
+    // ============================================
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type]}</span>
+            <span class="toast-message">${message}</span>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100px)';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // ============================================
+    // VERSION MODAL
+    // ============================================
+
+    window.showVersionModal = function(existingDoc) {
+        document.getElementById('existingFilename').textContent = existingDoc.filename;
+        document.getElementById('existingVersion').textContent = 'v' + existingDoc.version;
+        document.getElementById('existingUploadedAt').textContent = existingDoc.uploaded_at;
+
+        document.getElementById('versionModalOverlay').classList.add('show');
+    };
+
+    window.closeVersionModal = function() {
+        document.getElementById('versionModalOverlay').classList.remove('show');
+        pendingFile = null;
+        pendingFileData = null;
+    };
+
+    window.confirmVersionAction = function() {
+        const action = document.querySelector('input[name="versionAction"]:checked').value;
+
+        if (pendingFile && pendingFileData) {
+            uploadFileWithAction(pendingFile, pendingFileData, action);
+        }
+
+        closeVersionModal();
+    };
+
+    // ============================================
+    // FILE PREVIEW
+    // ============================================
+
+    window.showPreview = function(documentId) {
+        fetch(`${API_BASE}/documents/${documentId}/preview/`, {
+            headers: {
+                'Accept': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const content = document.getElementById('previewContent');
+            document.getElementById('previewTitle').textContent = data.filename;
+
+            if (data.can_preview) {
+                if (data.preview_type === 'pdf') {
+                    content.innerHTML = `<iframe src="${data.url}#view=FitH"></iframe>`;
+                } else if (data.preview_type === 'image') {
+                    content.innerHTML = `<img src="${data.url}" alt="${data.filename}">`;
+                }
+            } else {
+                content.innerHTML = `
+                    <div class="preview-not-available">
+                        <div class="preview-not-available-icon">📄</div>
+                        <p>Η προεπισκόπηση δεν είναι διαθέσιμη για αυτό τον τύπο αρχείου</p>
+                        <p><a href="${data.url}" target="_blank" style="color: #667eea;">Λήψη αρχείου</a></p>
+                    </div>
+                `;
+            }
+
+            document.getElementById('previewModalOverlay').classList.add('show');
+        })
+        .catch(error => {
+            showToast('Σφάλμα φόρτωσης προεπισκόπησης', 'error');
+        });
+    };
+
+    window.closePreviewModal = function() {
+        document.getElementById('previewModalOverlay').classList.remove('show');
+        document.getElementById('previewContent').innerHTML = '';
+    };
+
+    // Close modals on overlay click
+    document.getElementById('previewModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closePreviewModal();
+    });
+
+    document.getElementById('versionModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeVersionModal();
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closePreviewModal();
+            closeVersionModal();
+        }
+    });
+
+    // ============================================
+    // FILE UPLOAD WITH VERSION CHECK
+    // ============================================
+
+    function uploadFileWithAction(file, data, action) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('client_id', data.client_id);
+        formData.append('obligation_id', data.obligation_id);
+        formData.append('category', data.category);
+        formData.append('version_action', action);
+
+        fetch(`${API_BASE}/documents/upload-with-version/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showToast(result.message, 'success');
+                // Refresh the page to show new document
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(result.error || 'Σφάλμα upload', 'error');
+            }
+        })
+        .catch(error => {
+            showToast('Σφάλμα σύνδεσης', 'error');
+        });
+    }
+
+    // ============================================
+    // DRAG & DROP ENHANCEMENT
+    // ============================================
+
+    function initDragAndDrop() {
+        // Find all file input containers in inlines
+        const inlineGroups = document.querySelectorAll('.inline-group');
+
+        inlineGroups.forEach(group => {
+            if (group.id && group.id.includes('document')) {
+                enhanceInlineWithDragDrop(group);
+            }
+        });
+    }
+
+    function enhanceInlineWithDragDrop(container) {
+        // Create drop zone
+        const dropzone = document.createElement('div');
+        dropzone.className = 'document-dropzone';
+        dropzone.innerHTML = `
+            <div class="document-dropzone-icon">📁</div>
+            <div class="document-dropzone-text">
+                Σύρετε αρχεία εδώ ή <strong>κάντε κλικ</strong> για επιλογή
+            </div>
+            <input type="file" style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.gif">
+        `;
+
+        const fileInput = dropzone.querySelector('input[type="file"]');
+
+        // Insert at beginning of container
+        const firstRow = container.querySelector('.form-row, tbody');
+        if (firstRow) {
+            container.insertBefore(dropzone, firstRow);
+        }
+
+        // Click to select
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        // File selection
+        fileInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                handleFileSelect(this.files[0], container);
+            }
+        });
+
+        // Drag events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.classList.remove('dragover');
+            }, false);
+        });
+
+        dropzone.addEventListener('drop', function(e) {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0], container);
+            }
+        });
+    }
+
+    function handleFileSelect(file, container) {
+        // Get obligation data from page
+        const clientIdField = document.querySelector('[name="client"]');
+        const obligationId = window.location.pathname.match(/\/(\d+)\//)?.[1];
+
+        if (!clientIdField || !clientIdField.value) {
+            showToast('Παρακαλώ επιλέξτε πρώτα πελάτη', 'warning');
+            return;
+        }
+
+        // Validate file
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif'];
+        if (!allowedTypes.includes(file.type)) {
+            showToast('Επιτρέπονται μόνο PDF και εικόνες', 'error');
+            return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+            showToast('Το αρχείο δεν πρέπει να ξεπερνά τα 10MB', 'error');
+            return;
+        }
+
+        const fileData = {
+            client_id: clientIdField.value,
+            obligation_id: obligationId,
+            category: 'general'
+        };
+
+        // Check for existing document
+        const checkUrl = `${API_BASE}/documents/check-existing/?client_id=${fileData.client_id}&obligation_id=${fileData.obligation_id}`;
+
+        fetch(checkUrl)
+        .then(response => response.json())
+        .then(result => {
+            if (result.exists) {
+                // Show version modal
+                pendingFile = file;
+                pendingFileData = fileData;
+                showVersionModal(result.document);
+            } else {
+                // Direct upload
+                uploadFileWithAction(file, fileData, 'auto');
+            }
+        })
+        .catch(error => {
+            showToast('Σφάλμα ελέγχου αρχείου', 'error');
+        });
+    }
+
+    // ============================================
+    // INITIALIZE ON DOM READY
+    // ============================================
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDragAndDrop);
+    } else {
+        initDragAndDrop();
+    }
+
+})();
+</script>
+{% endblock %}
