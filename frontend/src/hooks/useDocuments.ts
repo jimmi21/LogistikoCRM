@@ -246,3 +246,137 @@ export async function downloadDocument(clientDoc: ClientDocument): Promise<void>
   link.remove();
   window.URL.revokeObjectURL(url);
 }
+
+// ============================================
+// VERSIONING SUPPORT
+// ============================================
+
+export interface ExistingDocumentInfo {
+  exists: boolean;
+  document: {
+    id: number;
+    filename: string;
+    original_filename?: string;
+    version: number;
+    file_size?: number;
+    file_size_display?: string;
+    category?: string;
+    uploaded_at: string;
+    uploaded_by?: string | null;
+    url?: string | null;
+  } | null;
+}
+
+export interface UploadWithVersionParams {
+  file: File;
+  client_id: number;
+  obligation_id?: number;
+  category?: string;
+  year?: number;
+  month?: number;
+  description?: string;
+  version_action: 'replace' | 'new_version' | 'auto';
+}
+
+export interface UploadWithVersionResult {
+  success: boolean;
+  action: 'created' | 'new_version' | 'replaced' | 'exists';
+  message: string;
+  document?: ClientDocument;
+  existing_document?: ExistingDocumentInfo['document'];
+  requires_decision?: boolean;
+  error?: string;
+}
+
+/**
+ * Check if a document already exists for given parameters
+ */
+export async function checkExistingDocument(params: {
+  client_id: number;
+  obligation_id?: number;
+  category?: string;
+  year?: number;
+  month?: number;
+}): Promise<ExistingDocumentInfo> {
+  const response = await apiClient.get<ExistingDocumentInfo>(
+    '/accounting/api/v1/documents/check-existing/',
+    { params }
+  );
+  return response.data;
+}
+
+/**
+ * Hook for checking existing document
+ */
+export function useCheckExistingDocument() {
+  return useMutation({
+    mutationFn: checkExistingDocument,
+  });
+}
+
+/**
+ * Upload document with versioning support
+ */
+export function useUploadDocumentWithVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: UploadWithVersionParams): Promise<UploadWithVersionResult> => {
+      const formData = new FormData();
+      formData.append('file', params.file);
+      formData.append('client_id', String(params.client_id));
+      formData.append('version_action', params.version_action);
+
+      if (params.obligation_id) {
+        formData.append('obligation_id', String(params.obligation_id));
+      }
+      if (params.category) {
+        formData.append('category', params.category);
+      }
+      if (params.year) {
+        formData.append('year', String(params.year));
+      }
+      if (params.month) {
+        formData.append('month', String(params.month));
+      }
+      if (params.description) {
+        formData.append('description', params.description);
+      }
+
+      const response = await apiClient.post<UploadWithVersionResult>(
+        '/accounting/api/v1/documents/upload-with-version/',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [DOCUMENTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['obligations'] });
+    },
+  });
+}
+
+/**
+ * Get document preview info
+ */
+export async function getDocumentPreview(documentId: number): Promise<{
+  id: number;
+  filename: string;
+  file_type: string;
+  preview_type: 'pdf' | 'image' | 'unknown';
+  can_preview: boolean;
+  url: string | null;
+  file_size: number;
+  file_size_display: string;
+  uploaded_at: string;
+  version: number;
+  client_name?: string;
+}> {
+  const response = await apiClient.get(`/accounting/api/v1/documents/${documentId}/preview/`);
+  return response.data;
+}

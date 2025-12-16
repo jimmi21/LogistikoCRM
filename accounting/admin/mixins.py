@@ -108,16 +108,98 @@ class ClientProfileDocumentInline(admin.TabularInline):
 
 
 class ClientDocumentInline(admin.TabularInline):
-    """Inline για documents στο MonthlyObligation detail view"""
+    """
+    Enhanced inline για documents στο MonthlyObligation detail view.
+    Με preview, folder buttons και versioning info.
+    """
     model = ClientDocument
     extra = 1
-    fields = ['document_category', 'file', 'description']
+    fields = [
+        'document_category',
+        'file',
+        'version_badge',
+        'file_info',
+        'description',
+        'action_buttons'
+    ]
+    readonly_fields = ['version_badge', 'file_info', 'action_buttons']
     verbose_name = 'Έγγραφο'
     verbose_name_plural = '📎 Συνημμένα Έγγραφα'
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.select_related('client')
+        return qs.filter(is_current=True).select_related('client', 'uploaded_by')
+
+    def version_badge(self, obj):
+        """Εμφάνιση έκδοσης με badge"""
+        if not obj.pk:
+            return '-'
+        if obj.version > 1:
+            return format_html(
+                '<span style="background: #667eea; color: white; padding: 2px 8px; '
+                'border-radius: 10px; font-size: 11px;">v{}</span>',
+                obj.version
+            )
+        return format_html(
+            '<span style="background: #28a745; color: white; padding: 2px 8px; '
+            'border-radius: 10px; font-size: 11px;">v1</span>'
+        )
+    version_badge.short_description = 'Έκδοση'
+
+    def file_info(self, obj):
+        """Πληροφορίες αρχείου"""
+        if not obj.pk or not obj.file:
+            return '-'
+        return format_html(
+            '<span style="font-size: 12px; color: #666;">'
+            '{} | {} | {}</span>',
+            obj.file_type.upper() if obj.file_type else '?',
+            obj.file_size_display,
+            obj.uploaded_at.strftime('%d/%m/%Y') if obj.uploaded_at else ''
+        )
+    file_info.short_description = 'Πληροφορίες'
+
+    def action_buttons(self, obj):
+        """Κουμπιά ενεργειών: Preview, Download, Folder"""
+        if not obj.pk or not obj.file:
+            return '-'
+
+        # Build buttons
+        buttons = []
+
+        # Preview button (για PDF και εικόνες)
+        if obj.file_type and obj.file_type.lower() in ['pdf', 'jpg', 'jpeg', 'png', 'gif']:
+            preview_url = reverse('accounting:api_document_preview', args=[obj.id])
+            buttons.append(format_html(
+                '<button type="button" onclick="showPreview({})" '
+                'style="background: #667eea; color: white; border: none; padding: 3px 8px; '
+                'border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 3px;" '
+                'title="Προεπισκόπηση">👁️</button>',
+                obj.id
+            ))
+
+        # Download button
+        if obj.file:
+            buttons.append(format_html(
+                '<a href="{}" target="_blank" '
+                'style="background: #28a745; color: white; border: none; padding: 3px 8px; '
+                'border-radius: 4px; text-decoration: none; font-size: 11px; margin-right: 3px;" '
+                'title="Λήψη">⬇️</a>',
+                obj.file.url
+            ))
+
+        # Folder button
+        folder_url = reverse('accounting:open_document_folder', args=[obj.id])
+        buttons.append(format_html(
+            '<a href="{}" target="_blank" '
+            'style="background: #ffc107; color: #333; border: none; padding: 3px 8px; '
+            'border-radius: 4px; text-decoration: none; font-size: 11px;" '
+            'title="Άνοιγμα φακέλου">📁</a>',
+            folder_url
+        ))
+
+        return format_html(''.join([str(b) for b in buttons]))
+    action_buttons.short_description = 'Ενέργειες'
 
 
 class EmailLogInline(admin.TabularInline):

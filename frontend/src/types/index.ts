@@ -282,11 +282,20 @@ export interface ClientDocument {
   file: string;
   file_url?: string | null;
   filename: string;
+  original_filename?: string;
   file_type: string;
+  file_size?: number;
+  file_size_display?: string;
   document_category: 'contracts' | 'invoices' | 'tax' | 'myf' | 'vat' | 'payroll' | 'general';
   category_display?: string;
   description?: string;
   uploaded_at: string;
+  // Versioning fields
+  version?: number;
+  is_current?: boolean;
+  year?: number;
+  month?: number;
+  uploaded_by?: string | null;
 }
 
 // Document Categories
