@@ -118,32 +118,76 @@ CORS_ALLOW_CREDENTIALS = True
 
 ---
 
-### 4️⃣ **Λάθος Port / URL**
+### 4️⃣ **Λάθος Port / URL (Συχνό για Τοπικό Δίκτυο!)**
 
-**Πρόβλημα:** Το React χρησιμοποιεί λάθος URL για το backend.
+**Πρόβλημα:** Το React χρησιμοποιεί `localhost:8000` αλλά ανοίγεις από network IP (π.χ. `192.168.x.x:3000`).
+
+**Συμπτώματα:**
+```
+ERR_CONNECTION_REFUSED
+POST http://localhost:8000/accounting/api/auth/login/
+```
+
+**Γιατί συμβαίνει:**
+Όταν ανοίγεις το React app από το `http://192.168.178.22:3000`, το `localhost` αναφέρεται στο **client machine** (browser), όχι στον Django server!
 
 **Λύση:**
 
-#### Έλεγξε το `frontend/.env`:
+#### Βήμα 1: Βρες το IP του Django Server
+
+```bash
+# Linux/Mac
+ip addr | grep 'inet ' | grep -v '127.0.0.1'
+
+# Windows
+ipconfig | findstr IPv4
+```
+
+#### Βήμα 2: Ενημέρωσε το `frontend/.env`
 
 ```bash
 cd frontend
-cat .env  # δες αν υπάρχει
+nano .env  # ή code .env
 ```
 
-Αν δεν υπάρχει ή είναι λάθος, δημιούργησέ το:
-
+Άλλαξε το URL:
 ```env
+# ❌ ΛΑΘΟΣ - Δεν λειτουργεί από άλλα μηχανήματα
 VITE_API_URL=http://localhost:8000/accounting
+
+# ✅ ΣΩΣΤΟ - Λειτουργεί από όλο το δίκτυο
+VITE_API_URL=http://192.168.178.22:8000/accounting
 ```
 
-#### Για τοπικό δίκτυο (αν θέλεις πρόσβαση από άλλο PC):
+**Αντικατάστησε το `192.168.178.22` με το πραγματικό IP του Django server!**
 
-```env
-VITE_API_URL=http://192.168.1.100:8000/accounting
+#### Βήμα 3: Restart το React Dev Server
+
+⚠️ **ΚΡΙΣΙΜΟ:** Οι αλλαγές στο `.env` χρειάζονται restart!
+
+```bash
+# Πάτησε Ctrl+C στο terminal του React
+# Μετά ξανά:
+npm start  # ή npm run dev
 ```
 
-*(Αντικατάστησε το `192.168.1.100` με το πραγματικό σου IP)*
+#### Βήμα 4: Refresh τον Browser
+
+- Ανοίξε Developer Tools (F12)
+- Δεξί κλικ στο Refresh → "Empty Cache and Hard Reload"
+- Ή: Ctrl+Shift+R
+
+#### Επαλήθευση:
+
+Δοκίμασε αν το Django είναι προσβάσιμο:
+```bash
+curl http://192.168.178.22:8000/accounting/api/health/
+```
+
+Πρέπει να δεις:
+```json
+{"status":"ok","service":"LogistikoCRM"}
+```
 
 ---
 
