@@ -251,6 +251,15 @@ export function useGenerateMonthlyObligations() {
 // CLIENT OBLIGATION PROFILE HOOKS
 // ============================================
 
+export interface ObligationTypeDetail {
+  id: number;
+  name: string;
+  code: string;
+  frequency: string;
+  group_id: number | null;
+  group_name: string | null;
+}
+
 export interface ClientWithObligationStatus {
   id: number;
   afm: string;
@@ -259,6 +268,8 @@ export interface ClientWithObligationStatus {
   has_obligation_profile: boolean;
   obligation_types_count: number;
   obligation_profile_names: string[];
+  obligation_types: ObligationTypeDetail[];  // Detailed types with groups
+  groups_used: string[];  // List of group names used by this client
 }
 
 export interface BulkAssignRequest {

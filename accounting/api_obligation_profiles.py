@@ -111,6 +111,8 @@ def clients_obligation_status(request):
         obligation_types_count = 0
         profile_names = []
         has_profile = False
+        obligation_types_detail = []  # Detailed info with groups
+        groups_used = set()  # Track which groups are used
 
         # Check if client has obligation_settings using try/except (safer for OneToOne)
         try:
@@ -124,6 +126,24 @@ def clients_obligation_status(request):
                 # Get profile names
                 for profile in client_obl.obligation_profiles.all():
                     profile_names.append(profile.name)
+
+                # Get detailed obligation types with groups
+                for ot in all_types:
+                    group_name = None
+                    group_id = None
+                    if ot.exclusion_group:
+                        group_name = ot.exclusion_group.name
+                        group_id = ot.exclusion_group.id
+                        groups_used.add(group_name)
+
+                    obligation_types_detail.append({
+                        'id': ot.id,
+                        'name': ot.name,
+                        'code': ot.code,
+                        'frequency': ot.frequency,
+                        'group_id': group_id,
+                        'group_name': group_name,
+                    })
         except ClientObligation.DoesNotExist:
             pass
 
@@ -134,7 +154,9 @@ def clients_obligation_status(request):
             'is_active': client.is_active,
             'has_obligation_profile': has_profile,
             'obligation_types_count': obligation_types_count,
-            'obligation_profile_names': profile_names
+            'obligation_profile_names': profile_names,
+            'obligation_types': obligation_types_detail,  # Detailed types with groups
+            'groups_used': list(groups_used),  # Quick list of group names
         })
 
     return Response(result)

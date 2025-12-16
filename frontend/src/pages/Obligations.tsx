@@ -1517,12 +1517,15 @@ function GenerateMonthModal({
                             </span>
                           )}
                         </div>
-                        <span className="text-xs text-gray-500">
-                          {client.afm}
+                        <div className="text-xs text-gray-500">
+                          <span>{client.afm}</span>
                           {client.obligation_profile_names.length > 0 && (
-                            <> • {client.obligation_profile_names.join(', ')}</>
+                            <span> • {client.obligation_profile_names.join(', ')}</span>
                           )}
-                        </span>
+                          {client.groups_used && client.groups_used.length > 0 && (
+                            <span className="text-blue-600"> • Ομάδες: {client.groups_used.join(', ')}</span>
+                          )}
+                        </div>
                       </div>
                     </label>
                   ))
@@ -1910,7 +1913,19 @@ function BulkAssignModal({ isOpen, onClose, onSuccess }: BulkAssignModalProps) {
                       />
                       <div className="flex-1 min-w-0">
                         <span className="truncate block">{client.eponimia}</span>
-                        <span className="text-xs text-gray-500">{client.afm}</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-xs text-gray-500">{client.afm}</span>
+                          {client.has_obligation_profile && client.obligation_types_count > 0 && (
+                            <span className="text-xs text-green-600">
+                              ({client.obligation_types_count} υποχρ.)
+                            </span>
+                          )}
+                          {client.groups_used && client.groups_used.length > 0 && (
+                            <span className="text-xs text-blue-600">
+                              [{client.groups_used.join(', ')}]
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {!client.has_obligation_profile && (
                         <AlertTriangle className="w-3 h-3 text-amber-500 ml-1" />
