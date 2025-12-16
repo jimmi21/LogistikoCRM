@@ -105,6 +105,8 @@ from .completion.completion_views import (
     file_delete,
     archive_settings_view,
     archive_config_create,
+    open_document_folder,
+    open_client_folder,
 )
 
 
@@ -319,6 +321,10 @@ urlpatterns = [
     path("client/<int:client_id>/files/", client_files_view, name="client_files"),
     path("client/<int:client_id>/files/download/<path:file_path>", file_download, name="file_download"),
     path("client/<int:client_id>/files/delete/", file_delete, name="file_delete"),
+
+    # Open Folder (local file browser)
+    path("document/<int:document_id>/open-folder/", open_document_folder, name="open_document_folder"),
+    path("client/<int:client_id>/open-folder/", open_client_folder, name="open_client_folder"),
 
     # Archive Settings
     path("settings/archive/", archive_settings_view, name="archive_settings"),

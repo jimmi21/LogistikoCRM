@@ -353,19 +353,23 @@ def send_obligation_notice(request):
         user=request.user
     )
 
-    # Collect attachments
+    # Collect attachments - use new unified document system
     attachments = []
-    if include_attachment and obligation.attachment:
-        attachments.append(obligation.attachment)
+    if include_attachment:
+        # Get attachments from obligation's documents
+        email_attachments = obligation.get_email_attachments()
+        attachments.extend(email_attachments)
 
+    # Also include any specifically selected documents
     if attachment_ids:
         documents = ClientDocument.objects.filter(
             id__in=attachment_ids,
-            client=client
+            client=client,
+            is_current=True
         )
         for doc in documents:
-            if doc.file:
-                attachments.append(doc.file)
+            if doc.file and doc.file.path not in attachments:
+                attachments.append(doc.file.path)
 
     # Send email
     success, result = EmailService.send_email(
@@ -536,9 +540,11 @@ def complete_and_notify(request, obligation_id):
             attachments = []
             if attach_to_email:
                 if document and document.file:
-                    attachments.append(document.file)
-                elif obligation.attachment:
-                    attachments.append(obligation.attachment)
+                    attachments.append(document.file.path)
+                else:
+                    # Use new unified document system
+                    email_attachments = obligation.get_email_attachments()
+                    attachments.extend(email_attachments)
 
             # Render and send
             subject, body = EmailService.render_template(
