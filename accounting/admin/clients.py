@@ -25,7 +25,41 @@ from ..models import (
     ClientProfile,
     ClientDocument,
     ArchiveConfiguration,
+    ClientObligation,
 )
+
+
+# ============================================
+# CUSTOM FILTERS
+# ============================================
+
+class HasObligationsFilter(admin.SimpleListFilter):
+    """Φίλτρο για πελάτες με/χωρίς ρυθμισμένες υποχρεώσεις"""
+    title = 'Ρυθμίσεις Υποχρεώσεων'
+    parameter_name = 'has_obligations'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', '✅ Με υποχρεώσεις'),
+            ('no', '⚠️ Χωρίς υποχρεώσεις'),
+            ('active', '🟢 Ενεργές υποχρεώσεις'),
+            ('inactive', '🔴 Ανενεργές υποχρεώσεις'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            # Πελάτες που έχουν ClientObligation
+            return queryset.filter(obligation_settings__isnull=False)
+        if self.value() == 'no':
+            # Πελάτες που ΔΕΝ έχουν ClientObligation
+            return queryset.filter(obligation_settings__isnull=True)
+        if self.value() == 'active':
+            # Πελάτες με ενεργό ClientObligation
+            return queryset.filter(obligation_settings__is_active=True)
+        if self.value() == 'inactive':
+            # Πελάτες με ανενεργό ClientObligation
+            return queryset.filter(obligation_settings__is_active=False)
+        return queryset
 from ..export_import import export_clients_to_excel, export_clients_summary_to_excel
 from .mixins import VoIPCallInline, TicketInline, ClientProfileDocumentInline
 
@@ -41,11 +75,40 @@ class ClientProfileAdmin(admin.ModelAdmin):
         'eidos_ipoxreou',
         'katigoria_vivlion',
         'is_active',
+        'obligations_status',
         'documents_count',
         'created_at',
         'folder_link',
         'pdf_report_link',
     ]
+
+    @admin.display(description='Υποχρεώσεις')
+    def obligations_status(self, obj):
+        """Εμφάνιση κατάστασης υποχρεώσεων πελάτη"""
+        try:
+            client_obl = obj.obligation_settings
+            if client_obl.is_active:
+                count = len(client_obl.get_all_obligation_types())
+                return format_html(
+                    '<span style="background: #28a745; color: white; padding: 2px 8px; '
+                    'border-radius: 10px; font-size: 11px;" title="Ενεργές υποχρεώσεις">'
+                    '✅ {} τύποι</span>',
+                    count
+                )
+            else:
+                return format_html(
+                    '<span style="background: #ffc107; color: #000; padding: 2px 8px; '
+                    'border-radius: 10px; font-size: 11px;" title="Ανενεργές υποχρεώσεις">'
+                    '⏸️ Ανενεργό</span>'
+                )
+        except ClientObligation.DoesNotExist:
+            return format_html(
+                '<a href="{}" style="background: #dc3545; color: white; padding: 2px 8px; '
+                'border-radius: 10px; font-size: 11px; text-decoration: none;" '
+                'title="Κλικ για ρύθμιση υποχρεώσεων">'
+                '⚠️ Χωρίς</a>',
+                reverse('admin:accounting_clientobligation_add') + f'?client={obj.id}'
+            )
 
     @admin.display(description='PDF')
     def pdf_report_link(self, obj):
@@ -78,6 +141,7 @@ class ClientProfileAdmin(admin.ModelAdmin):
         return '-'
 
     list_filter = [
+        HasObligationsFilter,  # Νέο φίλτρο υποχρεώσεων
         'eidos_ipoxreou',
         'katigoria_vivlion',
         'agrotis',

@@ -546,6 +546,21 @@ DEFAULT_EMAIL_CONTEXT = {
 }
 
 
+# ==============================================================================
+# 📋 OBLIGATION SETTINGS - Ρυθμίσεις Υποχρεώσεων
+# ==============================================================================
+
+# Αυτόματη δημιουργία ClientObligation για νέους πελάτες
+# True: Κάθε νέος πελάτης θα έχει αυτόματα ClientObligation
+# False: Χειροκίνητη δημιουργία μέσω admin
+AUTO_CREATE_CLIENT_OBLIGATION = True
+
+# Default profile που θα αναθέτεται αυτόματα σε νέους πελάτες
+# None: Δεν θα αναθέτεται κανένα profile (μόνο θα δημιουργηθεί ClientObligation)
+# Όνομα profile: π.χ. "Βασικό" ή "Απλογραφικά"
+AUTO_CLIENT_OBLIGATION_PROFILE = None  # Βάλε το όνομα του default profile αν θες
+
+
 # ==================== CELERY CONFIG ====================
 CELERY_BROKER_URL = 'redis://localhost:6379'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379'
