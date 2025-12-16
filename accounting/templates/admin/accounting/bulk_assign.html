@@ -10,10 +10,37 @@
     {{ block.super }}
 <style>
     .bulk-assign-container {
-        max-width: 900px;
+        max-width: 950px;
         margin: 30px auto;
     }
-    
+
+    .stats-bar {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 25px;
+        padding: 15px 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .stat-item .number {
+        font-size: 24px;
+        font-weight: bold;
+        color: #417690;
+    }
+
+    .stat-item .label {
+        color: #666;
+        font-size: 13px;
+    }
+
     .instructions-box {
         background: #417690;
         color: white;
@@ -21,79 +48,158 @@
         border-radius: 5px;
         margin-bottom: 20px;
     }
-    
+
     .instructions-box h3 {
         color: white;
         margin-top: 0;
     }
-    
+
     .instructions-box ul {
         margin: 10px 0;
         padding-left: 20px;
     }
-    
+
     .instructions-box li {
         margin-bottom: 8px;
     }
-    
+
     .form-container {
         background: #f8f9fa;
         padding: 30px;
         border: 1px solid #dee2e6;
         border-radius: 5px;
     }
-    
+
     .form-section {
         margin-bottom: 30px;
         padding-bottom: 20px;
         border-bottom: 1px solid #dee2e6;
     }
-    
+
     .form-section:last-of-type {
         border-bottom: none;
     }
-    
+
     .form-section h3 {
         color: #333;
         margin-bottom: 15px;
     }
-    
+
+    /* Mode selection */
+    .mode-selection {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .mode-option {
+        flex: 1;
+        padding: 15px 20px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+    }
+
+    .mode-option:hover {
+        border-color: #417690;
+    }
+
+    .mode-option.selected {
+        border-color: #417690;
+        background: #e7f3f8;
+    }
+
+    .mode-option input[type="radio"] {
+        margin-right: 10px;
+    }
+
+    .mode-option .mode-title {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+    }
+
+    .mode-option .mode-desc {
+        font-size: 12px;
+        color: #666;
+    }
+
     .selector-available, .selector-chosen {
         width: 100% !important;
     }
-    
+
     .checkbox-list {
         max-height: 300px;
         overflow-y: auto;
         border: 1px solid #417690;
         padding: 15px;
-        background: #e9ecef;
+        background: white;
         border-radius: 4px;
     }
-    
+
     .checkbox-list label {
         display: block;
         padding: 8px;
         margin-bottom: 5px;
         cursor: pointer;
         color: #333;
-    }
-    
-    .checkbox-list label:hover {
-        background: #d3d6d9;
         border-radius: 3px;
     }
-    
+
+    .checkbox-list label:hover {
+        background: #e9ecef;
+    }
+
     .checkbox-list input[type="checkbox"] {
         margin-right: 10px;
     }
-    
+
+    /* Options section */
+    .options-section {
+        background: #e9ecef;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+
+    .options-section h4 {
+        margin: 0 0 15px 0;
+        color: #333;
+    }
+
+    .option-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: white;
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+
+    .option-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .option-item label {
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .option-item .option-help {
+        font-size: 12px;
+        color: #666;
+        margin-left: auto;
+    }
+
     .button-group {
         margin-top: 30px;
         padding-top: 20px;
         border-top: 2px solid #dee2e6;
     }
-    
+
     .btn-primary {
         background: #417690;
         color: white;
@@ -105,11 +211,11 @@
         font-weight: 500;
         transition: background 0.2s;
     }
-    
+
     .btn-primary:hover {
         background: #356178;
     }
-    
+
     .btn-secondary {
         margin-left: 10px;
         padding: 12px 30px;
@@ -122,16 +228,73 @@
         font-size: 16px;
         transition: all 0.2s;
     }
-    
+
     .btn-secondary:hover {
         background: #e9ecef;
         text-decoration: none;
         color: #495057;
     }
-    
+
     h1 {
         color: #333;
         margin-bottom: 30px;
+    }
+
+    .warning-box {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        border-left: 4px solid #ffc107;
+        padding: 15px 20px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .warning-box.danger {
+        background: #f8d7da;
+        border-color: #dc3545;
+        border-left-color: #dc3545;
+    }
+
+    .warning-box h4 {
+        margin: 0 0 10px 0;
+        color: #856404;
+    }
+
+    .warning-box.danger h4 {
+        color: #721c24;
+    }
+
+    /* Radio buttons for mode */
+    .mode-radios {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 10px;
+    }
+
+    .mode-radios label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+    }
+
+    .mode-radios label:hover {
+        border-color: #417690;
+    }
+
+    .mode-radios input[type="radio"]:checked + span {
+        color: #417690;
+        font-weight: bold;
+    }
+
+    .mode-radios label:has(input:checked) {
+        border-color: #417690;
+        background: #e7f3f8;
     }
 </style>
 {% endblock %}
@@ -139,40 +302,101 @@
 {% block content %}
 <div class="bulk-assign-container">
     <h1>{{ title }}</h1>
-    
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="number">{{ total_clients }}</span>
+            <span class="label">Ενεργοί πελάτες</span>
+        </div>
+        <div class="stat-item">
+            <span class="number">{{ clients_with_obl }}</span>
+            <span class="label">Με υποχρεώσεις</span>
+        </div>
+        <div class="stat-item">
+            <span class="number">{{ total_clients|add:"-"|add:clients_with_obl }}</span>
+            <span class="label">Χωρίς υποχρεώσεις</span>
+        </div>
+    </div>
+
     <div class="instructions-box">
         <h3>ℹ️ Οδηγίες:</h3>
         <ul>
             <li>Επιλέξτε τους πελάτες που θέλετε να αναθέσετε υποχρεώσεις</li>
+            <li>Επιλέξτε <strong>Προσθήκη</strong> για να διατηρήσετε τις υπάρχουσες υποχρεώσεις ή <strong>Αντικατάσταση</strong> για να τις αφαιρέσετε</li>
             <li>Επιλέξτε Profiles (π.χ. Μισθοδοσία) ή/και μεμονωμένες υποχρεώσεις</li>
-            <li>Οι υποχρεώσεις θα προστεθούν σε όλους τους επιλεγμένους πελάτες</li>
-            <li>Αν ένας πελάτης έχει ήδη υποχρεώσεις, θα προστεθούν οι νέες</li>
+            <li>Προαιρετικά, δημιουργήστε αυτόματα τις υποχρεώσεις του τρέχοντος μήνα</li>
         </ul>
     </div>
-    
+
     <form method="post">
         {% csrf_token %}
-        
+
         <div class="form-container">
+            <!-- Mode Selection -->
             <div class="form-section">
-                <h3>1. Επιλογή Πελατών</h3>
+                <h3>⚙️ 1. Τρόπος Ανάθεσης</h3>
+                <div class="mode-radios">
+                    {% for radio in form.assign_mode %}
+                    <label>
+                        {{ radio.tag }}
+                        <span>{{ radio.choice_label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <small style="color: #666;">
+                    {{ form.assign_mode.help_text }}
+                </small>
+            </div>
+
+            <!-- Client Selection -->
+            <div class="form-section">
+                <h3>👥 2. Επιλογή Πελατών</h3>
                 {{ form.clients }}
             </div>
-            
+
+            <!-- Profiles -->
             <div class="form-section">
-                <h3>2. Profiles Υποχρεώσεων</h3>
+                <h3>📦 3. Profiles Υποχρεώσεων</h3>
+                <p style="color: #666; font-size: 13px; margin-bottom: 10px;">
+                    Τα profiles περιλαμβάνουν πολλαπλούς τύπους υποχρεώσεων μαζί.
+                </p>
                 <div class="checkbox-list">
                     {{ form.obligation_profiles }}
                 </div>
             </div>
-            
+
+            <!-- Individual Types -->
             <div class="form-section">
-                <h3>3. Μεμονωμένες Υποχρεώσεις</h3>
+                <h3>📋 4. Μεμονωμένες Υποχρεώσεις</h3>
+                <p style="color: #666; font-size: 13px; margin-bottom: 10px;">
+                    Επιλέξτε μεμονωμένους τύπους επιπλέον των profiles.
+                </p>
                 <div class="checkbox-list">
                     {{ form.obligation_types }}
                 </div>
             </div>
-            
+
+            <!-- Options -->
+            <div class="options-section">
+                <h4>🔧 Επιπλέον Επιλογές</h4>
+                <div class="option-item">
+                    {{ form.generate_current_month }}
+                    <label for="{{ form.generate_current_month.id_for_label }}">
+                        {{ form.generate_current_month.label }}
+                    </label>
+                    <span class="option-help">{{ form.generate_current_month.help_text }}</span>
+                </div>
+            </div>
+
+            <!-- Errors -->
+            {% if form.errors %}
+            <div class="warning-box danger" style="margin-top: 20px;">
+                <h4>❌ Σφάλματα:</h4>
+                {{ form.errors }}
+            </div>
+            {% endif %}
+
             <div class="button-group">
                 <button type="submit" class="btn-primary">
                     ✨ Ανάθεση Υποχρεώσεων

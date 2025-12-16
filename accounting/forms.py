@@ -19,24 +19,81 @@ from .models import (
 # ADMIN FORMS
 # ============================================================================
 
+MONTH_CHOICES = [
+    (1, 'Ιανουάριος'),
+    (2, 'Φεβρουάριος'),
+    (3, 'Μάρτιος'),
+    (4, 'Απρίλιος'),
+    (5, 'Μάιος'),
+    (6, 'Ιούνιος'),
+    (7, 'Ιούλιος'),
+    (8, 'Αύγουστος'),
+    (9, 'Σεπτέμβριος'),
+    (10, 'Οκτώβριος'),
+    (11, 'Νοέμβριος'),
+    (12, 'Δεκέμβριος'),
+]
+
+
 class GenerateObligationsForm(forms.Form):
+    """Βελτιωμένη φόρμα δημιουργίας μηνιαίων υποχρεώσεων"""
     year = forms.IntegerField(
         label='Έτος',
         initial=timezone.now().year,
-        help_text='Έτος για το οποίο θα δημιουργηθούν οι υποχρεώσεις'
+        min_value=2020,
+        max_value=2030,
+        widget=forms.NumberInput(attrs={'class': 'vIntegerField', 'style': 'width: 100px;'})
     )
-    month = forms.IntegerField(
+    month = forms.ChoiceField(
         label='Μήνας',
+        choices=MONTH_CHOICES,
         initial=timezone.now().month,
-        min_value=1,
-        max_value=12,
-        help_text='Μήνας (1-12)'
+        widget=forms.Select(attrs={'class': 'vSelectField'})
     )
+
+    # Νέο: Επιλογή πελατών (προαιρετικό - αν κενό = όλοι)
+    clients = forms.ModelMultipleChoiceField(
+        queryset=ClientObligation.objects.filter(is_active=True).select_related('client'),
+        widget=admin.widgets.FilteredSelectMultiple('Πελάτες', False),
+        label='Επιλογή Πελατών',
+        required=False,
+        help_text='Αφήστε κενό για όλους τους πελάτες με ενεργές υποχρεώσεις'
+    )
+
+    # Νέο: Επιλογή συγκεκριμένων τύπων (προαιρετικό)
+    obligation_types = forms.ModelMultipleChoiceField(
+        queryset=ObligationType.objects.filter(is_active=True),
+        widget=forms.CheckboxSelectMultiple,
+        label='Τύποι Υποχρεώσεων',
+        required=False,
+        help_text='Αφήστε κενό για όλους τους τύπους που έχει ο κάθε πελάτης'
+    )
+
+    def clean_month(self):
+        """Μετατροπή σε integer"""
+        return int(self.cleaned_data['month'])
+
+
+ASSIGN_MODE_CHOICES = [
+    ('add', '➕ Προσθήκη στις υπάρχουσες'),
+    ('replace', '🔄 Αντικατάσταση υπαρχουσών'),
+]
 
 
 class BulkAssignForm(forms.Form):
+    """Βελτιωμένη φόρμα μαζικής ανάθεσης υποχρεώσεων"""
+
+    # Νέο: Mode επιλογής
+    assign_mode = forms.ChoiceField(
+        label='Τρόπος Ανάθεσης',
+        choices=ASSIGN_MODE_CHOICES,
+        initial='add',
+        widget=forms.RadioSelect,
+        help_text='Προσθήκη: διατηρεί τις υπάρχουσες υποχρεώσεις. Αντικατάσταση: αφαιρεί τις παλιές.'
+    )
+
     clients = forms.ModelMultipleChoiceField(
-        queryset=ClientProfile.objects.all(),
+        queryset=ClientProfile.objects.filter(is_active=True),
         widget=admin.widgets.FilteredSelectMultiple('Πελάτες', False),
         label='Επιλογή Πελατών',
         required=True
@@ -48,11 +105,31 @@ class BulkAssignForm(forms.Form):
         required=False
     )
     obligation_types = forms.ModelMultipleChoiceField(
-        queryset=ObligationType.objects.filter(profile__isnull=True),
+        queryset=ObligationType.objects.filter(is_active=True),
         widget=forms.CheckboxSelectMultiple,
         label='Μεμονωμένες Υποχρεώσεις',
         required=False
     )
+
+    # Νέο: Δημιουργία υποχρεώσεων αμέσως
+    generate_current_month = forms.BooleanField(
+        label='Δημιουργία υποχρεώσεων τρέχοντος μήνα',
+        required=False,
+        initial=False,
+        help_text='Αν επιλεγεί, θα δημιουργηθούν αυτόματα οι υποχρεώσεις για τον τρέχοντα μήνα'
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        profiles = cleaned_data.get('obligation_profiles')
+        types = cleaned_data.get('obligation_types')
+
+        if not profiles and not types:
+            raise ValidationError(
+                '⚠️ Πρέπει να επιλέξετε τουλάχιστον ένα Profile ή έναν τύπο υποχρέωσης!'
+            )
+
+        return cleaned_data
 
 
 class ClientObligationForm(forms.ModelForm):

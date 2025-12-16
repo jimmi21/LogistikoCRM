@@ -171,16 +171,28 @@ class ClientObligationAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def bulk_assign_view(self, request):
-        """Μαζική ανάθεση υποχρεώσεων"""
+        """Μαζική ανάθεση υποχρεώσεων - Βελτιωμένο με mode επιλογής"""
+        from ..models import ClientProfile
+
+        # Στατιστικά
+        total_clients = ClientProfile.objects.filter(is_active=True).count()
+        clients_with_obl = ClientObligation.objects.filter(is_active=True).count()
+
         if request.method == 'POST':
             form = BulkAssignForm(request.POST)
             if form.is_valid():
                 clients = form.cleaned_data['clients']
                 profiles = form.cleaned_data['obligation_profiles']
                 types = form.cleaned_data['obligation_types']
+                assign_mode = form.cleaned_data.get('assign_mode', 'add')
+                generate_month = form.cleaned_data.get('generate_current_month', False)
 
-                # Validate ΦΠΑ
-                type_names = [t.name for t in types]
+                # Validate ΦΠΑ exclusion
+                all_types = list(types)
+                for profile in profiles:
+                    all_types.extend(profile.obligations.all())
+
+                type_names = [t.name for t in all_types]
                 has_monthly = any('ΦΠΑ Μηνιαίο' in name or 'ΦΠΑ ΜΗΝΙΑΙΟ' in name.upper() for name in type_names)
                 has_quarterly = any('ΦΠΑ Τρίμηνο' in name or 'ΦΠΑ ΤΡΙΜΗΝΟ' in name.upper() for name in type_names)
 
@@ -191,10 +203,13 @@ class ClientObligationAdmin(admin.ModelAdmin):
                         'title': 'Μαζική Ανάθεση Υποχρεώσεων',
                         'has_permission': True,
                         'media': self.media + form.media,
+                        'total_clients': total_clients,
+                        'clients_with_obl': clients_with_obl,
                     })
 
                 created_count = 0
                 updated_count = 0
+                obligations_created = 0
 
                 for client in clients:
                     client_obl, created = ClientObligation.objects.get_or_create(
@@ -202,6 +217,12 @@ class ClientObligationAdmin(admin.ModelAdmin):
                         defaults={'is_active': True}
                     )
 
+                    # Αν είναι mode αντικατάστασης, καθάρισε πρώτα
+                    if assign_mode == 'replace' and not created:
+                        client_obl.obligation_profiles.clear()
+                        client_obl.obligation_types.clear()
+
+                    # Προσθήκη profiles και types
                     for profile in profiles:
                         client_obl.obligation_profiles.add(profile)
 
@@ -213,11 +234,38 @@ class ClientObligationAdmin(admin.ModelAdmin):
                     else:
                         updated_count += 1
 
-                messages.success(
-                    request,
-                    f'✅ Ανατέθηκαν υποχρεώσεις σε {len(clients)} πελάτες! '
-                    f'(Νέοι: {created_count}, Ενημερωμένοι: {updated_count})'
-                )
+                    # Δημιουργία υποχρεώσεων τρέχοντος μήνα αν ζητήθηκε
+                    if generate_month:
+                        from django.utils import timezone
+                        year = timezone.now().year
+                        month = timezone.now().month
+
+                        for obl_type in client_obl.get_all_obligation_types():
+                            if not obl_type.applies_to_month(month):
+                                continue
+                            deadline = obl_type.get_deadline_for_month(year, month)
+                            if not deadline:
+                                continue
+
+                            _, obl_created = MonthlyObligation.objects.get_or_create(
+                                client=client,
+                                obligation_type=obl_type,
+                                year=year,
+                                month=month,
+                                defaults={'deadline': deadline, 'status': 'pending'}
+                            )
+                            if obl_created:
+                                obligations_created += 1
+
+                # Μήνυμα επιτυχίας
+                mode_text = 'αντικαταστάθηκαν' if assign_mode == 'replace' else 'ενημερώθηκαν'
+                msg = f'✅ Ανατέθηκαν υποχρεώσεις σε {len(clients)} πελάτες! '
+                msg += f'(Νέοι: {created_count}, {mode_text.capitalize()}: {updated_count})'
+
+                if generate_month and obligations_created:
+                    msg += f'<br>📅 Δημιουργήθηκαν {obligations_created} μηνιαίες υποχρεώσεις για τον τρέχοντα μήνα.'
+
+                messages.success(request, format_html(msg))
                 return redirect('..')
         else:
             form = BulkAssignForm()
@@ -227,6 +275,8 @@ class ClientObligationAdmin(admin.ModelAdmin):
             'title': 'Μαζική Ανάθεση Υποχρεώσεων',
             'has_permission': True,
             'media': self.media + form.media,
+            'total_clients': total_clients,
+            'clients_with_obl': clients_with_obl,
         }
 
         return render(request, 'admin/accounting/bulk_assign.html', context)
@@ -613,21 +663,40 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def generate_obligations_view(self, request):
-        """Custom view για δημιουργία μηνιαίων υποχρεώσεων"""
+        """Custom view για δημιουργία μηνιαίων υποχρεώσεων - Βελτιωμένο"""
+        from ..models import ClientProfile
+        from ..forms import MONTH_CHOICES
+
+        # Στατιστικά για warnings
+        total_active_clients = ClientProfile.objects.filter(is_active=True).count()
+        clients_with_obligations = ClientObligation.objects.filter(is_active=True).count()
+        clients_without_obligations = total_active_clients - clients_with_obligations
+
         if request.method == 'POST':
             form = GenerateObligationsForm(request.POST)
             if form.is_valid():
                 year = form.cleaned_data['year']
                 month = form.cleaned_data['month']
+                selected_clients = form.cleaned_data.get('clients')
+                selected_types = form.cleaned_data.get('obligation_types')
 
                 created_count = 0
                 skipped_count = 0
+                stats_by_type = {}
 
-                client_obligations = ClientObligation.objects.filter(is_active=True)
+                # Αν επιλέχθηκαν συγκεκριμένοι πελάτες, χρησιμοποίησέ τους
+                if selected_clients:
+                    client_obligations = selected_clients
+                else:
+                    client_obligations = ClientObligation.objects.filter(is_active=True)
 
                 for client_obl in client_obligations:
                     client = client_obl.client
                     obligation_types = client_obl.get_all_obligation_types()
+
+                    # Αν επιλέχθηκαν συγκεκριμένοι τύποι, φιλτράρισε
+                    if selected_types:
+                        obligation_types = [t for t in obligation_types if t in selected_types]
 
                     for obligation_type in obligation_types:
                         if not obligation_type.applies_to_month(month):
@@ -649,16 +718,33 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
                             }
                         )
 
+                        # Στατιστικά ανά τύπο
+                        type_name = obligation_type.name
+                        if type_name not in stats_by_type:
+                            stats_by_type[type_name] = {'created': 0, 'skipped': 0}
+
                         if created:
                             created_count += 1
+                            stats_by_type[type_name]['created'] += 1
                         else:
                             skipped_count += 1
+                            stats_by_type[type_name]['skipped'] += 1
 
-                messages.success(
-                    request,
-                    f'✅ Δημιουργήθηκαν {created_count} νέες υποχρεώσεις για {month}/{year}. '
-                    f'({skipped_count} υπήρχαν ήδη)'
-                )
+                # Μήνυμα επιτυχίας με αναλυτικά στατιστικά
+                month_name = dict(MONTH_CHOICES).get(month, month)
+                msg = f'✅ Δημιουργήθηκαν {created_count} νέες υποχρεώσεις για {month_name} {year}. '
+                msg += f'({skipped_count} υπήρχαν ήδη)'
+
+                if stats_by_type:
+                    msg += '<br><br><strong>Ανά τύπο:</strong><ul>'
+                    for type_name, stats in sorted(stats_by_type.items()):
+                        msg += f'<li>{type_name}: {stats["created"]} νέες'
+                        if stats["skipped"]:
+                            msg += f' ({stats["skipped"]} υπήρχαν)'
+                        msg += '</li>'
+                    msg += '</ul>'
+
+                messages.success(request, format_html(msg))
                 return redirect('..')
         else:
             form = GenerateObligationsForm()
@@ -667,6 +753,11 @@ class MonthlyObligationAdmin(admin.ModelAdmin):
             'form': form,
             'title': 'Δημιουργία Μηνιαίων Υποχρεώσεων',
             'has_permission': True,
+            'media': self.media + form.media,
+            # Στατιστικά για το template
+            'total_active_clients': total_active_clients,
+            'clients_with_obligations': clients_with_obligations,
+            'clients_without_obligations': clients_without_obligations,
         }
 
         return render(request, 'admin/accounting/generate_obligations.html', context)

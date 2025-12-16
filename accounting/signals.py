@@ -2,13 +2,72 @@
 """
 Signals for accounting app.
 
-Handles ticket-call relationship cleanup.
+Handles:
+- Ticket-call relationship cleanup
+- Auto-creation of ClientObligation for new clients
 """
 import logging
-from django.db.models.signals import pre_delete
+from django.db.models.signals import pre_delete, post_save
 from django.dispatch import receiver
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================
+# AUTO-CREATE CLIENT OBLIGATION
+# ============================================
+
+@receiver(post_save, sender='accounting.ClientProfile')
+def auto_create_client_obligation(sender, instance, created, **kwargs):
+    """
+    Αυτόματη δημιουργία ClientObligation για νέους πελάτες.
+
+    Ενεργοποιείται μόνο αν:
+    1. Είναι νέος πελάτης (created=True)
+    2. Υπάρχει το setting AUTO_CREATE_CLIENT_OBLIGATION = True
+    3. Υπάρχει default profile (AUTO_CLIENT_OBLIGATION_PROFILE)
+    """
+    if not created:
+        return
+
+    # Έλεγχος αν είναι ενεργοποιημένο
+    auto_create = getattr(settings, 'AUTO_CREATE_CLIENT_OBLIGATION', True)
+    if not auto_create:
+        return
+
+    # Δημιουργία ClientObligation χωρίς profiles (ο χρήστης θα τα προσθέσει)
+    from accounting.models import ClientObligation, ObligationProfile
+
+    try:
+        # Δημιούργησε ClientObligation (χωρίς profiles αρχικά)
+        client_obl, obl_created = ClientObligation.objects.get_or_create(
+            client=instance,
+            defaults={'is_active': True}
+        )
+
+        if obl_created:
+            # Αν υπάρχει default profile, πρόσθεσέ το
+            default_profile_name = getattr(settings, 'AUTO_CLIENT_OBLIGATION_PROFILE', None)
+            if default_profile_name:
+                try:
+                    default_profile = ObligationProfile.objects.get(name=default_profile_name)
+                    client_obl.obligation_profiles.add(default_profile)
+                    logger.info(
+                        f"ClientObligation created for {instance.eponimia} "
+                        f"with default profile: {default_profile_name}"
+                    )
+                except ObligationProfile.DoesNotExist:
+                    logger.warning(
+                        f"Default profile '{default_profile_name}' not found. "
+                        f"ClientObligation created without profile."
+                    )
+            else:
+                logger.info(
+                    f"ClientObligation created for {instance.eponimia} (no default profile)"
+                )
+    except Exception as e:
+        logger.error(f"Error creating ClientObligation for {instance.eponimia}: {e}")
 
 
 @receiver(pre_delete, sender='accounting.Ticket')
