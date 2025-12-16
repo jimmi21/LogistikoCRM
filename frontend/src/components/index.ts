@@ -10,6 +10,8 @@ export { BulkCompleteModal } from './BulkCompleteModal';
 export { DocumentUploadModal } from './DocumentUploadModal';
 export { SendEmailModal } from './SendEmailModal';
 export { default as VATPeriodCalculator } from './VATPeriodCalculator';
+export { FilePreviewModal } from './FilePreviewModal';
+export { VersionConfirmDialog } from './VersionConfirmDialog';
 
 // Skeleton components
 export {
