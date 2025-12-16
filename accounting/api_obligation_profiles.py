@@ -396,9 +396,18 @@ def generate_month_obligations(request):
             # Get all obligation types for this client
             all_types = client_obligation.get_all_obligation_types()
 
+            # Debug: track skipped due to month not applying
+            skipped_not_applicable = []
+
             for obligation_type in all_types:
                 # Check if this type applies to this month
                 if not obligation_type.applies_to_month(month):
+                    skipped_not_applicable.append({
+                        'name': obligation_type.name,
+                        'frequency': obligation_type.frequency,
+                        'applicable_months': obligation_type.applicable_months,
+                        'reason': f'Μήνας {month} δεν είναι στους μήνες εφαρμογής'
+                    })
                     continue
 
                 # Check if obligation already exists
@@ -434,9 +443,21 @@ def generate_month_obligations(request):
                 client_created.append(obligation_type.name)
                 created_count += 1
 
-            if client_created or client_skipped:
+            # Always add details for debugging
+            details.append({
+                'client_id': client.id,
+                'client_name': client.eponimia,
+                'created': client_created,
+                'skipped': client_skipped,
+                'all_types_count': len(all_types),
+                'all_types': [{'name': t.name, 'code': t.code, 'frequency': t.frequency, 'applicable_months': t.applicable_months} for t in all_types],
+                'skipped_not_applicable': skipped_not_applicable,
+            })
+
+            # Legacy format for backwards compatibility
+            if False and (client_created or client_skipped):
                 details.append({
-                    'client_id': client.id,
+                    'client_id_legacy': client.id,
                     'client_name': client.eponimia,
                     'created': client_created,
                     'skipped': client_skipped
