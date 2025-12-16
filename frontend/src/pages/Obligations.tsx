@@ -9,10 +9,15 @@ import {
   useBulkDeleteObligations,
   exportObligationsToExcel,
   useGenerateMonthlyObligations,
+  useClientsWithObligationStatus,
+  useBulkAssignObligations,
+  useObligationTypesGrouped,
+  useObligationProfiles,
 } from '../hooks/useObligations';
 import { useCompleteAndNotify, useBulkCompleteWithDocuments, useSendObligationNotice } from '../hooks/useEmail';
 import { useUploadToObligation } from '../hooks/useDocuments';
 import type { GenerateMonthResult, Client } from '../types';
+import type { ClientWithObligationStatus } from '../hooks/useObligations';
 import { useClients } from '../hooks/useClients';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
@@ -24,7 +29,7 @@ import { BulkCompleteModal } from '../components/BulkCompleteModal';
 import {
   FileText, AlertCircle, RefreshCw, Filter, Plus, Edit2, Trash2,
   Download, CheckSquare, Square, Users, Calendar, CalendarPlus, CheckCircle, X,
-  Paperclip, Mail
+  Paperclip, Mail, AlertTriangle, Settings, UserPlus
 } from 'lucide-react';
 import type { Obligation, ObligationFormData, BulkObligationFormData } from '../types';
 import {
@@ -78,6 +83,7 @@ export default function Obligations() {
   const [isGenerateMonthModalOpen, setIsGenerateMonthModalOpen] = useState(false);
   const [generateResult, setGenerateResult] = useState<GenerateMonthResult | null>(null);
   const [selectedObligation, setSelectedObligation] = useState<Obligation | null>(null);
+  const [isBulkAssignModalOpen, setIsBulkAssignModalOpen] = useState(false);
 
   // New modal states for complete, upload, email
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
@@ -430,6 +436,10 @@ export default function Obligations() {
           <Button variant="secondary" onClick={() => setIsGenerateMonthModalOpen(true)}>
             <CalendarPlus className="w-4 h-4 mr-2" />
             Δημιουργία Μήνα
+          </Button>
+          <Button variant="secondary" onClick={() => setIsBulkAssignModalOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Ανάθεση Υποχρεώσεων
           </Button>
           <Button variant="secondary" onClick={() => setIsBulkCreateModalOpen(true)}>
             <Users className="w-4 h-4 mr-2" />
@@ -1018,7 +1028,6 @@ export default function Obligations() {
           setIsGenerateMonthModalOpen(false);
           setGenerateResult(null);
         }}
-        clients={clients}
         onGenerate={async (data) => {
           const result = await generateMonthMutation.mutateAsync(data);
           setGenerateResult(result);
@@ -1026,6 +1035,7 @@ export default function Obligations() {
         }}
         isLoading={generateMonthMutation.isPending}
         result={generateResult}
+        onOpenBulkAssign={() => setIsBulkAssignModalOpen(true)}
       />
 
       {/* Complete Obligation Modal */}
@@ -1077,6 +1087,16 @@ export default function Obligations() {
         onComplete={handleBulkCompleteWithDocs}
         isLoading={bulkCompleteWithDocsMutation.isPending}
       />
+
+      {/* Bulk Assign Obligations Modal */}
+      <BulkAssignModal
+        isOpen={isBulkAssignModalOpen}
+        onClose={() => setIsBulkAssignModalOpen(false)}
+        onSuccess={() => {
+          // Refresh data after successful bulk assign
+          refetch();
+        }}
+      />
     </div>
   );
 }
@@ -1087,19 +1107,19 @@ export default function Obligations() {
 interface GenerateMonthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  clients: Array<{ id: number; eponimia: string; afm: string }>;
   onGenerate: (data: { month: number; year: number; client_ids?: number[] }) => Promise<void>;
   isLoading: boolean;
   result: GenerateMonthResult | null;
+  onOpenBulkAssign: () => void;
 }
 
 function GenerateMonthModal({
   isOpen,
   onClose,
-  clients,
   onGenerate,
   isLoading,
   result,
+  onOpenBulkAssign,
 }: GenerateMonthModalProps) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -1109,14 +1129,38 @@ function GenerateMonthModal({
   const [useAllClients, setUseAllClients] = useState(true);
   const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showOnlyWithProfiles, setShowOnlyWithProfiles] = useState(true);
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Filter clients by search - uses debounced search term for performance
-  const filteredClients = clients.filter(
-    (c) =>
-      c.eponimia.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-      c.afm.includes(debouncedSearchTerm)
-  );
+  // Fetch clients with their obligation status
+  const { data: clientsWithStatus, isLoading: isLoadingClients } = useClientsWithObligationStatus();
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    if (!clientsWithStatus) return { total: 0, withProfile: 0, withoutProfile: 0 };
+    const withProfile = clientsWithStatus.filter(c => c.has_obligation_profile).length;
+    return {
+      total: clientsWithStatus.length,
+      withProfile,
+      withoutProfile: clientsWithStatus.length - withProfile
+    };
+  }, [clientsWithStatus]);
+
+  // Filter clients by search and profile status
+  const filteredClients = useMemo(() => {
+    if (!clientsWithStatus) return [];
+    return clientsWithStatus.filter((c) => {
+      const matchesSearch = c.eponimia.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                           c.afm.includes(debouncedSearchTerm);
+      const matchesProfileFilter = !showOnlyWithProfiles || c.has_obligation_profile;
+      return matchesSearch && matchesProfileFilter;
+    });
+  }, [clientsWithStatus, debouncedSearchTerm, showOnlyWithProfiles]);
+
+  // Clients with profiles for selection
+  const clientsWithProfiles = useMemo(() => {
+    return filteredClients.filter(c => c.has_obligation_profile);
+  }, [filteredClients]);
 
   // Toggle client selection
   const toggleClient = (clientId: number) => {
@@ -1127,9 +1171,9 @@ function GenerateMonthModal({
     }
   };
 
-  // Select all filtered clients
+  // Select all filtered clients WITH profiles
   const selectAll = () => {
-    setSelectedClientIds(filteredClients.map((c) => c.id));
+    setSelectedClientIds(clientsWithProfiles.map((c) => c.id));
   };
 
   // Deselect all
@@ -1160,9 +1204,10 @@ function GenerateMonthModal({
 
   // Show result view if we have a result
   if (result) {
+    const hasClientsWithoutProfile = result.details?.some(d => d.note?.includes('προφίλ'));
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="bg-white rounded-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center">
               <CheckCircle className="w-6 h-6 text-green-600 mr-2" />
@@ -1189,6 +1234,33 @@ function GenerateMonthModal({
               </div>
             </div>
 
+            {/* Warning for clients without profiles */}
+            {hasClientsWithoutProfile && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      Κάποιοι πελάτες δεν έχουν ρυθμισμένο προφίλ υποχρεώσεων
+                    </p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Για αυτούς τους πελάτες δεν δημιουργήθηκαν υποχρεώσεις.
+                      Χρησιμοποιήστε τη "Μαζική Ανάθεση" για να τους ρυθμίσετε.
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => { handleClose(); onOpenBulkAssign(); }}
+                      className="mt-2"
+                    >
+                      <UserPlus className="w-4 h-4 mr-1" />
+                      Μαζική Ανάθεση Υποχρεώσεων
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Details */}
             {result.details && result.details.length > 0 && (
               <div>
@@ -1196,7 +1268,15 @@ function GenerateMonthModal({
                 <div className="border rounded-lg max-h-60 overflow-y-auto divide-y">
                   {result.details.map((detail) => (
                     <div key={detail.client_id} className="p-3 text-sm">
-                      <p className="font-medium text-gray-900">{detail.client_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{detail.client_name}</p>
+                        {detail.note && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
+                            <AlertTriangle className="w-3 h-3 mr-1" />
+                            Χωρίς προφίλ
+                          </span>
+                        )}
+                      </div>
                       {detail.created.length > 0 && (
                         <p className="text-green-600 text-xs mt-1">
                           Δημιουργήθηκαν: {detail.created.join(', ')}
@@ -1206,9 +1286,6 @@ function GenerateMonthModal({
                         <p className="text-yellow-600 text-xs mt-1">
                           Παραλείφθηκαν: {detail.skipped.join(', ')}
                         </p>
-                      )}
-                      {detail.note && (
-                        <p className="text-gray-500 text-xs mt-1">{detail.note}</p>
                       )}
                     </div>
                   ))}
@@ -1228,7 +1305,7 @@ function GenerateMonthModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center">
             <CalendarPlus className="w-6 h-6 text-yellow-600 mr-2" />
@@ -1239,6 +1316,54 @@ function GenerateMonthModal({
           </button>
         </div>
         <div className="p-4 space-y-4 overflow-y-auto">
+          {/* Statistics Cards */}
+          {!isLoadingClients && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-gray-700">{stats.total}</p>
+                <p className="text-xs text-gray-500">Ενεργοί πελάτες</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-green-700">{stats.withProfile}</p>
+                <p className="text-xs text-green-600">Με υποχρεώσεις</p>
+              </div>
+              <div className={`rounded-lg p-3 text-center ${stats.withoutProfile > 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
+                <p className={`text-xl font-bold ${stats.withoutProfile > 0 ? 'text-amber-700' : 'text-gray-700'}`}>
+                  {stats.withoutProfile}
+                </p>
+                <p className={`text-xs ${stats.withoutProfile > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
+                  Χωρίς υποχρεώσεις
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Warning Banner */}
+          {stats.withoutProfile > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800">
+                    {stats.withoutProfile} πελάτες χωρίς ρυθμισμένες υποχρεώσεις
+                  </p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Για αυτούς τους πελάτες ΔΕΝ θα δημιουργηθούν υποχρεώσεις.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => { handleClose(); onOpenBulkAssign(); }}
+                    className="mt-2"
+                  >
+                    <UserPlus className="w-4 h-4 mr-1" />
+                    Μαζική Ανάθεση Υποχρεώσεων
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Period Selection */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1285,7 +1410,9 @@ function GenerateMonthModal({
                   className="h-4 w-4 text-blue-600"
                   disabled={isLoading}
                 />
-                <span className="text-sm text-gray-700">Όλοι οι ενεργοί πελάτες</span>
+                <span className="text-sm text-gray-700">
+                  Όλοι οι πελάτες με ρυθμισμένες υποχρεώσεις ({stats.withProfile})
+                </span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -1327,19 +1454,35 @@ function GenerateMonthModal({
                 </div>
               </div>
 
-              {/* Search */}
-              <input
-                type="text"
-                placeholder="Αναζήτηση πελάτη..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
-                disabled={isLoading}
-              />
+              {/* Search and Filter */}
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="Αναζήτηση πελάτη..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  disabled={isLoading}
+                />
+                <label className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyWithProfiles}
+                    onChange={(e) => setShowOnlyWithProfiles(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 rounded"
+                    disabled={isLoading}
+                  />
+                  <span className="text-xs text-gray-600 whitespace-nowrap">Μόνο με προφίλ</span>
+                </label>
+              </div>
 
               {/* Client List */}
               <div className="border border-gray-300 rounded-md max-h-48 overflow-y-auto">
-                {filteredClients.length === 0 ? (
+                {isLoadingClients ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    Φόρτωση πελατών...
+                  </div>
+                ) : filteredClients.length === 0 ? (
                   <div className="p-4 text-center text-gray-500 text-sm">
                     Δεν βρέθηκαν πελάτες
                   </div>
@@ -1347,19 +1490,40 @@ function GenerateMonthModal({
                   filteredClients.map((client) => (
                     <label
                       key={client.id}
-                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                      className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
+                        !client.has_obligation_profile ? 'bg-amber-50/50' : ''
+                      }`}
                     >
                       <input
                         type="checkbox"
                         checked={selectedClientIds.includes(client.id)}
                         onChange={() => toggleClient(client.id)}
                         className="mr-3 h-4 w-4 text-blue-600 rounded"
-                        disabled={isLoading}
+                        disabled={isLoading || !client.has_obligation_profile}
                       />
-                      <span className="text-sm">
-                        {client.eponimia}{' '}
-                        <span className="text-gray-500">({client.afm})</span>
-                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm truncate">
+                            {client.eponimia}
+                          </span>
+                          {client.has_obligation_profile ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">
+                              {client.obligation_types_count} υποχρ.
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
+                              <AlertTriangle className="w-3 h-3 mr-0.5" />
+                              Χωρίς προφίλ
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {client.afm}
+                          {client.obligation_profile_names.length > 0 && (
+                            <> • {client.obligation_profile_names.join(', ')}</>
+                          )}
+                        </span>
+                      </div>
                     </label>
                   ))
                 )}
@@ -1382,11 +1546,496 @@ function GenerateMonthModal({
           <Button
             onClick={handleSubmit}
             isLoading={isLoading}
-            disabled={isLoading || (!useAllClients && selectedClientIds.length === 0)}
+            disabled={isLoading || (!useAllClients && selectedClientIds.length === 0) || stats.withProfile === 0}
             className="flex-1"
           >
             <CalendarPlus className="w-4 h-4 mr-2" />
-            Δημιουργία
+            Δημιουργία για {useAllClients ? stats.withProfile : selectedClientIds.length} πελάτες
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// BULK ASSIGN MODAL COMPONENT
+// ============================================
+interface BulkAssignModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+function BulkAssignModal({ isOpen, onClose, onSuccess }: BulkAssignModalProps) {
+  const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
+  const [selectedTypeIds, setSelectedTypeIds] = useState<number[]>([]);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<number[]>([]);
+  const [assignMode, setAssignMode] = useState<'add' | 'replace'>('add');
+  const [generateCurrentMonth, setGenerateCurrentMonth] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showOnlyWithoutProfiles, setShowOnlyWithoutProfiles] = useState(true);
+  const [result, setResult] = useState<{
+    success: boolean;
+    message: string;
+    created_count: number;
+    updated_count: number;
+    clients_processed: number;
+  } | null>(null);
+
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // Fetch data
+  const { data: clientsWithStatus, isLoading: isLoadingClients } = useClientsWithObligationStatus();
+  const { data: typesGrouped, isLoading: isLoadingTypes } = useObligationTypesGrouped();
+  const { data: profiles, isLoading: isLoadingProfiles } = useObligationProfiles();
+  const bulkAssignMutation = useBulkAssignObligations();
+  const generateMonthMutation = useGenerateMonthlyObligations();
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    if (!clientsWithStatus) return { total: 0, withProfile: 0, withoutProfile: 0 };
+    const withProfile = clientsWithStatus.filter(c => c.has_obligation_profile).length;
+    return {
+      total: clientsWithStatus.length,
+      withProfile,
+      withoutProfile: clientsWithStatus.length - withProfile
+    };
+  }, [clientsWithStatus]);
+
+  // Filter clients
+  const filteredClients = useMemo(() => {
+    if (!clientsWithStatus) return [];
+    return clientsWithStatus.filter((c) => {
+      const matchesSearch = c.eponimia.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                           c.afm.includes(debouncedSearchTerm);
+      const matchesProfileFilter = !showOnlyWithoutProfiles || !c.has_obligation_profile;
+      return matchesSearch && matchesProfileFilter;
+    });
+  }, [clientsWithStatus, debouncedSearchTerm, showOnlyWithoutProfiles]);
+
+  // Toggle client selection
+  const toggleClient = (clientId: number) => {
+    if (selectedClientIds.includes(clientId)) {
+      setSelectedClientIds(selectedClientIds.filter((id) => id !== clientId));
+    } else {
+      setSelectedClientIds([...selectedClientIds, clientId]);
+    }
+  };
+
+  // Toggle type selection
+  const toggleType = (typeId: number) => {
+    if (selectedTypeIds.includes(typeId)) {
+      setSelectedTypeIds(selectedTypeIds.filter((id) => id !== typeId));
+    } else {
+      setSelectedTypeIds([...selectedTypeIds, typeId]);
+    }
+  };
+
+  // Toggle profile selection
+  const toggleProfile = (profileId: number) => {
+    if (selectedProfileIds.includes(profileId)) {
+      setSelectedProfileIds(selectedProfileIds.filter((id) => id !== profileId));
+    } else {
+      setSelectedProfileIds([...selectedProfileIds, profileId]);
+    }
+  };
+
+  // Select all clients without profiles
+  const selectAllWithoutProfiles = () => {
+    if (!clientsWithStatus) return;
+    const clientIds = clientsWithStatus
+      .filter(c => !c.has_obligation_profile)
+      .map(c => c.id);
+    setSelectedClientIds(clientIds);
+  };
+
+  // Select all filtered clients
+  const selectAllFiltered = () => {
+    setSelectedClientIds(filteredClients.map(c => c.id));
+  };
+
+  // Deselect all clients
+  const deselectAllClients = () => {
+    setSelectedClientIds([]);
+  };
+
+  // Handle submit
+  const handleSubmit = async () => {
+    if (selectedClientIds.length === 0 || (selectedTypeIds.length === 0 && selectedProfileIds.length === 0)) {
+      return;
+    }
+
+    try {
+      const assignResult = await bulkAssignMutation.mutateAsync({
+        client_ids: selectedClientIds,
+        obligation_type_ids: selectedTypeIds.length > 0 ? selectedTypeIds : undefined,
+        obligation_profile_ids: selectedProfileIds.length > 0 ? selectedProfileIds : undefined,
+        mode: assignMode,
+      });
+
+      // If generateCurrentMonth is true, generate obligations for the current month
+      if (generateCurrentMonth) {
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+        await generateMonthMutation.mutateAsync({
+          month: currentMonth,
+          year: currentYear,
+          client_ids: selectedClientIds,
+        });
+      }
+
+      setResult(assignResult);
+    } catch (error) {
+      console.error('Bulk assign failed:', error);
+    }
+  };
+
+  // Reset form and close
+  const handleClose = () => {
+    setSelectedClientIds([]);
+    setSelectedTypeIds([]);
+    setSelectedProfileIds([]);
+    setAssignMode('add');
+    setGenerateCurrentMonth(true);
+    setSearchTerm('');
+    setShowOnlyWithoutProfiles(true);
+    setResult(null);
+    onClose();
+    if (result?.success) {
+      onSuccess?.();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const isLoading = bulkAssignMutation.isPending || generateMonthMutation.isPending;
+
+  // Show result view
+  if (result) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center">
+              <CheckCircle className="w-6 h-6 text-green-600 mr-2" />
+              <h2 className="text-lg font-semibold text-gray-900">Ολοκληρώθηκε</h2>
+            </div>
+            <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="bg-green-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-green-700">{result.created_count}</p>
+                <p className="text-sm text-green-600">Νέα προφίλ</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-blue-700">{result.updated_count}</p>
+                <p className="text-sm text-blue-600">Ενημερωμένα</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-2xl font-bold text-gray-700">{result.clients_processed}</p>
+                <p className="text-sm text-gray-500">Πελάτες</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 text-center">{result.message}</p>
+            {generateCurrentMonth && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-700">
+                  Δημιουργήθηκαν επίσης οι υποχρεώσεις του τρέχοντος μήνα για τους επιλεγμένους πελάτες.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="p-4 border-t bg-gray-50">
+            <Button onClick={handleClose} className="w-full">
+              Κλείσιμο
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center">
+            <UserPlus className="w-6 h-6 text-blue-600 mr-2" />
+            <h2 className="text-lg font-semibold text-gray-900">Μαζική Ανάθεση Υποχρεώσεων</h2>
+          </div>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg" disabled={isLoading}>
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4 overflow-y-auto flex-1">
+          {/* Statistics */}
+          {!isLoadingClients && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-gray-700">{stats.total}</p>
+                <p className="text-xs text-gray-500">Ενεργοί πελάτες</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-green-700">{stats.withProfile}</p>
+                <p className="text-xs text-green-600">Με υποχρεώσεις</p>
+              </div>
+              <div className={`rounded-lg p-3 text-center ${stats.withoutProfile > 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
+                <p className={`text-xl font-bold ${stats.withoutProfile > 0 ? 'text-amber-700' : 'text-gray-700'}`}>
+                  {stats.withoutProfile}
+                </p>
+                <p className={`text-xs ${stats.withoutProfile > 0 ? 'text-amber-600' : 'text-gray-500'}`}>
+                  Χωρίς υποχρεώσεις
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Mode Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Τρόπος ανάθεσης</label>
+            <div className="flex gap-3">
+              <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${
+                assignMode === 'add' ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'
+              }`}>
+                <input
+                  type="radio"
+                  checked={assignMode === 'add'}
+                  onChange={() => setAssignMode('add')}
+                  className="h-4 w-4 text-blue-600"
+                  disabled={isLoading}
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Προσθήκη</p>
+                  <p className="text-xs text-gray-500">Προσθήκη στις υπάρχουσες</p>
+                </div>
+              </label>
+              <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${
+                assignMode === 'replace' ? 'border-amber-500 bg-amber-50' : 'border-gray-300 hover:bg-gray-50'
+              }`}>
+                <input
+                  type="radio"
+                  checked={assignMode === 'replace'}
+                  onChange={() => setAssignMode('replace')}
+                  className="h-4 w-4 text-amber-600"
+                  disabled={isLoading}
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Αντικατάσταση</p>
+                  <p className="text-xs text-gray-500">Αφαίρεση των παλιών</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Client Selection */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Πελάτες ({selectedClientIds.length} επιλεγμένοι)
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllWithoutProfiles}
+                    className="text-xs text-amber-600 hover:text-amber-800"
+                    disabled={isLoading}
+                  >
+                    Χωρίς υποχρ.
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectAllFiltered}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                    disabled={isLoading}
+                  >
+                    Όλους
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAllClients}
+                    className="text-xs text-gray-600 hover:text-gray-800"
+                    disabled={isLoading}
+                  >
+                    Κανένα
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="Αναζήτηση..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+                  disabled={isLoading}
+                />
+                <label className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border border-gray-300 rounded cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyWithoutProfiles}
+                    onChange={(e) => setShowOnlyWithoutProfiles(e.target.checked)}
+                    className="h-3 w-3 text-amber-600 rounded"
+                    disabled={isLoading}
+                  />
+                  Χωρίς
+                </label>
+              </div>
+
+              <div className="border border-gray-300 rounded-md max-h-60 overflow-y-auto">
+                {isLoadingClients ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">Φόρτωση...</div>
+                ) : filteredClients.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">Δεν βρέθηκαν πελάτες</div>
+                ) : (
+                  filteredClients.map((client) => (
+                    <label
+                      key={client.id}
+                      className={`flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer text-sm ${
+                        !client.has_obligation_profile ? 'bg-amber-50/50' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedClientIds.includes(client.id)}
+                        onChange={() => toggleClient(client.id)}
+                        className="mr-2 h-4 w-4 text-blue-600 rounded"
+                        disabled={isLoading}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="truncate block">{client.eponimia}</span>
+                        <span className="text-xs text-gray-500">{client.afm}</span>
+                      </div>
+                      {!client.has_obligation_profile && (
+                        <AlertTriangle className="w-3 h-3 text-amber-500 ml-1" />
+                      )}
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Types and Profiles Selection */}
+            <div className="space-y-3">
+              {/* Profiles */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Profiles υποχρεώσεων ({selectedProfileIds.length})
+                </label>
+                <div className="border border-gray-300 rounded-md max-h-28 overflow-y-auto">
+                  {isLoadingProfiles ? (
+                    <div className="p-2 text-center text-gray-500 text-sm">Φόρτωση...</div>
+                  ) : !profiles || profiles.length === 0 ? (
+                    <div className="p-2 text-center text-gray-500 text-sm">Δεν υπάρχουν profiles</div>
+                  ) : (
+                    profiles.map((profile) => (
+                      <label
+                        key={profile.id}
+                        className="flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedProfileIds.includes(profile.id)}
+                          onChange={() => toggleProfile(profile.id)}
+                          className="mr-2 h-4 w-4 text-blue-600 rounded"
+                          disabled={isLoading}
+                        />
+                        <div className="flex-1">
+                          <span className="font-medium">{profile.name}</span>
+                          {profile.description && (
+                            <span className="text-gray-500 ml-1">- {profile.description}</span>
+                          )}
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Obligation Types */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Μεμονωμένες υποχρεώσεις ({selectedTypeIds.length})
+                </label>
+                <div className="border border-gray-300 rounded-md max-h-40 overflow-y-auto">
+                  {isLoadingTypes ? (
+                    <div className="p-2 text-center text-gray-500 text-sm">Φόρτωση...</div>
+                  ) : !typesGrouped || typesGrouped.length === 0 ? (
+                    <div className="p-2 text-center text-gray-500 text-sm">Δεν υπάρχουν τύποι</div>
+                  ) : (
+                    typesGrouped.map((group) => (
+                      <div key={group.group_id || 'other'}>
+                        <div className="px-2 py-1 bg-gray-100 text-xs font-medium text-gray-600 sticky top-0">
+                          {group.group_name}
+                        </div>
+                        {group.types.map((type) => (
+                          <label
+                            key={type.id}
+                            className="flex items-center px-2 py-1 hover:bg-gray-50 cursor-pointer text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTypeIds.includes(type.id)}
+                              onChange={() => toggleType(type.id)}
+                              className="mr-2 h-3 w-3 text-blue-600 rounded"
+                              disabled={isLoading}
+                            />
+                            <span className="text-gray-600 mr-1">{type.code}</span>
+                            <span>{type.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Generate Current Month Option */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={generateCurrentMonth}
+                onChange={(e) => setGenerateCurrentMonth(e.target.checked)}
+                className="mt-0.5 h-4 w-4 text-blue-600 rounded"
+                disabled={isLoading}
+              />
+              <div>
+                <p className="text-sm font-medium text-blue-800">
+                  Δημιουργία υποχρεώσεων τρέχοντος μήνα
+                </p>
+                <p className="text-xs text-blue-600">
+                  Μετά την ανάθεση, θα δημιουργηθούν αυτόματα οι υποχρεώσεις του τρέχοντος μήνα
+                </p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex gap-3 p-4 border-t bg-gray-50">
+          <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
+            Ακύρωση
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            isLoading={isLoading}
+            disabled={
+              isLoading ||
+              selectedClientIds.length === 0 ||
+              (selectedTypeIds.length === 0 && selectedProfileIds.length === 0)
+            }
+            className="flex-1"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Ανάθεση σε {selectedClientIds.length} πελάτες
           </Button>
         </div>
       </div>

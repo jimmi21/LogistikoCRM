@@ -246,3 +246,103 @@ export function useGenerateMonthlyObligations() {
     },
   });
 }
+
+// ============================================
+// CLIENT OBLIGATION PROFILE HOOKS
+// ============================================
+
+export interface ClientWithObligationStatus {
+  id: number;
+  afm: string;
+  eponimia: string;
+  is_active: boolean;
+  has_obligation_profile: boolean;
+  obligation_types_count: number;
+  obligation_profile_names: string[];
+}
+
+export interface BulkAssignRequest {
+  client_ids: number[];
+  obligation_type_ids?: number[];
+  obligation_profile_ids?: number[];
+  mode: 'add' | 'replace';
+}
+
+export interface BulkAssignResult {
+  success: boolean;
+  created_count: number;
+  updated_count: number;
+  clients_processed: number;
+  message: string;
+}
+
+/**
+ * Get clients with their obligation profile status
+ * Useful for showing which clients have configured obligations
+ */
+export function useClientsWithObligationStatus() {
+  return useQuery({
+    queryKey: ['clients-obligation-status'],
+    queryFn: async () => {
+      const response = await apiClient.get<ClientWithObligationStatus[]>(
+        'api/v1/clients/obligation-status/'
+      );
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+}
+
+/**
+ * Get a specific client's obligation profile
+ */
+export function useClientObligationProfile(clientId: number) {
+  return useQuery({
+    queryKey: ['client-obligation-profile', clientId],
+    queryFn: async () => {
+      const response = await apiClient.get(`api/v1/clients/${clientId}/obligation-profile/`);
+      return response.data;
+    },
+    enabled: !!clientId,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+/**
+ * Update a client's obligation profile
+ */
+export function useUpdateClientObligationProfile(clientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { obligation_type_ids: number[]; obligation_profile_ids: number[] }) => {
+      const response = await apiClient.put(`api/v1/clients/${clientId}/obligation-profile/`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-obligation-profile', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['clients-obligation-status'] });
+    },
+  });
+}
+
+/**
+ * Bulk assign obligations to multiple clients
+ */
+export function useBulkAssignObligations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: BulkAssignRequest) => {
+      const response = await apiClient.post<BulkAssignResult>(
+        'api/v1/obligations/bulk-assign/',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients-obligation-status'] });
+      queryClient.invalidateQueries({ queryKey: [OBLIGATIONS_KEY] });
+    },
+  });
+}
