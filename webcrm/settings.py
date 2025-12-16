@@ -371,10 +371,40 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
+    "http://192.168.178.22:5173",  # Network IP για React
+    "http://192.168.178.22:3000",  # Alternative React port
 ]
-# Για development στο τοπικό δίκτυο - επιτρέπει όλες τις origins
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Μόνο αν DEBUG=True
+
+# Για development - επιτρέπει όλες τις origins (wildcard)
+# ΣΗΜΕΙΩΣΗ: Αυτό λειτουργεί ΜΟΝΟ αν DEBUG=True
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+
 CORS_ALLOW_CREDENTIALS = True
+
+# Additional CORS settings για καλύτερη συμβατότητα
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Django REST Framework
 REST_FRAMEWORK = {
