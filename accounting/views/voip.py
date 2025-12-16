@@ -119,14 +119,30 @@ def fritz_webhook(request):
         action = data.get('action')
 
         if action == 'create':
-            # Create new call record
-            call = VoIPCall.objects.create(
-                call_id=data.get('call_id'),
-                phone_number=data.get('phone_number', ''),
-                direction=data.get('direction', 'incoming'),
-                status='active',
-                started_at=data.get('started_at'),
+            # Create new call record (or get existing to handle duplicates)
+            call_id = data.get('call_id')
+            call, created = VoIPCall.objects.get_or_create(
+                call_id=call_id,
+                defaults={
+                    'phone_number': data.get('phone_number', ''),
+                    'direction': data.get('direction', 'incoming'),
+                    'status': 'active',
+                    'started_at': data.get('started_at'),
+                }
             )
+
+            if not created:
+                # Call already exists, return existing data
+                logger.info(f"VoIP: Call {call_id} already exists, skipping duplicate")
+                return JsonResponse({
+                    'success': True,
+                    'id': call.id,
+                    'call_id': call.call_id,
+                    'client_id': call.client.id if call.client else None,
+                    'client_name': call.client.eponimia if call.client else None,
+                    'is_known': call.client is not None,
+                    'duplicate': True
+                })
 
             # Auto-match client by phone
             client = _match_client_by_phone_standalone(call.phone_number)
