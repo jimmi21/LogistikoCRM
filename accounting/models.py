@@ -1852,3 +1852,408 @@ def create_client_folders(sender, instance, created, **kwargs):
                 f.write(f"Δημιουργία: {datetime.now().strftime('%d/%m/%Y')}\n")
         except Exception as e:
             print(f"Could not create INFO.txt: {e}")
+
+
+# ============================================
+# DOCUMENT TAGGING SYSTEM
+# ============================================
+
+class DocumentTag(models.Model):
+    """
+    Tags για κατηγοριοποίηση εγγράφων.
+    Επιτρέπει custom labels πέρα από τις προκαθορισμένες κατηγορίες.
+    """
+    name = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name='Όνομα'
+    )
+    color = models.CharField(
+        max_length=7,
+        default='#3B82F6',
+        verbose_name='Χρώμα',
+        help_text='Hex color code (π.χ. #3B82F6)'
+    )
+    icon = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Εικονίδιο',
+        help_text='Lucide icon name (π.χ. file-text)'
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name='Περιγραφή'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_tags',
+        verbose_name='Δημιουργήθηκε από'
+    )
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Ετικέτα Εγγράφου'
+        verbose_name_plural = 'Ετικέτες Εγγράφων'
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentTagAssignment(models.Model):
+    """
+    Σύνδεση εγγράφων με tags (many-to-many through table).
+    """
+    document = models.ForeignKey(
+        ClientDocument,
+        on_delete=models.CASCADE,
+        related_name='tag_assignments'
+    )
+    tag = models.ForeignKey(
+        DocumentTag,
+        on_delete=models.CASCADE,
+        related_name='document_assignments'
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='tag_assignments'
+    )
+
+    class Meta:
+        unique_together = ['document', 'tag']
+        ordering = ['-assigned_at']
+        verbose_name = 'Ανάθεση Ετικέτας'
+        verbose_name_plural = 'Αναθέσεις Ετικετών'
+
+    def __str__(self):
+        return f"{self.document.filename} - {self.tag.name}"
+
+
+# ============================================
+# SHARED LINKS FOR FILE SHARING
+# ============================================
+
+import secrets
+from django.utils import timezone
+
+def generate_share_token():
+    """Δημιουργεί unique token για shared link"""
+    return secrets.token_urlsafe(32)
+
+
+class SharedLink(models.Model):
+    """
+    Κοινόχρηστοι σύνδεσμοι για διαμοιρασμό εγγράφων.
+    Υποστηρίζει expiration, password protection, και download limits.
+    """
+    ACCESS_LEVELS = [
+        ('view', 'Μόνο προβολή'),
+        ('download', 'Προβολή & Λήψη'),
+    ]
+
+    # Link target - μπορεί να είναι single document ή folder (client)
+    document = models.ForeignKey(
+        ClientDocument,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='shared_links',
+        verbose_name='Έγγραφο'
+    )
+    client = models.ForeignKey(
+        ClientProfile,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='shared_folder_links',
+        verbose_name='Φάκελος Πελάτη'
+    )
+
+    # Link settings
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        default=generate_share_token,
+        verbose_name='Token'
+    )
+    name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Όνομα Συνδέσμου',
+        help_text='Φιλικό όνομα για αναγνώριση'
+    )
+    access_level = models.CharField(
+        max_length=20,
+        choices=ACCESS_LEVELS,
+        default='download',
+        verbose_name='Επίπεδο Πρόσβασης'
+    )
+
+    # Security
+    password_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        verbose_name='Κωδικός (hashed)'
+    )
+    requires_email = models.BooleanField(
+        default=False,
+        verbose_name='Απαιτεί Email',
+        help_text='Ο χρήστης πρέπει να εισάγει email για πρόσβαση'
+    )
+
+    # Expiration
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Λήξη',
+        help_text='Αν είναι κενό, δεν λήγει'
+    )
+    max_downloads = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Μέγιστες Λήψεις',
+        help_text='Αν είναι κενό, απεριόριστες'
+    )
+
+    # Statistics
+    download_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Πλήθος Λήψεων'
+    )
+    view_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Πλήθος Προβολών'
+    )
+    last_accessed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Τελευταία Πρόσβαση'
+    )
+
+    # Audit
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Ενεργό'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_shared_links',
+        verbose_name='Δημιουργήθηκε από'
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Κοινόχρηστος Σύνδεσμος'
+        verbose_name_plural = 'Κοινόχρηστοι Σύνδεσμοι'
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['is_active', 'expires_at']),
+        ]
+
+    def __str__(self):
+        target = self.document.filename if self.document else f"Φάκελος: {self.client.eponimia}"
+        return f"{self.name or target} ({self.token[:8]}...)"
+
+    def save(self, *args, **kwargs):
+        if not self.name:
+            if self.document:
+                self.name = self.document.filename
+            elif self.client:
+                self.name = f"Φάκελος: {self.client.eponimia}"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        """Έλεγχος αν έχει λήξει"""
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_download_limit_reached(self):
+        """Έλεγχος αν έχει φτάσει το όριο λήψεων"""
+        if not self.max_downloads:
+            return False
+        return self.download_count >= self.max_downloads
+
+    @property
+    def is_valid(self):
+        """Συνολικός έλεγχος εγκυρότητας"""
+        return (
+            self.is_active and
+            not self.is_expired and
+            not self.is_download_limit_reached
+        )
+
+    def set_password(self, password):
+        """Ορισμός κωδικού (hashed)"""
+        from django.contrib.auth.hashers import make_password
+        self.password_hash = make_password(password)
+
+    def check_password(self, password):
+        """Έλεγχος κωδικού"""
+        if not self.password_hash:
+            return True
+        from django.contrib.auth.hashers import check_password
+        return check_password(password, self.password_hash)
+
+    def record_access(self, is_download=False):
+        """Καταγραφή πρόσβασης"""
+        self.last_accessed_at = timezone.now()
+        self.view_count += 1
+        if is_download:
+            self.download_count += 1
+        self.save(update_fields=['last_accessed_at', 'view_count', 'download_count'])
+
+    def get_public_url(self):
+        """Δημιουργία public URL"""
+        from django.urls import reverse
+        return reverse('accounting:shared_link_access', args=[self.token])
+
+
+class SharedLinkAccess(models.Model):
+    """
+    Καταγραφή προσβάσεων σε shared links (audit log).
+    """
+    shared_link = models.ForeignKey(
+        SharedLink,
+        on_delete=models.CASCADE,
+        related_name='access_logs'
+    )
+    accessed_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        verbose_name='IP Διεύθυνση'
+    )
+    user_agent = models.TextField(
+        blank=True,
+        verbose_name='User Agent'
+    )
+    email_provided = models.EmailField(
+        blank=True,
+        verbose_name='Email που δόθηκε'
+    )
+    action = models.CharField(
+        max_length=20,
+        choices=[
+            ('view', 'Προβολή'),
+            ('download', 'Λήψη'),
+        ],
+        default='view',
+        verbose_name='Ενέργεια'
+    )
+
+    class Meta:
+        ordering = ['-accessed_at']
+        verbose_name = 'Πρόσβαση Συνδέσμου'
+        verbose_name_plural = 'Προσβάσεις Συνδέσμων'
+
+    def __str__(self):
+        return f"{self.shared_link} - {self.action} - {self.accessed_at}"
+
+
+# ============================================
+# DOCUMENT FAVORITES
+# ============================================
+
+class DocumentFavorite(models.Model):
+    """
+    Αγαπημένα έγγραφα ανά χρήστη.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='favorite_documents'
+    )
+    document = models.ForeignKey(
+        ClientDocument,
+        on_delete=models.CASCADE,
+        related_name='favorited_by'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    note = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Σημείωση'
+    )
+
+    class Meta:
+        unique_together = ['user', 'document']
+        ordering = ['-created_at']
+        verbose_name = 'Αγαπημένο Έγγραφο'
+        verbose_name_plural = 'Αγαπημένα Έγγραφα'
+
+    def __str__(self):
+        return f"{self.user.username} - {self.document.filename}"
+
+
+# ============================================
+# DOCUMENT COLLECTIONS (FOLDERS)
+# ============================================
+
+class DocumentCollection(models.Model):
+    """
+    Virtual folders/collections για οργάνωση εγγράφων.
+    Επιτρέπει στους χρήστες να δημιουργούν custom συλλογές.
+    """
+    name = models.CharField(
+        max_length=100,
+        verbose_name='Όνομα'
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name='Περιγραφή'
+    )
+    color = models.CharField(
+        max_length=7,
+        default='#6366F1',
+        verbose_name='Χρώμα'
+    )
+    icon = models.CharField(
+        max_length=50,
+        default='folder',
+        verbose_name='Εικονίδιο'
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='document_collections',
+        verbose_name='Ιδιοκτήτης'
+    )
+    is_shared = models.BooleanField(
+        default=False,
+        verbose_name='Κοινόχρηστο',
+        help_text='Ορατό σε όλους τους χρήστες'
+    )
+    documents = models.ManyToManyField(
+        ClientDocument,
+        blank=True,
+        related_name='collections',
+        verbose_name='Έγγραφα'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Συλλογή Εγγράφων'
+        verbose_name_plural = 'Συλλογές Εγγράφων'
+
+    def __str__(self):
+        return f"{self.name} ({self.documents.count()} έγγραφα)"
+
+    @property
+    def document_count(self):
+        return self.documents.count()

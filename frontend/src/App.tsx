@@ -25,6 +25,8 @@ import {
   MyData,
 } from './pages';
 import Backup from './pages/Backup';
+import FileManager from './pages/FileManager';
+import SharedLinkPortal from './pages/SharedLinkPortal';
 
 // Create a client for React Query
 const queryClient = new QueryClient({
@@ -72,8 +74,9 @@ function App() {
         <ToastProvider>
           <BrowserRouter>
           <Routes>
-          {/* Public route */}
+          {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/share/:token" element={<SharedLinkPortal />} />
 
           {/* Protected routes with Layout */}
           <Route
@@ -129,6 +132,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Files />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/file-manager"
+            element={
+              <ProtectedRoute>
+                <FileManager />
               </ProtectedRoute>
             }
           />
