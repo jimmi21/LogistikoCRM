@@ -78,7 +78,11 @@ export default function Clients() {
         onSuccess: () => {
           setIsEditModalOpen(false);
           setSelectedClient(null);
-          // invalidateQueries in hook triggers automatic refetch
+          showToast('success', 'Ο πελάτης ενημερώθηκε επιτυχώς');
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : 'Σφάλμα κατά την ενημέρωση';
+          showToast('error', message);
         },
       }
     );
