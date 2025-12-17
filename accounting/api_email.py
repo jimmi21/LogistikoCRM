@@ -46,14 +46,40 @@ class EmailLogSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True
     )
+    client_name = serializers.CharField(
+        source='client.onoma',
+        read_only=True,
+        allow_null=True
+    )
+    client_afm = serializers.CharField(
+        source='client.afm',
+        read_only=True,
+        allow_null=True
+    )
+    obligation_type = serializers.CharField(
+        source='obligation.obligation_type.name',
+        read_only=True,
+        allow_null=True
+    )
+    sent_by_name = serializers.CharField(
+        source='sent_by.get_full_name',
+        read_only=True,
+        allow_null=True
+    )
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
 
     class Meta:
         model = EmailLog
         fields = [
             'id', 'recipient_email', 'recipient_name',
-            'client', 'obligation', 'template_used', 'template_name',
-            'subject', 'body', 'status', 'error_message',
-            'sent_at', 'sent_by'
+            'client', 'client_name', 'client_afm',
+            'obligation', 'obligation_type',
+            'template_used', 'template_name',
+            'subject', 'body', 'status', 'status_display', 'error_message',
+            'sent_at', 'sent_by', 'sent_by_name'
         ]
 
 
