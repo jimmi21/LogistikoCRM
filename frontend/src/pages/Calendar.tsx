@@ -12,6 +12,8 @@ import {
   AlertCircle,
   FileText,
   Calendar as CalendarIcon,
+  Zap,
+  CheckCircle,
 } from 'lucide-react';
 import {
   useCalendar,
@@ -30,6 +32,10 @@ import type {
 } from '../hooks/useCalendar';
 import { useClients } from '../hooks/useClients';
 import { useObligationTypes } from '../hooks/useObligations';
+import { useToast } from '../components/Toast';
+import { CompleteObligationModal } from '../components/CompleteObligationModal';
+import { useCompleteAndNotify } from '../hooks/useEmail';
+import type { Obligation } from '../types';
 
 // =============================================================================
 // HELPER COMPONENTS
@@ -121,7 +127,8 @@ interface DayDetailModalProps {
   month: number;
   year: number;
   dayData?: CalendarDayType;
-  onComplete: (id: number) => void;
+  onQuickComplete: (id: number) => void;
+  onFullComplete: (obligation: CalendarObligation) => void;
   isCompleting: boolean;
 }
 
@@ -132,7 +139,8 @@ function DayDetailModal({
   month,
   year,
   dayData,
-  onComplete,
+  onQuickComplete,
+  onFullComplete,
   isCompleting,
 }: DayDetailModalProps) {
   // Handle escape key to close modal
@@ -281,17 +289,30 @@ function DayDetailModal({
 
                         {/* Actions */}
                         <div className="flex flex-col gap-1.5">
-                          {/* Complete button - only for non-completed obligations */}
+                          {/* Complete buttons - only for non-completed obligations */}
                           {obl.status !== 'completed' && obl.status !== 'cancelled' && (
-                            <button
-                              onClick={() => onComplete(obl.id)}
-                              disabled={isCompleting}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Ολοκλήρωση"
-                            >
-                              <Check size={14} />
-                              <span className="hidden sm:inline">Ολοκλήρωση</span>
-                            </button>
+                            <>
+                              {/* Quick complete */}
+                              <button
+                                onClick={() => onQuickComplete(obl.id)}
+                                disabled={isCompleting}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Γρήγορη ολοκλήρωση"
+                              >
+                                <Zap size={14} />
+                                <span className="hidden sm:inline">Γρήγορη</span>
+                              </button>
+                              {/* Full complete with modal */}
+                              <button
+                                onClick={() => onFullComplete(obl)}
+                                disabled={isCompleting}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Ολοκλήρωση με έγγραφα & email"
+                              >
+                                <CheckCircle size={14} />
+                                <span className="hidden sm:inline">Πλήρης</span>
+                              </button>
+                            </>
                           )}
 
                           {/* Edit link */}
@@ -422,12 +443,19 @@ export default function Calendar() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Complete modal state
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [selectedObligation, setSelectedObligation] = useState<CalendarObligation | null>(null);
+
   // Filter state
   const [filters, setFilters] = useState<{
     client_id?: number;
     type_id?: number;
     status?: string;
   }>({});
+
+  // Toast notifications
+  const { showToast } = useToast();
 
   // Fetch calendar data
   const {
@@ -441,13 +469,69 @@ export default function Calendar() {
   const { data: clientsData } = useClients({ page_size: 1000 });
   const { data: obligationTypes } = useObligationTypes();
 
-  // Mutation for completing obligations
-  const completeObligation = useCompleteObligation();
+  // Mutations
+  const quickCompleteMutation = useCompleteObligation();
+  const completeAndNotifyMutation = useCompleteAndNotify();
 
-  // Handle completing an obligation
-  const handleCompleteObligation = useCallback((obligationId: number) => {
-    completeObligation.mutate(obligationId);
-  }, [completeObligation]);
+  // Handle quick complete (no modal)
+  const handleQuickComplete = useCallback((obligationId: number) => {
+    quickCompleteMutation.mutate(obligationId, {
+      onSuccess: () => {
+        showToast('success', 'Ολοκληρώθηκε!', 'Η υποχρέωση ολοκληρώθηκε επιτυχώς');
+      },
+      onError: (err) => {
+        showToast('error', 'Σφάλμα', err instanceof Error ? err.message : 'Αποτυχία ολοκλήρωσης');
+      },
+    });
+  }, [quickCompleteMutation, showToast]);
+
+  // Handle full complete (open modal)
+  const handleFullComplete = useCallback((obligation: CalendarObligation) => {
+    setSelectedObligation(obligation);
+    setIsCompleteModalOpen(true);
+  }, []);
+
+  // Handle complete with documents and email
+  const handleCompleteAndNotify = useCallback(async (data: {
+    file?: File | null;
+    documentId?: number | null;
+    saveToClientFolder: boolean;
+    sendEmail: boolean;
+    attachToEmail: boolean;
+    emailTemplateId?: number | null;
+    notes: string;
+    timeSpent?: number | null;
+  }) => {
+    if (!selectedObligation) return;
+
+    try {
+      await completeAndNotifyMutation.mutateAsync({
+        obligationId: selectedObligation.id,
+        data: {
+          file: data.file,
+          document_id: data.documentId,
+          send_email: data.sendEmail,
+          email_template_id: data.emailTemplateId,
+          notes: data.notes,
+          time_spent: data.timeSpent,
+        },
+      });
+      showToast('success', 'Ολοκληρώθηκε!', data.sendEmail
+        ? 'Η υποχρέωση ολοκληρώθηκε και στάλθηκε email'
+        : 'Η υποχρέωση ολοκληρώθηκε επιτυχώς'
+      );
+      setIsCompleteModalOpen(false);
+      setSelectedObligation(null);
+    } catch (err) {
+      showToast('error', 'Σφάλμα', err instanceof Error ? err.message : 'Αποτυχία ολοκλήρωσης');
+    }
+  }, [selectedObligation, completeAndNotifyMutation, showToast]);
+
+  // Get client info for selected obligation
+  const getSelectedClient = useCallback(() => {
+    if (!selectedObligation || !clientsData?.results) return null;
+    return clientsData.results.find(c => c.id === selectedObligation.client_id);
+  }, [selectedObligation, clientsData]);
 
   // Navigation functions
   const goToPreviousMonth = useCallback(() => {
@@ -756,8 +840,31 @@ export default function Calendar() {
         dayData={
           selectedDay ? calendarData?.days[String(selectedDay)] : undefined
         }
-        onComplete={handleCompleteObligation}
-        isCompleting={completeObligation.isPending}
+        onQuickComplete={handleQuickComplete}
+        onFullComplete={handleFullComplete}
+        isCompleting={quickCompleteMutation.isPending}
+      />
+
+      {/* Complete Obligation Modal (full version with documents & email) */}
+      <CompleteObligationModal
+        isOpen={isCompleteModalOpen}
+        onClose={() => {
+          setIsCompleteModalOpen(false);
+          setSelectedObligation(null);
+        }}
+        obligation={selectedObligation ? {
+          id: selectedObligation.id,
+          client_id: selectedObligation.client_id,
+          type_code: selectedObligation.type_code,
+          type_name: selectedObligation.type_name,
+          month: currentMonth,
+          year: currentYear,
+          status: selectedObligation.status,
+        } as Obligation : null}
+        clientName={getSelectedClient()?.eponimia || selectedObligation?.client_name || ''}
+        clientEmail={getSelectedClient()?.email || undefined}
+        onComplete={handleCompleteAndNotify}
+        isLoading={completeAndNotifyMutation.isPending}
       />
 
       {/* Keyboard shortcuts hint */}
