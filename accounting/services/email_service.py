@@ -200,7 +200,8 @@ class EmailService:
         from_email=None,
         from_name=None,
         reply_to=None,
-        connection=None
+        connection=None,
+        append_signature=True
     ):
         """
         Prepare an EmailMessage object.
@@ -215,6 +216,7 @@ class EmailService:
             from_name: Optional sender name
             reply_to: Optional reply-to email
             connection: Optional email connection
+            append_signature: Whether to append email signature (default True)
 
         Returns:
             EmailMessage or EmailMultiAlternatives instance
@@ -228,6 +230,19 @@ class EmailService:
             formatted_from = f"{from_name} <{from_email}>"
         else:
             formatted_from = from_email
+
+        # Append email signature if enabled
+        if append_signature:
+            try:
+                from accounting.models import EmailSettings
+                email_settings = EmailSettings.get_settings()
+                if email_settings and email_settings.email_signature:
+                    signature_html = f'<div class="email-signature" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">{email_settings.email_signature}</div>'
+                    body = f'{body}{signature_html}'
+                    if html_body:
+                        html_body = f'{html_body}{signature_html}'
+            except Exception as e:
+                logger.warning(f"Could not append email signature: {e}")
 
         if html_body:
             # Send as multipart (plain + HTML)

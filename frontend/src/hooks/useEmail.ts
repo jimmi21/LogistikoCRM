@@ -372,7 +372,7 @@ export function useDeleteEmailTemplate() {
 
   return useMutation({
     mutationFn: async (id: number): Promise<void> => {
-      await apiClient.delete(`api/v1/email/templates/${id}/`);
+      await apiClient.delete(`/api/v1/email/templates/${id}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [EMAIL_TEMPLATES_KEY] });

@@ -246,21 +246,44 @@ class RateLimiter:
 # Global rate limiter instance
 _rate_limiter = None
 _rate_limiter_lock = threading.Lock()
+_rate_limiter_settings = None  # Tracks current settings for invalidation
 
 
 def get_rate_limiter() -> RateLimiter:
-    """Get or create the global rate limiter instance"""
-    global _rate_limiter
-    if _rate_limiter is None:
+    """
+    Get or create the global rate limiter instance.
+    Uses database EmailSettings if available, falls back to Django settings.
+    Automatically recreates the limiter if settings have changed.
+    """
+    global _rate_limiter, _rate_limiter_settings
+
+    # Get current rate/burst from DB or settings
+    rate = getattr(settings, 'EMAIL_RATE_LIMIT', 2.0)
+    burst = getattr(settings, 'EMAIL_BURST_LIMIT', 5)
+
+    try:
+        from accounting.models import EmailSettings
+        email_settings = EmailSettings.get_settings()
+        if email_settings.is_active:
+            rate = email_settings.rate_limit
+            burst = email_settings.burst_limit
+    except Exception as e:
+        logger.debug(f"Using default rate limiter (DB settings not available): {e}")
+
+    current_settings = (rate, burst)
+
+    # Check if we need to create or recreate the limiter
+    if _rate_limiter is None or _rate_limiter_settings != current_settings:
         with _rate_limiter_lock:
-            if _rate_limiter is None:
-                # Get rate from settings or use default
-                rate = getattr(settings, 'EMAIL_RATE_LIMIT', 2.0)
-                burst = getattr(settings, 'EMAIL_BURST_LIMIT', 5)
+            # Double-check inside lock
+            if _rate_limiter is None or _rate_limiter_settings != current_settings:
                 _rate_limiter = RateLimiter(
                     requests_per_second=rate,
                     burst_size=burst
                 )
+                _rate_limiter_settings = current_settings
+                logger.debug(f"Rate limiter configured: {rate} emails/sec, burst={burst}")
+
     return _rate_limiter
 
 

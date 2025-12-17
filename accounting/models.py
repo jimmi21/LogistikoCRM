@@ -1020,12 +1020,12 @@ class EmailSettings(models.Model):
         default='',
         help_text='Συνήθως το email σας'
     )
-    smtp_password = models.CharField(
-        'SMTP Password',
-        max_length=255,
+    # Password is stored encrypted using Fernet
+    _encrypted_smtp_password = models.TextField(
+        'SMTP Password (encrypted)',
         blank=True,
         default='',
-        help_text='App Password για Gmail/Google Workspace'
+        help_text='App Password για Gmail/Google Workspace (κρυπτογραφημένο)'
     )
     smtp_security = models.CharField(
         'Ασφάλεια',
@@ -1130,6 +1130,42 @@ class EmailSettings(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def smtp_password(self):
+        """Get decrypted SMTP password"""
+        if not self._encrypted_smtp_password:
+            return ''
+        try:
+            from mydata.encryption import decrypt_value, is_encrypted
+            if is_encrypted(self._encrypted_smtp_password):
+                return decrypt_value(self._encrypted_smtp_password)
+            # Return as-is if not encrypted (legacy/migration)
+            return self._encrypted_smtp_password
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to decrypt SMTP password: {e}")
+            return ''
+
+    @smtp_password.setter
+    def smtp_password(self, value):
+        """Set SMTP password (will be encrypted on save)"""
+        if not value:
+            self._encrypted_smtp_password = ''
+            return
+        try:
+            from mydata.encryption import encrypt_value, is_encrypted
+            if is_encrypted(value):
+                # Already encrypted, store as-is
+                self._encrypted_smtp_password = value
+            else:
+                # Encrypt plain text
+                self._encrypted_smtp_password = encrypt_value(value)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to encrypt SMTP password: {e}")
+            # Store plain text as fallback (not recommended)
+            self._encrypted_smtp_password = value
+
     class Meta:
         verbose_name = 'Ρυθμίσεις Email'
         verbose_name_plural = 'Ρυθμίσεις Email'
@@ -1157,7 +1193,7 @@ class EmailSettings(models.Model):
                 'smtp_host': getattr(settings, 'EMAIL_HOST', 'smtp.gmail.com'),
                 'smtp_port': getattr(settings, 'EMAIL_PORT', 587),
                 'smtp_username': getattr(settings, 'EMAIL_HOST_USER', ''),
-                'smtp_password': getattr(settings, 'EMAIL_HOST_PASSWORD', ''),
+                # Password will be set separately via property setter
                 'smtp_security': 'tls' if getattr(settings, 'EMAIL_USE_TLS', True) else ('ssl' if getattr(settings, 'EMAIL_USE_SSL', False) else 'none'),
                 'from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
                 'from_name': getattr(settings, 'COMPANY_NAME', ''),
@@ -1169,6 +1205,12 @@ class EmailSettings(models.Model):
                 'email_signature': getattr(settings, 'EMAIL_SIGNATURE', ''),
             }
         )
+        if created:
+            # Set password via property to encrypt it
+            env_password = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            if env_password:
+                settings_obj.smtp_password = env_password
+                settings_obj.save(update_fields=['_encrypted_smtp_password'])
         return settings_obj
 
     def get_smtp_config(self):
