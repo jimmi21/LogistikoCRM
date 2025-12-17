@@ -54,6 +54,9 @@ from .api_email import (
     bulk_complete_with_notify,
     bulk_complete_with_documents,
     email_history,
+    email_settings,
+    email_settings_test,
+    email_settings_send_test,
 )
 from .api_door import (
     door_status as api_door_status,
@@ -262,6 +265,9 @@ urlpatterns = [
     path("api/v1/email/send/", send_email, name="api_v1_email_send"),
     path("api/v1/email/send-obligation-notice/", send_obligation_notice, name="api_v1_send_obligation_notice"),
     path("api/v1/email/history/", email_history, name="api_v1_email_history"),
+    path("api/v1/email/settings/", email_settings, name="api_v1_email_settings"),
+    path("api/v1/email/settings/test/", email_settings_test, name="api_v1_email_settings_test"),
+    path("api/v1/email/settings/send-test/", email_settings_send_test, name="api_v1_email_settings_send_test"),
 
     # ============================================
     # OBLIGATION DOCUMENT & NOTIFICATION ENDPOINTS

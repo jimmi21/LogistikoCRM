@@ -474,6 +474,25 @@ export default function Settings() {
                     </div>
                   </Link>
                 )}
+
+                {/* Email Settings */}
+                <Link
+                  to="/settings/email"
+                  className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-amber-300 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                        <Mail size={24} className="text-amber-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Ρυθμίσεις Email</h3>
+                        <p className="text-sm text-gray-500">SMTP server, αποστολέας</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="text-gray-400" size={20} />
+                  </div>
+                </Link>
               </div>
 
               {/* GSIS Integration - Λήψη στοιχείων με ΑΦΜ */}
