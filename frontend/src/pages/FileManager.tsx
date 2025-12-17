@@ -40,6 +40,7 @@ import type {
 } from '../types/fileManager';
 import { DOCUMENT_CATEGORIES, GREEK_MONTHS } from '../types/fileManager';
 import { useClients } from '../hooks/useClients';
+import { useObligations } from '../hooks/useObligations';
 
 // File type icon component
 function FileIcon({ fileType, size = 24 }: { fileType: string; size?: number }) {
@@ -313,16 +314,23 @@ function UploadModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (files: File[], clientId: number, category: DocumentCategory) => void;
+  onUpload: (files: File[], clientId: number, category: DocumentCategory, obligationId?: number) => void;
   isLoading: boolean;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [clientId, setClientId] = useState<number | null>(null);
   const [category, setCategory] = useState<DocumentCategory>('general');
+  const [obligationId, setObligationId] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const { data: clientsData } = useClients({ page_size: 1000 });
   const clients = clientsData?.results || [];
+
+  // Fetch pending obligations for selected client
+  const { data: obligationsData } = useObligations(
+    clientId ? { client: clientId, status: 'pending', page_size: 100 } : undefined
+  );
+  const obligations = obligationsData?.results || [];
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -344,7 +352,7 @@ function UploadModal({
 
   const handleSubmit = () => {
     if (files.length > 0 && clientId) {
-      onUpload(files, clientId, category);
+      onUpload(files, clientId, category, obligationId || undefined);
     }
   };
 
@@ -352,6 +360,13 @@ function UploadModal({
     setFiles([]);
     setClientId(null);
     setCategory('general');
+    setObligationId(null);
+  };
+
+  // Reset obligation when client changes
+  const handleClientChange = (newClientId: number | null) => {
+    setClientId(newClientId);
+    setObligationId(null);
   };
 
   return (
@@ -362,7 +377,7 @@ function UploadModal({
           <label className="block text-sm font-medium text-gray-700 mb-1">Πελάτης *</label>
           <select
             value={clientId || ''}
-            onChange={(e) => setClientId(Number(e.target.value))}
+            onChange={(e) => handleClientChange(e.target.value ? Number(e.target.value) : null)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Επιλέξτε πελάτη...</option>
@@ -387,6 +402,30 @@ function UploadModal({
             ))}
           </select>
         </div>
+
+        {/* Obligation selection (optional) */}
+        {clientId && obligations.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Σύνδεση με Υποχρέωση <span className="text-gray-400 font-normal">(προαιρετικό)</span>
+            </label>
+            <select
+              value={obligationId || ''}
+              onChange={(e) => setObligationId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Χωρίς σύνδεση</option>
+              {obligations.map((obl) => (
+                <option key={obl.id} value={obl.id}>
+                  {obl.type_name || obl.type_code} - {String(obl.month).padStart(2, '0')}/{obl.year}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Συνδέστε το αρχείο με μια εκκρεμή υποχρέωση του πελάτη
+            </p>
+          </div>
+        )}
 
         {/* Drop zone */}
         <div
@@ -639,12 +678,13 @@ export default function FileManager() {
     }));
   }, []);
 
-  const handleUpload = useCallback(async (files: File[], clientId: number, category: DocumentCategory) => {
+  const handleUpload = useCallback(async (files: File[], clientId: number, category: DocumentCategory, obligationId?: number) => {
     try {
       await uploadMutation.mutateAsync({
         files,
         client_id: clientId,
         document_category: category,
+        obligation_id: obligationId,
       });
       setUploadModalOpen(false);
     } catch (error) {

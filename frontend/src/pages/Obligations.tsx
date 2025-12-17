@@ -718,6 +718,9 @@ export default function Obligations() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Ανάθεση
                         </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Έγγραφα
+                        </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Ενέργειες
                         </th>
@@ -765,6 +768,16 @@ export default function Obligations() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {obligation.assigned_to_name || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {(obligation.documents_count ?? 0) > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
+                                <Paperclip className="w-3 h-3" />
+                                {obligation.documents_count}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-sm">-</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex items-center justify-end gap-1">
