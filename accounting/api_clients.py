@@ -357,6 +357,9 @@ class ClientViewSet(viewsets.ModelViewSet):
         DELETE /api/clients/{id}/documents/{doc_id}/delete/
         Delete a specific document
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         client = self.get_object()
 
         try:
@@ -367,15 +370,29 @@ class ClientViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Delete file from storage
-        if document.file:
-            document.file.delete(save=False)
+        try:
+            # Delete file from storage
+            if document.file:
+                try:
+                    document.file.delete(save=False)
+                except Exception as file_error:
+                    logger.warning(f"Could not delete file from storage: {file_error}")
 
-        document.delete()
+            # Store filename for response
+            filename = document.filename
 
-        return Response({
-            'message': 'Το έγγραφο διαγράφηκε επιτυχώς.'
-        })
+            # Delete document (this will cascade delete related tags, favorites, etc.)
+            document.delete()
+
+            return Response({
+                'message': f'Το έγγραφο "{filename}" διαγράφηκε επιτυχώς.'
+            })
+        except Exception as e:
+            logger.error(f"Error deleting document {doc_id}: {e}")
+            return Response(
+                {'error': f'Σφάλμα κατά τη διαγραφή: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['get'])
     def emails(self, request, pk=None):
