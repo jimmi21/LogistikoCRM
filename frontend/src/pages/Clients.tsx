@@ -80,8 +80,24 @@ export default function Clients() {
           setSelectedClient(null);
           showToast('success', 'Ο πελάτης ενημερώθηκε επιτυχώς');
         },
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : 'Σφάλμα κατά την ενημέρωση';
+        onError: (error: unknown) => {
+          // Extract error message from axios response
+          let message = 'Σφάλμα κατά την ενημέρωση';
+          if (error && typeof error === 'object' && 'response' in error) {
+            const axiosError = error as { response?: { data?: Record<string, string[]> } };
+            const data = axiosError.response?.data;
+            if (data) {
+              // Get first validation error message
+              const firstKey = Object.keys(data)[0];
+              if (firstKey && Array.isArray(data[firstKey])) {
+                message = `${firstKey}: ${data[firstKey][0]}`;
+              } else if (typeof data === 'string') {
+                message = data;
+              }
+            }
+          } else if (error instanceof Error) {
+            message = error.message;
+          }
           showToast('error', message);
         },
       }
