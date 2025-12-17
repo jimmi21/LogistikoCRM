@@ -1,6 +1,6 @@
 /**
  * EmailTemplates.tsx
- * Page for managing email templates - CRUD operations
+ * Page for email management - History and Templates with tabs
  */
 
 import { useState } from 'react';
@@ -15,7 +15,19 @@ import {
   Eye,
   Check,
   Copy,
+  Clock,
+  Search,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle,
+  XCircle,
+  User,
+  Calendar,
+  Send,
+  ExternalLink,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Modal, ConfirmDialog, Button } from '../components';
 import {
   useEmailTemplates,
@@ -23,10 +35,12 @@ import {
   useUpdateEmailTemplate,
   useDeleteEmailTemplate,
   usePreviewEmail,
+  useEmailHistory,
   type EmailTemplateFormData,
 } from '../hooks/useEmail';
 import { useObligationTypes } from '../hooks/useObligations';
-import type { EmailTemplate } from '../types';
+import { useClients } from '../hooks/useClients';
+import type { EmailTemplate, EmailLog } from '../types';
 
 // Available variables for templates
 const TEMPLATE_VARIABLES = [
@@ -43,7 +57,538 @@ const TEMPLATE_VARIABLES = [
   { key: 'company_name', label: 'Όνομα εταιρείας' },
 ];
 
+type TabType = 'history' | 'templates';
+
 export default function EmailTemplates() {
+  const [activeTab, setActiveTab] = useState<TabType>('history');
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Mail className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Emails</h1>
+            <p className="text-sm text-gray-500">Ιστορικό αποστολών και πρότυπα</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'history'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Clock className="w-4 h-4 inline-block mr-2" />
+            Ιστορικό Αποστολών
+          </button>
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'templates'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <FileText className="w-4 h-4 inline-block mr-2" />
+            Πρότυπα Email
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'history' && <EmailHistoryTab />}
+      {activeTab === 'templates' && <EmailTemplatesTab />}
+    </div>
+  );
+}
+
+// ============================================
+// EMAIL HISTORY TAB
+// ============================================
+
+function EmailHistoryTab() {
+  const [filters, setFilters] = useState<{
+    client_id?: number;
+    status?: 'sent' | 'failed' | 'pending';
+    page: number;
+    page_size: number;
+  }>({
+    page: 1,
+    page_size: 20,
+  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEmail, setSelectedEmail] = useState<EmailLog | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const { data, isLoading, isError, error, refetch } = useEmailHistory(filters);
+  const { data: clients } = useClients({ page_size: 1000 });
+
+  const handleFilterChange = (key: string, value: string | number | undefined) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value || undefined,
+      page: 1, // Reset to first page on filter change
+    }));
+  };
+
+  const handleViewDetails = (email: EmailLog) => {
+    setSelectedEmail(email);
+    setIsDetailModalOpen(true);
+  };
+
+  const filteredEmails = data?.results.filter(email => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      email.recipient_email.toLowerCase().includes(term) ||
+      email.recipient_name?.toLowerCase().includes(term) ||
+      email.subject.toLowerCase().includes(term) ||
+      email.client_name?.toLowerCase().includes(term)
+    );
+  });
+
+  const totalPages = Math.ceil((data?.count || 0) / filters.page_size);
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString('el-GR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'sent':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+            <CheckCircle className="w-3 h-3" />
+            Απεστάλη
+          </span>
+        );
+      case 'failed':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+            <XCircle className="w-3 h-3" />
+            Αποτυχία
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+            <Clock className="w-3 h-3" />
+            Σε αναμονή
+          </span>
+        );
+      case 'queued':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+            <Clock className="w-3 h-3" />
+            Στην ουρά
+          </span>
+        );
+      default:
+        return status;
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex flex-wrap gap-4 items-center">
+          {/* Search */}
+          <div className="flex-1 min-w-[200px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Αναζήτηση σε email, παραλήπτη, θέμα..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Client Filter */}
+          <div className="w-48">
+            <select
+              value={filters.client_id || ''}
+              onChange={(e) => handleFilterChange('client_id', e.target.value ? Number(e.target.value) : undefined)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Όλοι οι πελάτες</option>
+              {clients?.results.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.onoma}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="w-40">
+            <select
+              value={filters.status || ''}
+              onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Όλες οι καταστάσεις</option>
+              <option value="sent">Απεστάλη</option>
+              <option value="failed">Αποτυχία</option>
+              <option value="pending">Σε αναμονή</option>
+            </select>
+          </div>
+
+          {/* Refresh */}
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Send className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{data?.count || 0}</p>
+              <p className="text-sm text-gray-500">Συνολικά Email</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {data?.results.filter(e => e.status === 'sent').length || 0}
+              </p>
+              <p className="text-sm text-gray-500">Επιτυχή</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <XCircle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {data?.results.filter(e => e.status === 'failed').length || 0}
+              </p>
+              <p className="text-sm text-gray-500">Αποτυχημένα</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {data?.results.filter(e => e.status === 'pending' || e.status === 'queued').length || 0}
+              </p>
+              <p className="text-sm text-gray-500">Σε αναμονή</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Error */}
+      {isError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <span className="text-red-700">
+                Σφάλμα φόρτωσης: {error instanceof Error ? error.message : 'Άγνωστο σφάλμα'}
+              </span>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Επανάληψη
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Φόρτωση ιστορικού...</p>
+        </div>
+      )}
+
+      {/* Email List */}
+      {!isLoading && !isError && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {filteredEmails?.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Δεν βρέθηκαν emails
+              </h3>
+              <p className="text-gray-500">
+                {searchTerm || filters.client_id || filters.status
+                  ? 'Δοκιμάστε να αλλάξετε τα φίλτρα αναζήτησης'
+                  : 'Δεν υπάρχει ακόμα ιστορικό αποστολών email'}
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-600">
+                <div className="col-span-3">Παραλήπτης</div>
+                <div className="col-span-4">Θέμα</div>
+                <div className="col-span-2">Ημερομηνία</div>
+                <div className="col-span-2">Κατάσταση</div>
+                <div className="col-span-1"></div>
+              </div>
+
+              {/* Table Body */}
+              <div className="divide-y divide-gray-200">
+                {filteredEmails?.map((email) => (
+                  <div
+                    key={email.id}
+                    className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 transition-colors items-center"
+                  >
+                    <div className="col-span-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <User className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">
+                            {email.client_name || email.recipient_name || '-'}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {email.recipient_email}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-span-4">
+                      <p className="text-gray-900 truncate">{email.subject}</p>
+                      {email.template_name && (
+                        <p className="text-xs text-gray-500">
+                          Πρότυπο: {email.template_name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <Calendar className="w-3 h-3" />
+                        {formatDate(email.sent_at)}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      {getStatusBadge(email.status)}
+                    </div>
+                    <div className="col-span-1 flex justify-end gap-1">
+                      <button
+                        onClick={() => handleViewDetails(email)}
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Λεπτομέρειες"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      {email.client && (
+                        <Link
+                          to={`/clients/${email.client}`}
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="Προβολή πελάτη"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Σελίδα {filters.page} από {totalPages} ({data?.count} εγγραφές)
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={filters.page <= 1}
+                      onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Προηγούμενη
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={filters.page >= totalPages}
+                      onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
+                    >
+                      Επόμενη
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Email Detail Modal */}
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedEmail(null);
+        }}
+        title="Λεπτομέρειες Email"
+        size="lg"
+      >
+        {selectedEmail && (
+          <div className="space-y-4">
+            {/* Status Banner */}
+            <div className={`p-3 rounded-lg ${
+              selectedEmail.status === 'sent' ? 'bg-green-50 border border-green-200' :
+              selectedEmail.status === 'failed' ? 'bg-red-50 border border-red-200' :
+              'bg-amber-50 border border-amber-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(selectedEmail.status)}
+                  <span className="text-sm text-gray-600">
+                    {formatDate(selectedEmail.sent_at)}
+                  </span>
+                </div>
+                {selectedEmail.sent_by_name && (
+                  <span className="text-sm text-gray-600">
+                    Από: {selectedEmail.sent_by_name}
+                  </span>
+                )}
+              </div>
+              {selectedEmail.error_message && (
+                <p className="mt-2 text-sm text-red-700">
+                  <strong>Σφάλμα:</strong> {selectedEmail.error_message}
+                </p>
+              )}
+            </div>
+
+            {/* Recipient Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Παραλήπτης
+                </label>
+                <p className="text-gray-900">{selectedEmail.recipient_name || '-'}</p>
+                <p className="text-sm text-gray-500">{selectedEmail.recipient_email}</p>
+              </div>
+              {selectedEmail.client_name && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Πελάτης
+                  </label>
+                  <p className="text-gray-900">{selectedEmail.client_name}</p>
+                  {selectedEmail.client_afm && (
+                    <p className="text-sm text-gray-500">ΑΦΜ: {selectedEmail.client_afm}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Template & Obligation */}
+            <div className="grid grid-cols-2 gap-4">
+              {selectedEmail.template_name && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Πρότυπο
+                  </label>
+                  <p className="text-gray-900">{selectedEmail.template_name}</p>
+                </div>
+              )}
+              {selectedEmail.obligation_type && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Υποχρέωση
+                  </label>
+                  <p className="text-gray-900">{selectedEmail.obligation_type}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Θέμα
+              </label>
+              <p className="p-3 bg-gray-50 rounded-lg text-gray-900">
+                {selectedEmail.subject}
+              </p>
+            </div>
+
+            {/* Body */}
+            {selectedEmail.body && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Κείμενο
+                </label>
+                <div
+                  className="p-4 bg-gray-50 rounded-lg prose prose-sm max-w-none max-h-64 overflow-y-auto"
+                  dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  setSelectedEmail(null);
+                }}
+              >
+                Κλείσιμο
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+// ============================================
+// EMAIL TEMPLATES TAB
+// ============================================
+
+function EmailTemplatesTab() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -117,17 +662,8 @@ export default function EmailTemplates() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Mail className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Πρότυπα Email</h1>
-            <p className="text-sm text-gray-500">{templates?.length || 0} πρότυπα</p>
-          </div>
-        </div>
+      {/* Actions */}
+      <div className="flex justify-end">
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Νέο Πρότυπο

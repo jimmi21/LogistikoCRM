@@ -46,14 +46,40 @@ class EmailLogSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True
     )
+    client_name = serializers.CharField(
+        source='client.onoma',
+        read_only=True,
+        allow_null=True
+    )
+    client_afm = serializers.CharField(
+        source='client.afm',
+        read_only=True,
+        allow_null=True
+    )
+    obligation_type = serializers.CharField(
+        source='obligation.obligation_type.name',
+        read_only=True,
+        allow_null=True
+    )
+    sent_by_name = serializers.CharField(
+        source='sent_by.get_full_name',
+        read_only=True,
+        allow_null=True
+    )
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
 
     class Meta:
         model = EmailLog
         fields = [
             'id', 'recipient_email', 'recipient_name',
-            'client', 'obligation', 'template_used', 'template_name',
-            'subject', 'body', 'status', 'error_message',
-            'sent_at', 'sent_by'
+            'client', 'client_name', 'client_afm',
+            'obligation', 'obligation_type',
+            'template_used', 'template_name',
+            'subject', 'body', 'status', 'status_display', 'error_message',
+            'sent_at', 'sent_by', 'sent_by_name'
         ]
 
 
@@ -139,38 +165,74 @@ class BulkCompleteNotifySerializer(serializers.Serializer):
 # EMAIL TEMPLATE ENDPOINTS
 # ============================================
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def email_templates(request):
     """
     GET /api/v1/email/templates/
     List all active email templates
+
+    POST /api/v1/email/templates/
+    Create a new email template
     """
-    templates = EmailTemplate.objects.filter(is_active=True).order_by('name')
-    serializer = EmailTemplateSerializer(templates, many=True)
-    return Response(serializer.data)
+    if request.method == 'GET':
+        templates = EmailTemplate.objects.filter(is_active=True).order_by('name')
+        serializer = EmailTemplateSerializer(templates, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = EmailTemplateSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def email_template_detail(request, template_id):
     """
     GET /api/v1/email/templates/{id}/
     Get single email template with preview
+
+    PUT /api/v1/email/templates/{id}/
+    Update an email template
+
+    DELETE /api/v1/email/templates/{id}/
+    Soft-delete an email template (set is_active=False)
     """
     try:
-        template = EmailTemplate.objects.get(id=template_id, is_active=True)
+        template = EmailTemplate.objects.get(id=template_id)
     except EmailTemplate.DoesNotExist:
         return Response(
             {'error': 'Το πρότυπο δεν βρέθηκε.'},
             status=status.HTTP_404_NOT_FOUND
         )
 
-    serializer = EmailTemplateSerializer(template)
-    return Response({
-        **serializer.data,
-        'available_variables': EmailTemplate.get_available_variables()
-    })
+    if request.method == 'GET':
+        if not template.is_active:
+            return Response(
+                {'error': 'Το πρότυπο δεν βρέθηκε.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = EmailTemplateSerializer(template)
+        return Response({
+            **serializer.data,
+            'available_variables': EmailTemplate.get_available_variables()
+        })
+
+    elif request.method == 'PUT':
+        serializer = EmailTemplateSerializer(template, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        # Soft delete - set is_active=False
+        template.is_active = False
+        template.save(update_fields=['is_active'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['POST'])
@@ -998,12 +1060,13 @@ class EmailSettingsSerializer(serializers.ModelSerializer):
 
     def get_has_password(self, obj):
         """Return whether password is set (without revealing it)"""
-        return bool(obj.smtp_password)
+        return bool(obj._encrypted_smtp_password)
 
     def update(self, instance, validated_data):
         """Handle password update - only update if provided"""
         password = validated_data.pop('smtp_password', None)
         if password:  # Only update password if provided (not empty)
+            # Use property setter which will encrypt the password
             instance.smtp_password = password
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -1134,11 +1197,8 @@ def email_settings_send_test(request):
     try:
         success, result = EmailService.send_email(
             recipient_email=recipient_email,
-            recipient_name='Test User',
             subject=subject,
-            body_html=body_html,
-            from_email=settings_obj.from_email,
-            from_name=settings_obj.from_name,
+            body=body_html,
             user=request.user
         )
 

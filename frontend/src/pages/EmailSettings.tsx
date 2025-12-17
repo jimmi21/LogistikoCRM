@@ -333,8 +333,14 @@ export default function EmailSettings() {
 
             {/* SMTP Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
                 Κωδικός (App Password)
+                {settings?.has_password && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                    <Check className="w-3 h-3" />
+                    Αποθηκευμένος
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <input
@@ -342,8 +348,12 @@ export default function EmailSettings() {
                   name="smtp_password"
                   value={formData.smtp_password || ''}
                   onChange={handleChange}
-                  placeholder={settings?.has_password ? '••••••••' : 'Εισάγετε κωδικό'}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder={settings?.has_password ? 'Νέος κωδικός (προαιρετικά)' : 'Εισάγετε κωδικό'}
+                  className={`w-full px-3 py-2 pr-10 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    settings?.has_password && !formData.smtp_password
+                      ? 'border-green-300 bg-green-50'
+                      : 'border-gray-300'
+                  }`}
                 />
                 <button
                   type="button"
@@ -353,11 +363,17 @@ export default function EmailSettings() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              {settings?.has_password && !formData.smtp_password && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Αφήστε κενό για να διατηρήσετε τον υπάρχοντα κωδικό
+              {settings?.has_password && !formData.smtp_password ? (
+                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  Ο κωδικός είναι αποθηκευμένος με κρυπτογράφηση. Αφήστε κενό για να τον διατηρήσετε.
                 </p>
-              )}
+              ) : !settings?.has_password && !formData.smtp_password ? (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Δεν έχει οριστεί κωδικός. Απαιτείται για αποστολή email.
+                </p>
+              ) : null}
             </div>
 
             {/* Gmail Help */}
@@ -525,53 +541,92 @@ export default function EmailSettings() {
         </div>
       </div>
 
-      {/* Email Signature & Test Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Email Signature */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Υπογραφή Email</h3>
-          <textarea
-            name="email_signature"
-            value={formData.email_signature || ''}
-            onChange={handleChange}
-            rows={6}
-            placeholder="HTML υπογραφή που προστίθεται στα emails..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-          />
-          <p className="text-xs text-gray-500 mt-2">
-            Μπορείτε να χρησιμοποιήσετε HTML για μορφοποίηση
-          </p>
+      {/* Email Signature Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Υπογραφή Email</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Signature Editor */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              HTML Κώδικας
+            </label>
+            <textarea
+              name="email_signature"
+              value={formData.email_signature || ''}
+              onChange={handleChange}
+              rows={10}
+              placeholder="HTML υπογραφή που προστίθεται στα emails..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Μπορείτε να χρησιμοποιήσετε HTML για μορφοποίηση. Η υπογραφή προστίθεται αυτόματα στο τέλος κάθε email.
+            </p>
+          </div>
+
+          {/* Signature Preview */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Προεπισκόπηση
+            </label>
+            <div className="border border-gray-300 rounded-md p-4 bg-gray-50 min-h-[200px]">
+              {formData.email_signature ? (
+                <div
+                  className="prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: formData.email_signature }}
+                />
+              ) : (
+                <p className="text-gray-400 text-sm italic">
+                  Η προεπισκόπηση θα εμφανιστεί εδώ όταν εισάγετε HTML κώδικα...
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Test Email Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Δοκιμαστικό Email</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Στείλτε ένα δοκιμαστικό email για να επιβεβαιώσετε ότι οι ρυθμίσεις λειτουργούν σωστά.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="email"
-              value={testEmail}
-              onChange={(e) => setTestEmail(e.target.value)}
-              placeholder="test@example.com"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <Button
-              onClick={handleSendTestEmail}
-              isLoading={sendTestMutation.isPending}
-              disabled={!formData.is_active}
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Αποστολή
-            </Button>
-          </div>
-          {!formData.is_active && (
-            <p className="text-sm text-amber-600 mt-2">
-              Ενεργοποιήστε τις ρυθμίσεις email για να στείλετε δοκιμαστικό
-            </p>
-          )}
+        {/* Signature Template Suggestions */}
+        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <h4 className="font-medium text-amber-800 mb-2">Παράδειγμα υπογραφής:</h4>
+          <pre className="text-xs text-amber-700 overflow-x-auto whitespace-pre-wrap">{`<div style="font-family: Arial, sans-serif; color: #333;">
+  <p style="margin: 0;">Με εκτίμηση,</p>
+  <p style="margin: 5px 0 0 0; font-weight: bold;">${formData.accountant_name || 'Όνομα Λογιστή'}</p>
+  <p style="margin: 0; font-size: 14px; color: #666;">${formData.accountant_title || 'Λογιστής Α\' Τάξης'}</p>
+  <p style="margin: 10px 0 0 0; font-size: 14px;">
+    <strong>${formData.company_name || 'Όνομα Εταιρείας'}</strong><br/>
+    Τηλ: ${formData.company_phone || '210-XXXXXXX'}<br/>
+    ${formData.company_website || 'www.example.com'}
+  </p>
+</div>`}</pre>
         </div>
+      </div>
+
+      {/* Test Email Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Δοκιμαστικό Email</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Στείλτε ένα δοκιμαστικό email για να επιβεβαιώσετε ότι οι ρυθμίσεις λειτουργούν σωστά.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            placeholder="test@example.com"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <Button
+            onClick={handleSendTestEmail}
+            isLoading={sendTestMutation.isPending}
+            disabled={!formData.is_active}
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Αποστολή
+          </Button>
+        </div>
+        {!formData.is_active && (
+          <p className="text-sm text-amber-600 mt-2">
+            Ενεργοποιήστε τις ρυθμίσεις email για να στείλετε δοκιμαστικό
+          </p>
+        )}
       </div>
 
       {/* Advanced Settings */}

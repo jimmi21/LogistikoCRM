@@ -314,12 +314,22 @@ export const DOCUMENT_CATEGORIES = [
 export interface EmailLog {
   id: number;
   recipient_email: string;
-  subject: string;
-  status: 'sent' | 'failed' | 'pending';
-  status_display?: string;
-  sent_at: string | null;
+  recipient_name: string;
+  client: number | null;
+  client_name?: string;
+  client_afm?: string;
+  obligation: number | null;
+  obligation_type?: string;
+  template_used: number | null;
   template_name?: string | null;
-  obligation_id?: number | null;
+  subject: string;
+  body?: string;
+  status: 'sent' | 'failed' | 'pending' | 'queued';
+  status_display?: string;
+  error_message?: string;
+  sent_at: string | null;
+  sent_by?: number | null;
+  sent_by_name?: string;
 }
 
 // VoIP Call interface
