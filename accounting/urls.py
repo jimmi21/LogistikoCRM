@@ -117,6 +117,18 @@ from .api_document_upload import (
     upload_document_with_version,
     document_preview,
 )
+from .api_file_manager import (
+    DocumentViewSet as FileManagerDocumentViewSet,
+    TagViewSet,
+    SharedLinkViewSet,
+    FavoriteViewSet,
+    CollectionViewSet,
+    PublicSharedLinkView,
+    PublicSharedLinkDownloadView,
+    FileManagerStatsView,
+    RecentDocumentsView,
+    BrowseFoldersView,
+)
 
 
 app_name = "accounting"
@@ -375,4 +387,103 @@ urlpatterns = [
     # BACKUP & RESTORE API
     # ==================================================
     path("api/settings/backup/", include("settings.backup_urls")),
+
+    # ==================================================
+    # FILE MANAGER API (v1)
+    # ==================================================
+    # Documents
+    path("api/v1/file-manager/documents/", FileManagerDocumentViewSet.as_view({
+        'get': 'list',
+    }), name="file_manager_documents"),
+    path("api/v1/file-manager/documents/<int:pk>/", FileManagerDocumentViewSet.as_view({
+        'get': 'retrieve',
+        'delete': 'destroy',
+    }), name="file_manager_document_detail"),
+    path("api/v1/file-manager/documents/upload/", FileManagerDocumentViewSet.as_view({
+        'post': 'upload',
+    }), name="file_manager_upload"),
+    path("api/v1/file-manager/documents/bulk-delete/", FileManagerDocumentViewSet.as_view({
+        'post': 'bulk_delete',
+    }), name="file_manager_bulk_delete"),
+    path("api/v1/file-manager/documents/<int:pk>/preview/", FileManagerDocumentViewSet.as_view({
+        'get': 'preview',
+    }), name="file_manager_preview"),
+    path("api/v1/file-manager/documents/<int:pk>/download/", FileManagerDocumentViewSet.as_view({
+        'get': 'download',
+    }), name="file_manager_download"),
+    path("api/v1/file-manager/documents/<int:pk>/versions/", FileManagerDocumentViewSet.as_view({
+        'get': 'versions',
+    }), name="file_manager_versions"),
+    path("api/v1/file-manager/documents/<int:pk>/tags/", FileManagerDocumentViewSet.as_view({
+        'post': 'add_tags',
+    }), name="file_manager_add_tags"),
+    path("api/v1/file-manager/documents/<int:pk>/tags/<int:tag_id>/", FileManagerDocumentViewSet.as_view({
+        'delete': 'remove_tag',
+    }), name="file_manager_remove_tag"),
+
+    # Tags
+    path("api/v1/file-manager/tags/", TagViewSet.as_view({
+        'get': 'list',
+        'post': 'create',
+    }), name="file_manager_tags"),
+    path("api/v1/file-manager/tags/<int:pk>/", TagViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy',
+    }), name="file_manager_tag_detail"),
+
+    # Shared Links
+    path("api/v1/file-manager/shared-links/", SharedLinkViewSet.as_view({
+        'get': 'list',
+        'post': 'create',
+    }), name="file_manager_shared_links"),
+    path("api/v1/file-manager/shared-links/<int:pk>/", SharedLinkViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy',
+    }), name="file_manager_shared_link_detail"),
+    path("api/v1/file-manager/shared-links/<int:pk>/regenerate-token/", SharedLinkViewSet.as_view({
+        'post': 'regenerate_token',
+    }), name="file_manager_regenerate_token"),
+    path("api/v1/file-manager/shared-links/<int:pk>/access-logs/", SharedLinkViewSet.as_view({
+        'get': 'access_logs',
+    }), name="file_manager_access_logs"),
+
+    # Favorites
+    path("api/v1/file-manager/favorites/", FavoriteViewSet.as_view({
+        'get': 'list',
+        'post': 'create',
+    }), name="file_manager_favorites"),
+    path("api/v1/file-manager/favorites/<int:pk>/", FavoriteViewSet.as_view({
+        'delete': 'destroy',
+    }), name="file_manager_favorite_detail"),
+
+    # Collections
+    path("api/v1/file-manager/collections/", CollectionViewSet.as_view({
+        'get': 'list',
+        'post': 'create',
+    }), name="file_manager_collections"),
+    path("api/v1/file-manager/collections/<int:pk>/", CollectionViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy',
+    }), name="file_manager_collection_detail"),
+    path("api/v1/file-manager/collections/<int:pk>/documents/", CollectionViewSet.as_view({
+        'post': 'add_documents',
+    }), name="file_manager_collection_add_docs"),
+    path("api/v1/file-manager/collections/<int:pk>/documents/<int:doc_id>/", CollectionViewSet.as_view({
+        'delete': 'remove_document',
+    }), name="file_manager_collection_remove_doc"),
+
+    # Dashboard & Stats
+    path("api/v1/file-manager/stats/", FileManagerStatsView.as_view(), name="file_manager_stats"),
+    path("api/v1/file-manager/recent/", RecentDocumentsView.as_view(), name="file_manager_recent"),
+    path("api/v1/file-manager/browse/", BrowseFoldersView.as_view(), name="file_manager_browse"),
+
+    # Public Shared Link Access (NO AUTH REQUIRED)
+    path("share/<str:token>/", PublicSharedLinkView.as_view(), name="shared_link_access"),
+    path("share/<str:token>/download/", PublicSharedLinkDownloadView.as_view(), name="shared_link_download"),
 ]
