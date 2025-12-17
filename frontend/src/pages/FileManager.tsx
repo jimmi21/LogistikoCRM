@@ -10,7 +10,6 @@ import {
   FolderPlus, MoreVertical, CheckSquare, Square, X, Link2,
   FileText, Image, FileSpreadsheet, File, RefreshCw, Settings
 } from 'lucide-react';
-import { Layout } from '../components/layout';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -763,7 +762,7 @@ export default function FileManager() {
   }, [documents, selectedIds.size]);
 
   return (
-    <Layout>
+    <>
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -1077,6 +1076,6 @@ export default function FileManager() {
         cancelText="Ακύρωση"
         variant="danger"
       />
-    </Layout>
+    </>
   );
 }
