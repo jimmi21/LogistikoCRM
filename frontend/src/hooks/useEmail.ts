@@ -379,3 +379,128 @@ export function useDeleteEmailTemplate() {
     },
   });
 }
+
+// ============================================
+// EMAIL SETTINGS OPERATIONS
+// ============================================
+
+const EMAIL_SETTINGS_KEY = 'email-settings';
+
+export interface EmailSettingsData {
+  id: number;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_password?: string; // Write-only
+  has_password: boolean;
+  smtp_security: 'tls' | 'ssl' | 'none';
+  from_email: string;
+  from_name: string;
+  reply_to: string;
+  company_name: string;
+  company_phone: string;
+  company_website: string;
+  accountant_name: string;
+  accountant_title: string;
+  email_signature: string;
+  rate_limit: number;
+  burst_limit: number;
+  is_active: boolean;
+  last_test_at: string | null;
+  last_test_success: boolean | null;
+  last_test_error: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailSettingsUpdateData {
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_username?: string;
+  smtp_password?: string;
+  smtp_security?: 'tls' | 'ssl' | 'none';
+  from_email?: string;
+  from_name?: string;
+  reply_to?: string;
+  company_name?: string;
+  company_phone?: string;
+  company_website?: string;
+  accountant_name?: string;
+  accountant_title?: string;
+  email_signature?: string;
+  rate_limit?: number;
+  burst_limit?: number;
+  is_active?: boolean;
+}
+
+/**
+ * Fetch email settings
+ */
+export function useEmailSettings() {
+  return useQuery({
+    queryKey: [EMAIL_SETTINGS_KEY],
+    queryFn: async () => {
+      const response = await apiClient.get<EmailSettingsData>('/api/v1/email/settings/');
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+/**
+ * Update email settings
+ */
+export function useUpdateEmailSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: EmailSettingsUpdateData): Promise<EmailSettingsData> => {
+      const response = await apiClient.put<EmailSettingsData>(
+        '/api/v1/email/settings/',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [EMAIL_SETTINGS_KEY] });
+    },
+  });
+}
+
+/**
+ * Test SMTP connection
+ */
+export function useTestEmailConnection() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data?: EmailSettingsUpdateData): Promise<{
+      success: boolean;
+      message: string;
+      last_test_at: string;
+    }> => {
+      const response = await apiClient.post('/api/v1/email/settings/test/', data || {});
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [EMAIL_SETTINGS_KEY] });
+    },
+  });
+}
+
+/**
+ * Send test email
+ */
+export function useSendTestEmail() {
+  return useMutation({
+    mutationFn: async (recipientEmail: string): Promise<{
+      success: boolean;
+      message: string;
+    }> => {
+      const response = await apiClient.post('/api/v1/email/settings/send-test/', {
+        recipient_email: recipientEmail,
+      });
+      return response.data;
+    },
+  });
+}

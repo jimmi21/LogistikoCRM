@@ -12,7 +12,8 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 
 from .models import (
-    ClientProfile, MonthlyObligation, EmailTemplate, EmailLog, ClientDocument
+    ClientProfile, MonthlyObligation, EmailTemplate, EmailLog, ClientDocument,
+    EmailSettings
 )
 from .services.email_service import EmailService
 
@@ -970,3 +971,190 @@ def email_history(request):
         'page_size': page_size,
         'results': serializer.data
     })
+
+
+# ============================================
+# EMAIL SETTINGS API
+# ============================================
+
+class EmailSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for EmailSettings"""
+    # Don't expose password in responses
+    smtp_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    has_password = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmailSettings
+        fields = [
+            'id', 'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+            'has_password', 'smtp_security', 'from_email', 'from_name', 'reply_to',
+            'company_name', 'company_phone', 'company_website',
+            'accountant_name', 'accountant_title', 'email_signature',
+            'rate_limit', 'burst_limit', 'is_active',
+            'last_test_at', 'last_test_success', 'last_test_error',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'last_test_at', 'last_test_success', 'last_test_error', 'created_at', 'updated_at']
+
+    def get_has_password(self, obj):
+        """Return whether password is set (without revealing it)"""
+        return bool(obj.smtp_password)
+
+    def update(self, instance, validated_data):
+        """Handle password update - only update if provided"""
+        password = validated_data.pop('smtp_password', None)
+        if password:  # Only update password if provided (not empty)
+            instance.smtp_password = password
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def email_settings(request):
+    """
+    GET /api/v1/email/settings/
+    Retrieve email settings
+
+    PUT /api/v1/email/settings/
+    Update email settings
+    """
+    # Get or create singleton settings
+    settings_obj = EmailSettings.get_settings()
+
+    if request.method == 'GET':
+        serializer = EmailSettingsSerializer(settings_obj)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        serializer = EmailSettingsSerializer(settings_obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def email_settings_test(request):
+    """
+    POST /api/v1/email/settings/test/
+    Test SMTP connection
+
+    Request body (optional - uses saved settings if not provided):
+    {
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_username": "user@gmail.com",
+        "smtp_password": "app-password",
+        "smtp_security": "tls"
+    }
+    """
+    settings_obj = EmailSettings.get_settings()
+
+    # If request body provided, use those values for testing (without saving)
+    data = request.data
+    if data:
+        # Temporarily update for test
+        if 'smtp_host' in data:
+            settings_obj.smtp_host = data['smtp_host']
+        if 'smtp_port' in data:
+            settings_obj.smtp_port = data['smtp_port']
+        if 'smtp_username' in data:
+            settings_obj.smtp_username = data['smtp_username']
+        if 'smtp_password' in data and data['smtp_password']:
+            settings_obj.smtp_password = data['smtp_password']
+        if 'smtp_security' in data:
+            settings_obj.smtp_security = data['smtp_security']
+
+    # Test connection
+    success, message = settings_obj.test_connection()
+
+    return Response({
+        'success': success,
+        'message': message,
+        'last_test_at': settings_obj.last_test_at,
+    }, status=status.HTTP_200_OK if success else status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def email_settings_send_test(request):
+    """
+    POST /api/v1/email/settings/send-test/
+    Send a test email to verify configuration
+
+    Request body:
+    {
+        "recipient_email": "test@example.com"
+    }
+    """
+    recipient_email = request.data.get('recipient_email')
+    if not recipient_email:
+        return Response(
+            {'error': 'Το email παραλήπτη είναι υποχρεωτικό'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    settings_obj = EmailSettings.get_settings()
+
+    if not settings_obj.is_active:
+        return Response(
+            {'error': 'Οι ρυθμίσεις email είναι απενεργοποιημένες'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Send test email using EmailService
+    from django.utils import timezone
+
+    subject = f'Test Email - LogistikoCRM ({timezone.now().strftime("%d/%m/%Y %H:%M")})'
+    body_html = f'''
+    <html>
+    <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2 style="color: #4f46e5;">Test Email από LogistikoCRM</h2>
+        <p>Αυτό είναι δοκιμαστικό email για επιβεβαίωση των ρυθμίσεων SMTP.</p>
+        <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+        <h3>Ρυθμίσεις:</h3>
+        <ul>
+            <li><strong>SMTP Server:</strong> {settings_obj.smtp_host}:{settings_obj.smtp_port}</li>
+            <li><strong>Ασφάλεια:</strong> {settings_obj.get_smtp_security_display()}</li>
+            <li><strong>Από:</strong> {settings_obj.from_name} &lt;{settings_obj.from_email}&gt;</li>
+        </ul>
+        <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+        <p style="color: #6b7280; font-size: 12px;">
+            Αποστολή: {timezone.now().strftime("%d/%m/%Y %H:%M:%S")}<br>
+            Αν λάβατε αυτό το email, οι ρυθμίσεις λειτουργούν σωστά!
+        </p>
+    </body>
+    </html>
+    '''
+
+    try:
+        success, result = EmailService.send_email(
+            recipient_email=recipient_email,
+            recipient_name='Test User',
+            subject=subject,
+            body_html=body_html,
+            from_email=settings_obj.from_email,
+            from_name=settings_obj.from_name,
+            user=request.user
+        )
+
+        if success:
+            return Response({
+                'success': True,
+                'message': f'Test email στάλθηκε επιτυχώς στο {recipient_email}'
+            })
+        else:
+            return Response({
+                'success': False,
+                'message': f'Αποτυχία αποστολής: {result}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Σφάλμα: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

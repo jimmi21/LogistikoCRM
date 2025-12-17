@@ -989,6 +989,258 @@ class ScheduledEmail(models.Model):
             return f"{recipients[0]}, {recipients[1]} (+{count - 2} ακόμα)"
 
 
+class EmailSettings(models.Model):
+    """
+    Ρυθμίσεις Email - Singleton model για αποθήκευση SMTP settings στη βάση.
+    Μπορεί να παρακαμφθεί από environment variables.
+    """
+
+    SECURITY_CHOICES = [
+        ('tls', 'TLS (port 587)'),
+        ('ssl', 'SSL (port 465)'),
+        ('none', 'Κανένα (port 25)'),
+    ]
+
+    # SMTP Settings
+    smtp_host = models.CharField(
+        'SMTP Server',
+        max_length=255,
+        default='smtp.gmail.com',
+        help_text='π.χ. smtp.gmail.com, mail.example.com'
+    )
+    smtp_port = models.PositiveIntegerField(
+        'SMTP Port',
+        default=587,
+        help_text='Συνήθως 587 (TLS), 465 (SSL), ή 25'
+    )
+    smtp_username = models.CharField(
+        'SMTP Username',
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='Συνήθως το email σας'
+    )
+    smtp_password = models.CharField(
+        'SMTP Password',
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='App Password για Gmail/Google Workspace'
+    )
+    smtp_security = models.CharField(
+        'Ασφάλεια',
+        max_length=10,
+        choices=SECURITY_CHOICES,
+        default='tls'
+    )
+
+    # Sender Info
+    from_email = models.EmailField(
+        'Email Αποστολέα',
+        help_text='Η διεύθυνση που θα εμφανίζεται ως αποστολέας'
+    )
+    from_name = models.CharField(
+        'Όνομα Αποστολέα',
+        max_length=100,
+        blank=True,
+        default='',
+        help_text='π.χ. Λογιστικό Γραφείο Παπαδόπουλος'
+    )
+    reply_to = models.EmailField(
+        'Reply-To Email',
+        blank=True,
+        default='',
+        help_text='Αν διαφέρει από το email αποστολέα'
+    )
+
+    # Company Info (for templates)
+    company_name = models.CharField(
+        'Όνομα Εταιρείας',
+        max_length=200,
+        blank=True,
+        default=''
+    )
+    company_phone = models.CharField(
+        'Τηλέφωνο Εταιρείας',
+        max_length=50,
+        blank=True,
+        default=''
+    )
+    company_website = models.URLField(
+        'Website Εταιρείας',
+        blank=True,
+        default=''
+    )
+    accountant_name = models.CharField(
+        'Όνομα Λογιστή',
+        max_length=100,
+        blank=True,
+        default=''
+    )
+    accountant_title = models.CharField(
+        'Τίτλος Λογιστή',
+        max_length=100,
+        blank=True,
+        default='Λογιστής Α\' Τάξης',
+        help_text='π.χ. Λογιστής Α\' Τάξης, Ορκωτός Ελεγκτής'
+    )
+
+    # Email Signature
+    email_signature = models.TextField(
+        'Υπογραφή Email',
+        blank=True,
+        default='',
+        help_text='HTML υπογραφή που προστίθεται στα emails'
+    )
+
+    # Rate Limiting
+    rate_limit = models.FloatField(
+        'Rate Limit (emails/sec)',
+        default=2.0,
+        help_text='Μέγιστα emails ανά δευτερόλεπτο'
+    )
+    burst_limit = models.PositiveIntegerField(
+        'Burst Limit',
+        default=5,
+        help_text='Μέγιστα emails σε burst'
+    )
+
+    # Status
+    is_active = models.BooleanField(
+        'Ενεργό',
+        default=True,
+        help_text='Αν απενεργοποιηθεί, τα emails δεν θα στέλνονται'
+    )
+    last_test_at = models.DateTimeField(
+        'Τελευταίο Test',
+        null=True,
+        blank=True
+    )
+    last_test_success = models.BooleanField(
+        'Επιτυχές Test',
+        null=True,
+        blank=True
+    )
+    last_test_error = models.TextField(
+        'Σφάλμα Test',
+        blank=True,
+        default=''
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Ρυθμίσεις Email'
+        verbose_name_plural = 'Ρυθμίσεις Email'
+
+    def __str__(self):
+        return f"Email Settings ({self.from_email})"
+
+    def save(self, *args, **kwargs):
+        """Ensure only one instance exists (singleton pattern)"""
+        if not self.pk and EmailSettings.objects.exists():
+            # Update existing instead of creating new
+            existing = EmailSettings.objects.first()
+            self.pk = existing.pk
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        """
+        Get or create email settings.
+        Falls back to environment variables if no DB settings exist.
+        """
+        settings_obj, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={
+                'smtp_host': getattr(settings, 'EMAIL_HOST', 'smtp.gmail.com'),
+                'smtp_port': getattr(settings, 'EMAIL_PORT', 587),
+                'smtp_username': getattr(settings, 'EMAIL_HOST_USER', ''),
+                'smtp_password': getattr(settings, 'EMAIL_HOST_PASSWORD', ''),
+                'smtp_security': 'tls' if getattr(settings, 'EMAIL_USE_TLS', True) else ('ssl' if getattr(settings, 'EMAIL_USE_SSL', False) else 'none'),
+                'from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
+                'from_name': getattr(settings, 'COMPANY_NAME', ''),
+                'company_name': getattr(settings, 'COMPANY_NAME', ''),
+                'company_phone': getattr(settings, 'COMPANY_PHONE', ''),
+                'company_website': getattr(settings, 'COMPANY_WEBSITE', ''),
+                'accountant_name': getattr(settings, 'ACCOUNTANT_NAME', ''),
+                'accountant_title': getattr(settings, 'ACCOUNTANT_TITLE', ''),
+                'email_signature': getattr(settings, 'EMAIL_SIGNATURE', ''),
+            }
+        )
+        return settings_obj
+
+    def get_smtp_config(self):
+        """Return SMTP configuration dict for Django email backend"""
+        return {
+            'host': self.smtp_host,
+            'port': self.smtp_port,
+            'username': self.smtp_username,
+            'password': self.smtp_password,
+            'use_tls': self.smtp_security == 'tls',
+            'use_ssl': self.smtp_security == 'ssl',
+        }
+
+    def test_connection(self):
+        """
+        Test SMTP connection and update status.
+        Returns (success: bool, message: str)
+        """
+        import smtplib
+        from socket import timeout as SocketTimeout
+
+        self.last_test_at = timezone.now()
+
+        try:
+            # Create connection based on security type
+            if self.smtp_security == 'ssl':
+                server = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=10)
+            else:
+                server = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10)
+                if self.smtp_security == 'tls':
+                    server.starttls()
+
+            # Try to login if credentials provided
+            if self.smtp_username and self.smtp_password:
+                server.login(self.smtp_username, self.smtp_password)
+
+            server.quit()
+
+            self.last_test_success = True
+            self.last_test_error = ''
+            self.save()
+            return True, 'Η σύνδεση SMTP επιτυχής!'
+
+        except smtplib.SMTPAuthenticationError as e:
+            error_msg = f'Σφάλμα authentication: {e}'
+            self.last_test_success = False
+            self.last_test_error = error_msg
+            self.save()
+            return False, error_msg
+
+        except smtplib.SMTPConnectError as e:
+            error_msg = f'Αδυναμία σύνδεσης στον server: {e}'
+            self.last_test_success = False
+            self.last_test_error = error_msg
+            self.save()
+            return False, error_msg
+
+        except SocketTimeout:
+            error_msg = 'Timeout κατά τη σύνδεση - ελέγξτε host/port'
+            self.last_test_success = False
+            self.last_test_error = error_msg
+            self.save()
+            return False, error_msg
+
+        except Exception as e:
+            error_msg = f'Σφάλμα: {str(e)}'
+            self.last_test_success = False
+            self.last_test_error = error_msg
+            self.save()
+            return False, error_msg
+
+
 class VoIPCall(models.Model):
     """Καταγραφή κλήσεων VoIP/Fritz!Box"""
     

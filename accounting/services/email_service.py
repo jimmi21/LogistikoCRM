@@ -49,12 +49,54 @@ class EmailService:
     - Template rendering with {variable} syntax
     - Preview functionality
     - Attachment support
+    - Database-stored settings (EmailSettings model)
     """
 
     # Default settings (can be overridden in Django settings)
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_BASE_DELAY = 2.0
     DEFAULT_RATE_LIMIT = 2.0  # emails per second
+
+    @staticmethod
+    def _get_email_settings():
+        """
+        Get email settings from database (preferred) or Django settings (fallback).
+        Returns tuple: (settings_obj_or_none, from_email, from_name, smtp_config)
+        """
+        from accounting.models import EmailSettings
+
+        try:
+            email_settings = EmailSettings.get_settings()
+
+            # Check if settings are configured and active
+            if email_settings.is_active and email_settings.smtp_host and email_settings.from_email:
+                smtp_config = email_settings.get_smtp_config()
+                from_email = email_settings.from_email
+                from_name = email_settings.from_name or ''
+                return email_settings, from_email, from_name, smtp_config
+        except Exception as e:
+            logger.warning(f"Could not load EmailSettings from database: {e}")
+
+        # Fallback to Django settings
+        return None, getattr(settings, 'DEFAULT_FROM_EMAIL', ''), '', None
+
+    @staticmethod
+    def _get_email_connection(smtp_config=None):
+        """
+        Get an email connection.
+        If smtp_config is provided, create custom connection.
+        Otherwise use default Django connection.
+        """
+        if smtp_config:
+            return get_connection(
+                host=smtp_config['host'],
+                port=smtp_config['port'],
+                username=smtp_config['username'],
+                password=smtp_config['password'],
+                use_tls=smtp_config['use_tls'],
+                use_ssl=smtp_config['use_ssl'],
+            )
+        return get_connection()
 
     @staticmethod
     def get_context_for_obligation(obligation, user=None):
@@ -154,7 +196,11 @@ class EmailService:
         subject,
         body,
         html_body=None,
-        attachments=None
+        attachments=None,
+        from_email=None,
+        from_name=None,
+        reply_to=None,
+        connection=None
     ):
         """
         Prepare an EmailMessage object.
@@ -165,17 +211,32 @@ class EmailService:
             body: Email body (HTML or plain text)
             html_body: Optional separate HTML body
             attachments: Optional list of attachments
+            from_email: Optional sender email (uses settings if not provided)
+            from_name: Optional sender name
+            reply_to: Optional reply-to email
+            connection: Optional email connection
 
         Returns:
             EmailMessage or EmailMultiAlternatives instance
         """
+        # Determine from_email
+        if not from_email:
+            from_email = settings.DEFAULT_FROM_EMAIL
+
+        # Format from_email with name if provided
+        if from_name:
+            formatted_from = f"{from_name} <{from_email}>"
+        else:
+            formatted_from = from_email
+
         if html_body:
             # Send as multipart (plain + HTML)
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=strip_tags(body),  # Plain text version
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[recipient_email]
+                from_email=formatted_from,
+                to=[recipient_email],
+                connection=connection
             )
             email.attach_alternative(html_body, "text/html")
         else:
@@ -183,10 +244,15 @@ class EmailService:
             email = EmailMessage(
                 subject=subject,
                 body=body,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[recipient_email]
+                from_email=formatted_from,
+                to=[recipient_email],
+                connection=connection
             )
             email.content_subtype = 'html'
+
+        # Add reply-to header if provided
+        if reply_to:
+            email.reply_to = [reply_to]
 
         # Add attachments
         if attachments:
@@ -303,17 +369,31 @@ class EmailService:
                 # Fall through to sync send
 
         try:
-            # Check email configuration
-            if not getattr(settings, 'EMAIL_HOST', None):
-                raise ValueError("EMAIL_HOST δεν έχει οριστεί στις ρυθμίσεις")
+            # Get email settings from database (preferred) or Django settings (fallback)
+            db_settings, from_email, from_name, smtp_config = EmailService._get_email_settings()
 
             # Check if using console backend (for testing)
             is_console_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('console.EmailBackend')
             is_locmem_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('locmem.EmailBackend')
 
-            if not is_console_backend and not is_locmem_backend:
-                if not getattr(settings, 'EMAIL_HOST_PASSWORD', ''):
-                    logger.warning("EMAIL_HOST_PASSWORD δεν έχει οριστεί - email ίσως αποτύχει")
+            # Check email configuration
+            if smtp_config:
+                # Using database settings
+                if not smtp_config['host']:
+                    raise ValueError("SMTP Host δεν έχει οριστεί στις ρυθμίσεις")
+                if not smtp_config['password'] and not is_console_backend and not is_locmem_backend:
+                    logger.warning("SMTP Password δεν έχει οριστεί - email ίσως αποτύχει")
+                connection = EmailService._get_email_connection(smtp_config)
+                reply_to = db_settings.reply_to if db_settings and db_settings.reply_to else None
+            else:
+                # Using Django settings as fallback
+                if not getattr(settings, 'EMAIL_HOST', None):
+                    raise ValueError("EMAIL_HOST δεν έχει οριστεί στις ρυθμίσεις")
+                if not is_console_backend and not is_locmem_backend:
+                    if not getattr(settings, 'EMAIL_HOST_PASSWORD', ''):
+                        logger.warning("EMAIL_HOST_PASSWORD δεν έχει οριστεί - email ίσως αποτύχει")
+                connection = None
+                reply_to = None
 
             # Prepare email message
             email = EmailService._prepare_email_message(
@@ -321,7 +401,11 @@ class EmailService:
                 subject=subject,
                 body=body,
                 html_body=html_body,
-                attachments=attachments
+                attachments=attachments,
+                from_email=from_email,
+                from_name=from_name,
+                reply_to=reply_to,
+                connection=connection
             )
 
             # Send with or without retry

@@ -17,6 +17,7 @@ import {
   Calls,
   Tickets,
   Emails,
+  EmailSettings,
   Reports,
   Settings,
   ObligationSettings,
@@ -200,6 +201,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Backup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/email"
+            element={
+              <ProtectedRoute>
+                <EmailSettings />
               </ProtectedRoute>
             }
           />
