@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -6,9 +6,16 @@ import {
   X,
   Filter,
   ExternalLink,
+  Check,
+  Edit3,
+  Clock,
+  AlertCircle,
+  FileText,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import {
   useCalendar,
+  useCompleteObligation,
   GREEK_MONTH_NAMES,
   GREEK_DAY_NAMES,
   getDaysInMonth,
@@ -114,12 +121,37 @@ interface DayDetailModalProps {
   month: number;
   year: number;
   dayData?: CalendarDayType;
+  onComplete: (id: number) => void;
+  isCompleting: boolean;
 }
 
-function DayDetailModal({ isOpen, onClose, day, month, year, dayData }: DayDetailModalProps) {
+function DayDetailModal({
+  isOpen,
+  onClose,
+  day,
+  month,
+  year,
+  dayData,
+  onComplete,
+  isCompleting,
+}: DayDetailModalProps) {
+  // Handle escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const dateStr = `${day} ${GREEK_MONTH_NAMES[month - 1]} ${year}`;
+  const today = new Date();
+  const isDateToday = today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === day;
+  const isPastDate = new Date(year, month - 1, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -131,85 +163,177 @@ function DayDetailModal({ isOpen, onClose, day, month, year, dayData }: DayDetai
 
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden">
+        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">{dateStr}</h3>
+          <div className={`flex items-center justify-between p-4 border-b border-gray-200 ${
+            isDateToday ? 'bg-blue-50' : isPastDate ? 'bg-gray-50' : 'bg-white'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                isDateToday ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <CalendarIcon size={20} className={isDateToday ? 'text-blue-600' : 'text-gray-600'} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{dateStr}</h3>
+                {isDateToday && (
+                  <span className="text-xs text-blue-600 font-medium">Σήμερα</span>
+                )}
+                {isPastDate && !isDateToday && (
+                  <span className="text-xs text-gray-500">Παρελθούσα ημερομηνία</span>
+                )}
+              </div>
+            </div>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Κλείσιμο"
             >
               <X size={20} className="text-gray-500" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="p-4 overflow-y-auto max-h-[60vh]">
+          <div className="p-4 overflow-y-auto max-h-[65vh]">
             {dayData && dayData.obligations.length > 0 ? (
               <>
-                {/* Summary */}
+                {/* Summary badges */}
                 <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-200">
-                  <span className="text-sm text-gray-600">
-                    Σύνολο: <span className="font-medium">{dayData.total}</span>
+                  <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+                    Σύνολο: {dayData.total}
                   </span>
                   {dayData.pending > 0 && (
-                    <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                    <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 flex items-center gap-1">
+                      <Clock size={14} />
                       Εκκρεμείς: {dayData.pending}
                     </span>
                   )}
+                  {dayData.in_progress > 0 && (
+                    <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 flex items-center gap-1">
+                      <Clock size={14} />
+                      Σε εξέλιξη: {dayData.in_progress}
+                    </span>
+                  )}
                   {dayData.completed > 0 && (
-                    <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                    <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800 flex items-center gap-1">
+                      <Check size={14} />
                       Ολοκληρωμένες: {dayData.completed}
                     </span>
                   )}
                   {dayData.overdue > 0 && (
-                    <span className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
+                    <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 text-red-800 flex items-center gap-1">
+                      <AlertCircle size={14} />
                       Εκπρόθεσμες: {dayData.overdue}
                     </span>
                   )}
                 </div>
 
                 {/* Obligations list */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {dayData.obligations.map((obl: CalendarObligation) => (
                     <div
                       key={obl.id}
-                      className="flex items-start justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      className={`p-4 rounded-lg border transition-all ${
+                        obl.status === 'completed'
+                          ? 'bg-green-50 border-green-200'
+                          : obl.status === 'overdue'
+                          ? 'bg-red-50 border-red-200'
+                          : obl.status === 'in_progress'
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(
-                              obl.status
-                            )}`}
-                          >
-                            {obl.type_code}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {getStatusLabel(obl.status)}
-                          </span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          {/* Type badge and status */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`px-2.5 py-1 rounded-md text-xs font-bold ${getStatusColor(obl.status)}`}
+                            >
+                              {obl.type_code}
+                            </span>
+                            <span className={`text-xs font-medium ${
+                              obl.status === 'overdue' ? 'text-red-600' :
+                              obl.status === 'completed' ? 'text-green-600' :
+                              obl.status === 'in_progress' ? 'text-blue-600' :
+                              'text-gray-500'
+                            }`}>
+                              {getStatusLabel(obl.status)}
+                            </span>
+                          </div>
+
+                          {/* Client name */}
+                          <p className="mt-2 text-base font-semibold text-gray-900">
+                            {obl.client_name}
+                          </p>
+
+                          {/* Type name */}
+                          <p className="text-sm text-gray-600">{obl.type_name}</p>
+
+                          {/* Notes if present */}
+                          {obl.notes && (
+                            <div className="mt-2 flex items-start gap-1.5 text-xs text-gray-500">
+                              <FileText size={12} className="mt-0.5 flex-shrink-0" />
+                              <span className="line-clamp-2">{obl.notes}</span>
+                            </div>
+                          )}
                         </div>
-                        <p className="mt-1 text-sm font-medium text-gray-900 truncate">
-                          {obl.client_name}
-                        </p>
-                        <p className="text-xs text-gray-500">{obl.type_name}</p>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-1.5">
+                          {/* Complete button - only for non-completed obligations */}
+                          {obl.status !== 'completed' && obl.status !== 'cancelled' && (
+                            <button
+                              onClick={() => onComplete(obl.id)}
+                              disabled={isCompleting}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Ολοκλήρωση"
+                            >
+                              <Check size={14} />
+                              <span className="hidden sm:inline">Ολοκλήρωση</span>
+                            </button>
+                          )}
+
+                          {/* Edit link */}
+                          <Link
+                            to={`/obligations/${obl.id}/edit`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            title="Επεξεργασία"
+                          >
+                            <Edit3 size={14} />
+                            <span className="hidden sm:inline">Επεξεργασία</span>
+                          </Link>
+
+                          {/* View client */}
+                          <Link
+                            to={`/clients/${obl.client_id}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
+                            title="Προβολή πελάτη"
+                          >
+                            <ExternalLink size={14} />
+                            <span className="hidden sm:inline">Πελάτης</span>
+                          </Link>
+                        </div>
                       </div>
-                      <Link
-                        to={`/clients/${obl.client_id}`}
-                        className="ml-2 p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                        title="Προβολή πελάτη"
-                      >
-                        <ExternalLink size={16} className="text-gray-500" />
-                      </Link>
                     </div>
                   ))}
                 </div>
               </>
             ) : (
-              <p className="text-center text-gray-500 py-8">
-                Δεν υπάρχουν υποχρεώσεις για αυτή την ημερομηνία.
-              </p>
+              <div className="text-center py-12">
+                <CalendarIcon size={48} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500 font-medium">
+                  Δεν υπάρχουν υποχρεώσεις για αυτή την ημερομηνία.
+                </p>
+              </div>
             )}
+          </div>
+
+          {/* Footer with keyboard hint */}
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+            <span className="text-xs text-gray-400">
+              Πατήστε <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-600">Esc</kbd> για κλείσιμο
+            </span>
           </div>
         </div>
       </div>
@@ -317,41 +441,78 @@ export default function Calendar() {
   const { data: clientsData } = useClients({ page_size: 1000 });
   const { data: obligationTypes } = useObligationTypes();
 
+  // Mutation for completing obligations
+  const completeObligation = useCompleteObligation();
+
+  // Handle completing an obligation
+  const handleCompleteObligation = useCallback((obligationId: number) => {
+    completeObligation.mutate(obligationId);
+  }, [completeObligation]);
+
   // Navigation functions
-  const goToPreviousMonth = () => {
+  const goToPreviousMonth = useCallback(() => {
     if (currentMonth === 1) {
       setCurrentMonth(12);
       setCurrentYear(currentYear - 1);
     } else {
       setCurrentMonth(currentMonth - 1);
     }
-  };
+  }, [currentMonth, currentYear]);
 
-  const goToNextMonth = () => {
+  const goToNextMonth = useCallback(() => {
     if (currentMonth === 12) {
       setCurrentMonth(1);
       setCurrentYear(currentYear + 1);
     } else {
       setCurrentMonth(currentMonth + 1);
     }
-  };
+  }, [currentMonth, currentYear]);
 
-  const goToToday = () => {
-    setCurrentMonth(today.getMonth() + 1);
-    setCurrentYear(today.getFullYear());
-  };
+  const goToToday = useCallback(() => {
+    const now = new Date();
+    setCurrentMonth(now.getMonth() + 1);
+    setCurrentYear(now.getFullYear());
+  }, []);
 
   // Handle day click
-  const handleDayClick = (day: number) => {
+  const handleDayClick = useCallback((day: number) => {
     setSelectedDay(day);
-  };
+  }, []);
+
+  // Close modal
+  const closeModal = useCallback(() => {
+    setSelectedDay(null);
+  }, []);
 
   // Clear filters
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setFilters({});
-  };
+  }, []);
 
   const hasActiveFilters = filters.client_id || filters.type_id || filters.status;
+
+  // Keyboard navigation for month
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if modal is open or typing in input
+      if (selectedDay !== null) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPreviousMonth();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNextMonth();
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        goToToday();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDay, goToPreviousMonth, goToNextMonth, goToToday]);
 
   return (
     <div className="space-y-6">
@@ -588,14 +749,23 @@ export default function Calendar() {
       {/* Day detail modal */}
       <DayDetailModal
         isOpen={selectedDay !== null}
-        onClose={() => setSelectedDay(null)}
+        onClose={closeModal}
         day={selectedDay || 1}
         month={currentMonth}
         year={currentYear}
         dayData={
           selectedDay ? calendarData?.days[String(selectedDay)] : undefined
         }
+        onComplete={handleCompleteObligation}
+        isCompleting={completeObligation.isPending}
       />
+
+      {/* Keyboard shortcuts hint */}
+      <div className="text-center text-xs text-gray-400 pb-4">
+        <span className="hidden md:inline">
+          Συντομεύσεις: <kbd className="px-1 py-0.5 bg-gray-100 rounded">←</kbd> / <kbd className="px-1 py-0.5 bg-gray-100 rounded">→</kbd> για πλοήγηση μηνών, <kbd className="px-1 py-0.5 bg-gray-100 rounded">T</kbd> για σήμερα
+        </span>
+      </div>
     </div>
   );
 }
