@@ -87,13 +87,26 @@ ADMINS = [("<Admin1>", "dpeconsolutions@gmail.com")]   # specify admin
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 # ALLOWED_HOSTS - Ρυθμίσεις για τοπικό δίκτυο
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '192.168.*.*',      # Όλα τα τοπικά δίκτυα 192.168.x.x
-    '10.*.*.*',         # Εταιρικά δίκτυα 10.x.x.x
-    '172.16.*.*',       # Private networks 172.16.x.x
-]
+# ΣΗΜΕΙΩΣΗ: Τα wildcards (π.χ. 192.168.*.*) ΔΕΝ υποστηρίζονται από το Django!
+# Χρησιμοποιούμε λίστα με συγκεκριμένες διευθύνσεις ή ['*'] για development
+def get_local_network_hosts():
+    """Δημιουργεί λίστα με hosts για τοπικό δίκτυο"""
+    hosts = ['localhost', '127.0.0.1']
+    # Προσθήκη τοπικής IP αν είναι διαθέσιμη
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        hosts.append(local_ip)
+    except Exception:
+        pass
+    return hosts
+
+# Για development: δέχεται όλες τις διευθύνσεις
+# Για production: θα πρέπει να οριστούν συγκεκριμένες διευθύνσεις
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else ['*'] if DEBUG else get_local_network_hosts()
 
 FORMS_URLFIELD_ASSUME_HTTPS = True
 
