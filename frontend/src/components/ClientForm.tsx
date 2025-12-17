@@ -81,7 +81,7 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
       setFormData({
         afm: client.afm || '',
         eponimia: client.eponimia || '',
-        eidos_ipoxreou: (client as { eidos_ipoxreou?: string }).eidos_ipoxreou as ClientFormData['eidos_ipoxreou'] || 'individual',
+        eidos_ipoxreou: client.eidos_ipoxreou || 'individual',
         email: client.email || '',
         kinito_tilefono: client.kinito_tilefono || '',
         is_active: client.is_active ?? true,

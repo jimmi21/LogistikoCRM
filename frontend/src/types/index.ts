@@ -23,6 +23,7 @@ export interface Client {
   tilefono_epixeirisis_2?: string | null;
   total_obligations?: number;
   is_active?: boolean;
+  eidos_ipoxreou?: 'individual' | 'professional' | 'company' | null;  // Είδος υπόχρεου
   // GSIS fields
   doy?: string | null;
   nomiki_morfi?: string | null;
