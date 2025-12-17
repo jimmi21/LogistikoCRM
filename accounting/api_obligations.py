@@ -722,8 +722,13 @@ class ObligationViewSet(viewsets.ModelViewSet):
             deadline__lt=today
         ).update(status='overdue')
 
-        # Refresh queryset after update
-        queryset = queryset.order_by('deadline')
+        # Refresh queryset after update with select_related to avoid N+1 queries
+        queryset = queryset.select_related(
+            'client', 'obligation_type'
+        ).order_by('deadline')
+
+        # Valid statuses for counting
+        VALID_STATUSES = {'pending', 'completed', 'overdue', 'in_progress', 'cancelled'}
 
         # Group obligations by day
         days = defaultdict(lambda: {
@@ -732,13 +737,16 @@ class ObligationViewSet(viewsets.ModelViewSet):
             'completed': 0,
             'overdue': 0,
             'in_progress': 0,
+            'cancelled': 0,
             'obligations': []
         })
 
         for obl in queryset:
             day_str = str(obl.deadline.day)
             days[day_str]['total'] += 1
-            days[day_str][obl.status] = days[day_str].get(obl.status, 0) + 1
+            # Only increment known status counters
+            if obl.status in VALID_STATUSES:
+                days[day_str][obl.status] += 1
             days[day_str]['obligations'].append({
                 'id': obl.id,
                 'client_name': obl.client.eponimia,
@@ -746,6 +754,8 @@ class ObligationViewSet(viewsets.ModelViewSet):
                 'type_name': obl.obligation_type.name,
                 'type_code': obl.obligation_type.code,
                 'status': obl.status,
+                'deadline': obl.deadline.isoformat(),
+                'notes': obl.notes or '',
             })
 
         # Calculate summary
@@ -755,13 +765,15 @@ class ObligationViewSet(viewsets.ModelViewSet):
             'completed': 0,
             'overdue': 0,
             'in_progress': 0,
+            'cancelled': 0,
         }
         for day_data in days.values():
             summary['total'] += day_data['total']
             summary['pending'] += day_data['pending']
             summary['completed'] += day_data['completed']
             summary['overdue'] += day_data['overdue']
-            summary['in_progress'] += day_data.get('in_progress', 0)
+            summary['in_progress'] += day_data['in_progress']
+            summary['cancelled'] += day_data['cancelled']
 
         return Response({
             'month': month,

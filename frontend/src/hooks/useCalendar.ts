@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 
 // Types for calendar data
@@ -9,6 +9,8 @@ export interface CalendarObligation {
   type_name: string;
   type_code: string;
   status: 'pending' | 'completed' | 'overdue' | 'in_progress' | 'cancelled';
+  deadline: string;
+  notes: string;
 }
 
 export interface CalendarDay {
@@ -17,6 +19,7 @@ export interface CalendarDay {
   completed: number;
   overdue: number;
   in_progress: number;
+  cancelled: number;
   obligations: CalendarObligation[];
 }
 
@@ -26,6 +29,7 @@ export interface CalendarSummary {
   completed: number;
   overdue: number;
   in_progress: number;
+  cancelled: number;
 }
 
 export interface CalendarData {
@@ -176,4 +180,44 @@ export function getStatusLabel(status: string): string {
     default:
       return status;
   }
+}
+
+/**
+ * Hook to update obligation status
+ */
+export function useUpdateObligationStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const response = await apiClient.patch(`/api/v1/obligations/${id}/`, {
+        status,
+        ...(status === 'completed' ? { completed_date: new Date().toISOString().split('T')[0] } : {}),
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate calendar queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: [CALENDAR_KEY] });
+    },
+  });
+}
+
+/**
+ * Hook to mark obligation as completed
+ */
+export function useCompleteObligation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiClient.patch(`/api/v1/obligations/${id}/complete/`);
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate all calendar and obligations queries
+      queryClient.invalidateQueries({ queryKey: [CALENDAR_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['obligations'] });
+    },
+  });
 }
