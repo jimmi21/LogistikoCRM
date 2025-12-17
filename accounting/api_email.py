@@ -1134,11 +1134,8 @@ def email_settings_send_test(request):
     try:
         success, result = EmailService.send_email(
             recipient_email=recipient_email,
-            recipient_name='Test User',
             subject=subject,
-            body_html=body_html,
-            from_email=settings_obj.from_email,
-            from_name=settings_obj.from_name,
+            body=body_html,
             user=request.user
         )
 
