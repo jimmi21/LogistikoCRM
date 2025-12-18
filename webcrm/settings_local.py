@@ -39,6 +39,14 @@ else:  # development
     # Allow all CORS origins in development
     CORS_ALLOW_ALL_ORIGINS = True
 
+    # Use simple memory cache for development (no setup required)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'unique-snowflake',
+        }
+    }
+
 # Αυτόματη ανίχνευση τοπικής IP για CSRF
 def get_local_ip():
     """Βρίσκει την τοπική IP του server"""
