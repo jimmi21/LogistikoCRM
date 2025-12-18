@@ -76,6 +76,7 @@ class ObligationListSerializer(serializers.ModelSerializer):
     days_until_deadline = serializers.IntegerField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
+    documents_count = serializers.SerializerMethodField()
 
     class Meta:
         model = MonthlyObligation
@@ -84,7 +85,7 @@ class ObligationListSerializer(serializers.ModelSerializer):
             'obligation_type', 'type_name', 'type_code',
             'year', 'month', 'period', 'deadline', 'status',
             'assigned_to', 'assigned_to_name',
-            'days_until_deadline', 'is_overdue'
+            'days_until_deadline', 'is_overdue', 'documents_count'
         ]
 
     def get_period(self, obj):
@@ -96,6 +97,13 @@ class ObligationListSerializer(serializers.ModelSerializer):
                 return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip()
             return obj.assigned_to.username
         return None
+
+    def get_documents_count(self, obj):
+        """Return count of documents attached to this obligation"""
+        return ClientDocument.objects.filter(
+            client=obj.client,
+            obligation=obj
+        ).count()
 
 
 class ObligationDetailSerializer(serializers.ModelSerializer):

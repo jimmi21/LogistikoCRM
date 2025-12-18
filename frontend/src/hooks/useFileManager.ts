@@ -36,7 +36,7 @@ export function useFileManagerDocuments(filters?: DocumentFilters) {
     queryKey: [FILE_MANAGER_KEY, 'documents', filters],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<FileManagerDocument>>(
-        '/accounting/api/v1/file-manager/documents/',
+        'api/v1/file-manager/documents/',
         { params: filters }
       );
       return response.data;
@@ -52,7 +52,7 @@ export function useFileManagerDocument(id: number) {
     queryKey: [FILE_MANAGER_KEY, 'documents', id],
     queryFn: async () => {
       const response = await apiClient.get<FileManagerDocument>(
-        `/accounting/api/v1/file-manager/documents/${id}/`
+        `api/v1/file-manager/documents/${id}/`
       );
       return response.data;
     },
@@ -91,7 +91,7 @@ export function useUploadDocuments() {
       if (data.month) formData.append('month', String(data.month));
 
       const response = await apiClient.post<UploadResponse>(
-        '/accounting/api/v1/file-manager/documents/upload/',
+        'api/v1/file-manager/documents/upload/',
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -111,7 +111,7 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: async (documentId: number) => {
-      await apiClient.delete(`/accounting/api/v1/file-manager/documents/${documentId}/`);
+      await apiClient.delete(`api/v1/file-manager/documents/${documentId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [FILE_MANAGER_KEY] });
@@ -127,7 +127,7 @@ export function useBulkDeleteDocuments() {
 
   return useMutation({
     mutationFn: async (documentIds: number[]) => {
-      const response = await apiClient.post('/accounting/api/v1/file-manager/documents/bulk-delete/', {
+      const response = await apiClient.post('api/v1/file-manager/documents/bulk-delete/', {
         document_ids: documentIds,
       });
       return response.data;
@@ -146,7 +146,7 @@ export function useDocumentPreview(documentId: number) {
     queryKey: [FILE_MANAGER_KEY, 'preview', documentId],
     queryFn: async () => {
       const response = await apiClient.get<DocumentPreview>(
-        `/accounting/api/v1/file-manager/documents/${documentId}/preview/`
+        `api/v1/file-manager/documents/${documentId}/preview/`
       );
       return response.data;
     },
@@ -162,7 +162,7 @@ export function useDocumentVersions(documentId: number) {
     queryKey: [FILE_MANAGER_KEY, 'versions', documentId],
     queryFn: async () => {
       const response = await apiClient.get<VersionHistory>(
-        `/accounting/api/v1/file-manager/documents/${documentId}/versions/`
+        `api/v1/file-manager/documents/${documentId}/versions/`
       );
       return response.data;
     },
@@ -179,7 +179,7 @@ export function useAddTagsToDocument() {
   return useMutation({
     mutationFn: async ({ documentId, tagIds }: { documentId: number; tagIds: number[] }) => {
       const response = await apiClient.post(
-        `/accounting/api/v1/file-manager/documents/${documentId}/tags/`,
+        `api/v1/file-manager/documents/${documentId}/tags/`,
         { tag_ids: tagIds }
       );
       return response.data;
@@ -198,7 +198,7 @@ export function useRemoveTagFromDocument() {
 
   return useMutation({
     mutationFn: async ({ documentId, tagId }: { documentId: number; tagId: number }) => {
-      await apiClient.delete(`/accounting/api/v1/file-manager/documents/${documentId}/tags/${tagId}/`);
+      await apiClient.delete(`api/v1/file-manager/documents/${documentId}/tags/${tagId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [FILE_MANAGER_KEY] });
@@ -217,7 +217,7 @@ export function useTags() {
   return useQuery({
     queryKey: [FILE_MANAGER_KEY, 'tags'],
     queryFn: async () => {
-      const response = await apiClient.get<DocumentTag[]>('/accounting/api/v1/file-manager/tags/');
+      const response = await apiClient.get<DocumentTag[]>('api/v1/file-manager/tags/');
       return response.data;
     },
   });
@@ -231,7 +231,7 @@ export function useCreateTag() {
 
   return useMutation({
     mutationFn: async (data: Partial<DocumentTag>) => {
-      const response = await apiClient.post<DocumentTag>('/accounting/api/v1/file-manager/tags/', data);
+      const response = await apiClient.post<DocumentTag>('api/v1/file-manager/tags/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -249,7 +249,7 @@ export function useUpdateTag() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<DocumentTag> }) => {
       const response = await apiClient.patch<DocumentTag>(
-        `/accounting/api/v1/file-manager/tags/${id}/`,
+        `api/v1/file-manager/tags/${id}/`,
         data
       );
       return response.data;
@@ -268,7 +268,7 @@ export function useDeleteTag() {
 
   return useMutation({
     mutationFn: async (tagId: number) => {
-      await apiClient.delete(`/accounting/api/v1/file-manager/tags/${tagId}/`);
+      await apiClient.delete(`api/v1/file-manager/tags/${tagId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [FILE_MANAGER_KEY, 'tags'] });
@@ -288,7 +288,7 @@ export function useSharedLinks() {
     queryKey: [FILE_MANAGER_KEY, 'shared-links'],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<SharedLink>>(
-        '/accounting/api/v1/file-manager/shared-links/'
+        'api/v1/file-manager/shared-links/'
       );
       return response.data;
     },
@@ -304,7 +304,7 @@ export function useCreateSharedLink() {
   return useMutation({
     mutationFn: async (data: CreateSharedLinkRequest) => {
       const response = await apiClient.post<SharedLink>(
-        '/accounting/api/v1/file-manager/shared-links/',
+        'api/v1/file-manager/shared-links/',
         data
       );
       return response.data;
@@ -324,7 +324,7 @@ export function useUpdateSharedLink() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<SharedLink> }) => {
       const response = await apiClient.patch<SharedLink>(
-        `/accounting/api/v1/file-manager/shared-links/${id}/`,
+        `api/v1/file-manager/shared-links/${id}/`,
         data
       );
       return response.data;
@@ -343,7 +343,7 @@ export function useDeleteSharedLink() {
 
   return useMutation({
     mutationFn: async (linkId: number) => {
-      await apiClient.delete(`/accounting/api/v1/file-manager/shared-links/${linkId}/`);
+      await apiClient.delete(`api/v1/file-manager/shared-links/${linkId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [FILE_MANAGER_KEY, 'shared-links'] });
@@ -360,7 +360,7 @@ export function useRegenerateToken() {
   return useMutation({
     mutationFn: async (linkId: number) => {
       const response = await apiClient.post<SharedLink>(
-        `/accounting/api/v1/file-manager/shared-links/${linkId}/regenerate-token/`
+        `api/v1/file-manager/shared-links/${linkId}/regenerate-token/`
       );
       return response.data;
     },
@@ -382,7 +382,7 @@ export function useSharedLinkAccessLogs(linkId: number) {
         total_views: number;
         total_downloads: number;
         logs: AccessLogEntry[];
-      }>(`/accounting/api/v1/file-manager/shared-links/${linkId}/access-logs/`);
+      }>(`api/v1/file-manager/shared-links/${linkId}/access-logs/`);
       return response.data;
     },
     enabled: !!linkId,
@@ -401,7 +401,7 @@ export function useFavorites() {
     queryKey: [FILE_MANAGER_KEY, 'favorites'],
     queryFn: async () => {
       const response = await apiClient.get<DocumentFavorite[]>(
-        '/accounting/api/v1/file-manager/favorites/'
+        'api/v1/file-manager/favorites/'
       );
       return response.data;
     },
@@ -416,7 +416,7 @@ export function useAddFavorite() {
 
   return useMutation({
     mutationFn: async ({ documentId, note }: { documentId: number; note?: string }) => {
-      const response = await apiClient.post('/accounting/api/v1/file-manager/favorites/', {
+      const response = await apiClient.post('api/v1/file-manager/favorites/', {
         document_id: documentId,
         note,
       });
@@ -436,7 +436,7 @@ export function useRemoveFavorite() {
 
   return useMutation({
     mutationFn: async (documentId: number) => {
-      await apiClient.delete(`/accounting/api/v1/file-manager/favorites/${documentId}/`);
+      await apiClient.delete(`api/v1/file-manager/favorites/${documentId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [FILE_MANAGER_KEY] });
@@ -456,7 +456,7 @@ export function useCollections() {
     queryKey: [FILE_MANAGER_KEY, 'collections'],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<DocumentCollection>>(
-        '/accounting/api/v1/file-manager/collections/'
+        'api/v1/file-manager/collections/'
       );
       return response.data;
     },
@@ -471,7 +471,7 @@ export function useCollection(id: number) {
     queryKey: [FILE_MANAGER_KEY, 'collections', id],
     queryFn: async () => {
       const response = await apiClient.get<DocumentCollection>(
-        `/accounting/api/v1/file-manager/collections/${id}/`
+        `api/v1/file-manager/collections/${id}/`
       );
       return response.data;
     },
@@ -488,7 +488,7 @@ export function useCreateCollection() {
   return useMutation({
     mutationFn: async (data: Partial<DocumentCollection>) => {
       const response = await apiClient.post<DocumentCollection>(
-        '/accounting/api/v1/file-manager/collections/',
+        'api/v1/file-manager/collections/',
         data
       );
       return response.data;
@@ -508,7 +508,7 @@ export function useUpdateCollection() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<DocumentCollection> }) => {
       const response = await apiClient.patch<DocumentCollection>(
-        `/accounting/api/v1/file-manager/collections/${id}/`,
+        `api/v1/file-manager/collections/${id}/`,
         data
       );
       return response.data;
@@ -527,7 +527,7 @@ export function useDeleteCollection() {
 
   return useMutation({
     mutationFn: async (collectionId: number) => {
-      await apiClient.delete(`/accounting/api/v1/file-manager/collections/${collectionId}/`);
+      await apiClient.delete(`api/v1/file-manager/collections/${collectionId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [FILE_MANAGER_KEY, 'collections'] });
@@ -550,7 +550,7 @@ export function useAddToCollection() {
       documentIds: number[];
     }) => {
       const response = await apiClient.post(
-        `/accounting/api/v1/file-manager/collections/${collectionId}/documents/`,
+        `api/v1/file-manager/collections/${collectionId}/documents/`,
         { document_ids: documentIds }
       );
       return response.data;
@@ -570,7 +570,7 @@ export function useRemoveFromCollection() {
   return useMutation({
     mutationFn: async ({ collectionId, documentId }: { collectionId: number; documentId: number }) => {
       await apiClient.delete(
-        `/accounting/api/v1/file-manager/collections/${collectionId}/documents/${documentId}/`
+        `api/v1/file-manager/collections/${collectionId}/documents/${documentId}/`
       );
     },
     onSuccess: () => {
@@ -591,7 +591,7 @@ export function useFileManagerStats() {
     queryKey: [FILE_MANAGER_KEY, 'stats'],
     queryFn: async () => {
       const response = await apiClient.get<FileManagerStats>(
-        '/accounting/api/v1/file-manager/stats/'
+        'api/v1/file-manager/stats/'
       );
       return response.data;
     },
@@ -606,7 +606,7 @@ export function useRecentDocuments(limit = 20) {
     queryKey: [FILE_MANAGER_KEY, 'recent', limit],
     queryFn: async () => {
       const response = await apiClient.get<FileManagerDocument[]>(
-        '/accounting/api/v1/file-manager/recent/',
+        'api/v1/file-manager/recent/',
         { params: { limit } }
       );
       return response.data;
@@ -622,7 +622,7 @@ export function useBrowseFolders(params?: { client_id?: number; year?: string; m
     queryKey: [FILE_MANAGER_KEY, 'browse', params],
     queryFn: async () => {
       const response = await apiClient.get<BrowseResponse>(
-        '/accounting/api/v1/file-manager/browse/',
+        'api/v1/file-manager/browse/',
         { params }
       );
       return response.data;
@@ -639,7 +639,7 @@ export function useBrowseFolders(params?: { client_id?: number; year?: string; m
  */
 export async function downloadDocument(documentId: number, filename: string): Promise<void> {
   const response = await apiClient.get(
-    `/accounting/api/v1/file-manager/documents/${documentId}/download/`,
+    `api/v1/file-manager/documents/${documentId}/download/`,
     { responseType: 'blob' }
   );
 
