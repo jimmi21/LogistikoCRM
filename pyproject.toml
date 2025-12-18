@@ -1,3 +1,93 @@
+# LogistikoCRM - Python Project Configuration
+# This file configures Black, isort, pytest, coverage, and other tools
+
 [build-system]
 requires = ['setuptools>=40.9.0']
 build-backend = 'setuptools.build_meta'
+
+[tool.black]
+line-length = 127
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | migrations
+    | node_modules
+    | frontend
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 127
+skip = [".git", "__pycache__", "migrations", "node_modules", "frontend", ".venv"]
+skip_gitignore = true
+known_django = ["django"]
+known_first_party = ["accounting", "crm", "tasks", "common", "voip", "inventory", "mydata", "webcrm"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "webcrm.settings"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "-ra",
+    "-q",
+]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["accounting", "crm", "tasks", "common", "inventory", "mydata"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/management/commands/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "if settings.DEBUG",
+]
+fail_under = 60
+show_missing = true
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations", "frontend"]
+skips = ["B101", "B104", "B110"]  # Skip assert, binding 0.0.0.0, try-except-pass
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = [
+    "migrations",
+    "tests",
+    "frontend",
+]

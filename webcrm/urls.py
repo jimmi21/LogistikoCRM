@@ -15,12 +15,23 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
+# Health check endpoints
+from common.api_health import health_check, health_check_detailed, health_ready, health_live
+
 # Main URL patterns (no language prefix)
 urlpatterns = [
     path('accounting/', include('accounting.urls')),
     path('favicon.ico', FaviconRedirect.as_view()),
     path('voip/', include('voip.urls')),
     path('OAuth-2/authorize/', staff_member_required(get_refresh_token), name='get_refresh_token'),
+
+    # ==================================================
+    # HEALTH CHECKS (for monitoring & load balancers)
+    # ==================================================
+    path('api/health/', health_check, name='health-check'),
+    path('api/health/detailed/', health_check_detailed, name='health-detailed'),
+    path('api/health/ready/', health_ready, name='health-ready'),
+    path('api/health/live/', health_live, name='health-live'),
 
     # ==================================================
     # API DOCUMENTATION (OpenAPI/Swagger)

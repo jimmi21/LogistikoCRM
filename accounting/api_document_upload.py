@@ -147,19 +147,17 @@ def upload_document_with_version(request):
             'error': 'client_id is required'
         }, status=400)
 
-    # Validate file
-    allowed_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif']
-    if uploaded_file.content_type not in allowed_types:
-        return JsonResponse({
-            'success': False,
-            'error': f'Μη επιτρεπτός τύπος αρχείου: {uploaded_file.content_type}'
-        }, status=400)
+    # Validate file using common utilities
+    from django.core.exceptions import ValidationError
+    from common.utils.file_validation import validate_file_upload, sanitize_filename
 
-    # Max 10MB
-    if uploaded_file.size > 10 * 1024 * 1024:
+    try:
+        validate_file_upload(uploaded_file)
+        uploaded_file.name = sanitize_filename(uploaded_file.name)
+    except ValidationError as e:
         return JsonResponse({
             'success': False,
-            'error': 'Το αρχείο δεν πρέπει να ξεπερνά τα 10MB'
+            'error': str(e.message) if hasattr(e, 'message') else str(e)
         }, status=400)
 
     try:

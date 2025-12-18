@@ -62,6 +62,7 @@ from .api_door import (
     door_status as api_door_status,
     door_open as api_door_open,
     door_pulse as api_door_pulse,
+    door_access_logs as api_door_logs,
 )
 from .api_gsis import (
     afm_lookup,
@@ -259,6 +260,7 @@ urlpatterns = [
     path("api/v1/door/status/", api_door_status, name="api_v1_door_status"),
     path("api/v1/door/open/", api_door_open, name="api_v1_door_open"),
     path("api/v1/door/pulse/", api_door_pulse, name="api_v1_door_pulse"),
+    path("api/v1/door/logs/", api_door_logs, name="api_v1_door_logs"),
 
     # ============================================
     # GSIS API (v1) - Αναζήτηση στοιχείων με ΑΦΜ

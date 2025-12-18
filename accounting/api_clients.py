@@ -114,12 +114,21 @@ class ClientDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
     def get_obligations_count(self, obj):
+        # Use annotated value if available (avoids N+1 queries)
+        if hasattr(obj, '_obligations_count'):
+            return obj._obligations_count
         return obj.monthly_obligations.count()
 
     def get_documents_count(self, obj):
+        # Use annotated value if available (avoids N+1 queries)
+        if hasattr(obj, '_documents_count'):
+            return obj._documents_count
         return obj.documents.count()
 
     def get_pending_obligations_count(self, obj):
+        # Use annotated value if available (avoids N+1 queries)
+        if hasattr(obj, '_pending_obligations_count'):
+            return obj._pending_obligations_count
         return obj.monthly_obligations.filter(status='pending').count()
 
 
@@ -227,13 +236,19 @@ class ClientViewSet(viewsets.ModelViewSet):
         return ClientDetailSerializer
 
     def get_queryset(self):
-        """Optimize queryset with counts for list view"""
+        """Optimize queryset with counts to avoid N+1 queries"""
         queryset = super().get_queryset()
-        if self.action == 'list':
-            queryset = queryset.annotate(
-                _obligations_count=Count('monthly_obligations'),
-                _documents_count=Count('documents')
+
+        # Add annotations for all actions to avoid N+1 queries in serializers
+        queryset = queryset.annotate(
+            _obligations_count=Count('monthly_obligations', distinct=True),
+            _documents_count=Count('documents', distinct=True),
+            _pending_obligations_count=Count(
+                'monthly_obligations',
+                filter=Q(monthly_obligations__status='pending'),
+                distinct=True
             )
+        )
         return queryset
 
     @action(detail=True, methods=['get'])
@@ -299,6 +314,9 @@ class ClientViewSet(viewsets.ModelViewSet):
         POST /api/clients/{id}/documents/upload/
         Upload a document for a specific client (multipart/form-data)
         """
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from common.utils.file_validation import validate_file_upload, sanitize_filename
+
         client = self.get_object()
 
         if 'file' not in request.FILES:
@@ -309,22 +327,17 @@ class ClientViewSet(viewsets.ModelViewSet):
 
         uploaded_file = request.FILES['file']
 
-        # Validate file size (max 10MB)
-        if uploaded_file.size > 10 * 1024 * 1024:
+        # Use comprehensive file validation from common utilities
+        try:
+            validate_file_upload(uploaded_file)
+        except DjangoValidationError as e:
             return Response(
-                {'error': 'Το αρχείο είναι μεγαλύτερο από 10MB.'},
+                {'error': str(e.message) if hasattr(e, 'message') else str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate file type
-        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png']
-        import os
-        ext = os.path.splitext(uploaded_file.name)[1].lower()
-        if ext not in allowed_extensions:
-            return Response(
-                {'error': f'Μη επιτρεπτός τύπος αρχείου. Επιτρέπονται: {", ".join(allowed_extensions)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Sanitize filename to prevent directory traversal
+        uploaded_file.name = sanitize_filename(uploaded_file.name)
 
         # Create document
         document = ClientDocument.objects.create(

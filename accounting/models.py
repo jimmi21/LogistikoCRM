@@ -95,7 +95,12 @@ class ClientProfile(models.Model):
     class Meta:
         verbose_name = 'Προφίλ Πελάτη'
         verbose_name_plural = 'Προφίλ Πελατών'
-        
+        indexes = [
+            models.Index(fields=['afm'], name='client_afm_idx'),
+            models.Index(fields=['is_active', 'eponimia'], name='client_active_name_idx'),
+            models.Index(fields=['company'], name='client_company_idx'),
+        ]
+
     def __str__(self):
         return f"{self.afm} - {self.eponimia}"
 
@@ -429,7 +434,15 @@ class MonthlyObligation(models.Model):
         verbose_name_plural = 'Μηνιαίες Υποχρεώσεις'
         unique_together = ['client', 'obligation_type', 'year', 'month']
         ordering = ['deadline', 'client__eponimia']
-        
+        indexes = [
+            models.Index(fields=['status', 'deadline'], name='mo_status_deadline_idx'),
+            models.Index(fields=['client', 'year', 'month'], name='mo_client_ym_idx'),
+            models.Index(fields=['deadline', 'status'], name='mo_deadline_status_idx'),
+            models.Index(fields=['-deadline'], name='mo_deadline_desc_idx'),
+            models.Index(fields=['completed_by', 'completed_date'], name='mo_completed_idx'),
+            models.Index(fields=['assigned_to', 'status'], name='mo_assigned_status_idx'),
+        ]
+
     def __str__(self):
         return f"{self.client.eponimia} - {self.obligation_type.name} ({self.month}/{self.year})"
     
@@ -913,7 +926,11 @@ class ScheduledEmail(models.Model):
         verbose_name = 'Προγραμματισμένο Email'
         verbose_name_plural = 'Προγραμματισμένα Email'
         ordering = ['send_at']
-    
+        indexes = [
+            models.Index(fields=['status', 'send_at'], name='email_status_send_idx'),
+            models.Index(fields=['client', 'status'], name='email_client_status_idx'),
+        ]
+
     def __str__(self):
         count = self.recipient_count
         if count == 1:
@@ -2299,3 +2316,100 @@ class DocumentCollection(models.Model):
     @property
     def document_count(self):
         return self.documents.count()
+
+
+class DoorAccessLog(models.Model):
+    """
+    Audit log for door access via Tasmota.
+    Tracks all door open/toggle/pulse actions for security.
+    """
+    ACTION_CHOICES = [
+        ('status', 'Έλεγχος Κατάστασης'),
+        ('open', 'Άνοιγμα'),
+        ('toggle', 'Toggle'),
+        ('pulse', 'Pulse'),
+    ]
+
+    RESULT_CHOICES = [
+        ('success', 'Επιτυχία'),
+        ('failed', 'Αποτυχία'),
+        ('timeout', 'Timeout'),
+        ('offline', 'Εκτός Σύνδεσης'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='door_access_logs',
+        verbose_name='Χρήστης'
+    )
+    action = models.CharField(
+        'Ενέργεια',
+        max_length=20,
+        choices=ACTION_CHOICES
+    )
+    result = models.CharField(
+        'Αποτέλεσμα',
+        max_length=20,
+        choices=RESULT_CHOICES
+    )
+    ip_address = models.GenericIPAddressField(
+        'IP Διεύθυνση',
+        null=True,
+        blank=True
+    )
+    user_agent = models.CharField(
+        'User Agent',
+        max_length=500,
+        blank=True,
+        default=''
+    )
+    response_data = models.JSONField(
+        'Απάντηση',
+        null=True,
+        blank=True
+    )
+    timestamp = models.DateTimeField(
+        'Χρονική Στιγμή',
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Log Πρόσβασης Πόρτας'
+        verbose_name_plural = 'Logs Πρόσβασης Πόρτας'
+        indexes = [
+            models.Index(fields=['-timestamp'], name='door_log_timestamp_idx'),
+            models.Index(fields=['user', '-timestamp'], name='door_log_user_idx'),
+            models.Index(fields=['action', 'result'], name='door_log_action_idx'),
+        ]
+
+    def __str__(self):
+        username = self.user.username if self.user else 'Anonymous'
+        return f"{username} - {self.get_action_display()} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}"
+
+    @classmethod
+    def log_access(cls, user, action, result, request=None, response_data=None):
+        """Helper method to create a log entry"""
+        ip_address = None
+        user_agent = ''
+
+        if request:
+            # Get IP from X-Forwarded-For or REMOTE_ADDR
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip_address = x_forwarded_for.split(',')[0].strip()
+            else:
+                ip_address = request.META.get('REMOTE_ADDR')
+
+            user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+
+        return cls.objects.create(
+            user=user,
+            action=action,
+            result=result,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            response_data=response_data
+        )
