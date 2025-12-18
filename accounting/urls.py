@@ -176,7 +176,7 @@ urlpatterns = [
     # NOTIFICATIONS
 
     path("notifications/", views.get_notifications, name="notifications"),
-    path("api/notifications/", views.get_notifications, name="api_notifications"),
+    path("api/notifications/", views.api_notifications, name="api_notifications"),
 
     # OBLIGATION ACTIONS
     path("obligation/<int:obligation_id>/", views.obligation_detail_view, name="obligation_detail"),
@@ -261,6 +261,11 @@ urlpatterns = [
     path("api/v1/door/open/", api_door_open, name="api_v1_door_open"),
     path("api/v1/door/pulse/", api_door_pulse, name="api_v1_door_pulse"),
     path("api/v1/door/logs/", api_door_logs, name="api_v1_door_logs"),
+
+    # ============================================
+    # NOTIFICATIONS API (v1) - JWT authenticated
+    # ============================================
+    path("api/v1/notifications/", views.api_notifications, name="api_v1_notifications"),
 
     # ============================================
     # GSIS API (v1) - Αναζήτηση στοιχείων με ΑΦΜ

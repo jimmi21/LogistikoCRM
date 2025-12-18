@@ -124,6 +124,7 @@ from .clients import (
 # Notification views
 from .notifications import (
     get_notifications,
+    api_notifications,
 )
 
 __all__ = [
@@ -208,4 +209,5 @@ __all__ = [
     'ClientDocumentViewSet',
     # Notification views
     'get_notifications',
+    'api_notifications',
 ]
