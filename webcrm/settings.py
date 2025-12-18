@@ -60,13 +60,13 @@ else:
 
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'dpeconsolutions@gmail.com')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_SUBJECT_PREFIX = 'CRM: '
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('true', '1', 'yes')
 
-SERVER_EMAIL = os.getenv('EMAIL_HOST_USER', 'dpeconsolutions@gmail.com')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'dpeconsolutions@gmail.com')
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', os.getenv('EMAIL_HOST_USER', ''))
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', os.getenv('EMAIL_HOST_USER', ''))
 
 # Email Rate Limiting and Connection Pooling
 # These settings prevent SMTP throttling and improve bulk email performance
@@ -80,7 +80,10 @@ EMAIL_MAX_RETRIES = int(os.getenv('EMAIL_MAX_RETRIES', '3'))
 EMAIL_RETRY_BASE_DELAY = float(os.getenv('EMAIL_RETRY_BASE_DELAY', '2.0'))  # seconds
 EMAIL_RETRY_MAX_DELAY = float(os.getenv('EMAIL_RETRY_MAX_DELAY', '30.0'))   # seconds
 
-ADMINS = [("<Admin1>", "dpeconsolutions@gmail.com")]   # specify admin
+# Admin email for error notifications - configure via environment
+ADMIN_NAME = os.getenv('ADMIN_NAME', 'Admin')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', os.getenv('EMAIL_HOST_USER', ''))
+ADMINS = [(ADMIN_NAME, ADMIN_EMAIL)] if ADMIN_EMAIL else []
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # SECURITY FIX: Default to False, only enable in dev with explicit env var
@@ -419,6 +422,17 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 50,
     # OpenAPI/Swagger schema generation
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Rate limiting - protects against abuse/DDoS
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',       # Anonymous users: 100 requests/hour
+        'user': '1000/hour',      # Authenticated users: 1000 requests/hour
+    },
+    # Exception handling
+    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
 }
 
 # JWT Settings
@@ -489,18 +503,18 @@ Q_CLUSTER = {
 # 🏢 PERSONALIZATION - LogistikoCRM Configuration
 # ==============================================================================
 
-# Company Information
-COMPANY_NAME = "D.P. Accounting - Λογιστικό Γραφείο"
-COMPANY_SHORT_NAME = "Δ. Δίπλας"
-COMPANY_WEBSITE = "https://dpeconsolutions.gr"  # ΘΑ ΤΟ ΑΛΛΑΞΕΙΣ
-COMPANY_PHONE = "+30 24310 76322"  # ΘΑ ΤΟ ΑΛΛΑΞΕΙΣ
-COMPANY_ADDRESS = "Τρίκαλα, Ελλάδα"
+# Company Information - Configure via environment variables
+COMPANY_NAME = os.getenv('COMPANY_NAME', 'Λογιστικό Γραφείο')
+COMPANY_SHORT_NAME = os.getenv('COMPANY_SHORT_NAME', 'Λογιστήριο')
+COMPANY_WEBSITE = os.getenv('COMPANY_WEBSITE', '')
+COMPANY_PHONE = os.getenv('COMPANY_PHONE', '')
+COMPANY_ADDRESS = os.getenv('COMPANY_ADDRESS', '')
 
-# Accountant Information
-ACCOUNTANT_NAME = "Δημήτρης Δίπλας"
-ACCOUNTANT_TITLE = "Λογιστής - Φοροτεχνικός"
-ACCOUNTANT_EMAIL = EMAIL_HOST_USER  # Uses the email above
-ACCOUNTANT_PHONE = COMPANY_PHONE
+# Accountant Information - Configure via environment variables
+ACCOUNTANT_NAME = os.getenv('ACCOUNTANT_NAME', '')
+ACCOUNTANT_TITLE = os.getenv('ACCOUNTANT_TITLE', 'Λογιστής')
+ACCOUNTANT_EMAIL = os.getenv('ACCOUNTANT_EMAIL', EMAIL_HOST_USER)
+ACCOUNTANT_PHONE = os.getenv('ACCOUNTANT_PHONE', COMPANY_PHONE)
 
 # Email Template Defaults
 EMAIL_SIGNATURE = f"""
@@ -607,3 +621,97 @@ TASMOTA_DOOR_PULSE_DURATION = float(os.environ.get('TASMOTA_DOOR_PULSE_DURATION'
 # ==================== Fritz!Box VoIP Monitor Authentication ====================
 # SECURITY: Token for Fritz!Box monitor webhook authentication
 FRITZ_API_TOKEN = os.environ.get('FRITZ_API_TOKEN', 'change-this-token-in-production')
+
+# ==============================================================================
+# 📦 CACHING CONFIGURATION
+# ==============================================================================
+# Redis cache for improved performance (uses same Redis as Celery)
+REDIS_CACHE_URL = os.environ.get('REDIS_CACHE_URL', 'redis://localhost:6379/1')
+
+# Try to use Redis, fallback to database cache
+try:
+    import django_redis  # noqa: F401
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_CACHE_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'RETRY_ON_TIMEOUT': True,
+            },
+            'KEY_PREFIX': 'logistikocrm',
+        }
+    }
+    # Use Redis for sessions too (faster)
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
+except ImportError:
+    # Fallback to database cache if django-redis not installed
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache_table',
+        }
+    }
+
+# Cache timeouts (seconds)
+CACHE_TTL_SHORT = 60 * 5       # 5 minutes - for frequently changing data
+CACHE_TTL_MEDIUM = 60 * 60     # 1 hour - for moderately changing data
+CACHE_TTL_LONG = 60 * 60 * 24  # 24 hours - for rarely changing data
+
+# ==============================================================================
+# 🔒 PRODUCTION SECURITY SETTINGS
+# ==============================================================================
+# These settings are automatically applied when DEBUG=False
+if not DEBUG:
+    # Require proper SECRET_KEY in production
+    if SECRET_KEY == 'default-key-for-development':
+        import warnings
+        warnings.warn(
+            'WARNING: Using default SECRET_KEY in production! '
+            'Set SECRET_KEY environment variable.',
+            RuntimeWarning
+        )
+
+    # HSTS (HTTP Strict Transport Security)
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # HTTPS redirect
+    SECURE_SSL_REDIRECT = True
+
+    # Secure cookies
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+
+    # Security headers
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+
+    # CORS - strict origins only in production
+    CORS_ALLOW_ALL_ORIGINS = False
+
+# Always enable HttpOnly for session cookies (good practice)
+SESSION_COOKIE_HTTPONLY = True
+
+# ==============================================================================
+# 📤 FILE UPLOAD SETTINGS
+# ==============================================================================
+MAX_UPLOAD_SIZE = int(os.environ.get('MAX_UPLOAD_SIZE', 10 * 1024 * 1024))  # 10MB default
+
+# Allowed file extensions for upload
+ALLOWED_UPLOAD_EXTENSIONS = [
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+    '.jpg', '.jpeg', '.png', '.gif',
+    '.txt', '.csv', '.zip', '.rar',
+]
+
+# Blocked extensions (security)
+BLOCKED_UPLOAD_EXTENSIONS = [
+    '.exe', '.sh', '.bat', '.cmd', '.com', '.msi',
+    '.vbs', '.js', '.jar', '.py', '.php', '.asp',
+]

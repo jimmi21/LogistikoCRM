@@ -100,6 +100,10 @@ class ObligationListSerializer(serializers.ModelSerializer):
 
     def get_documents_count(self, obj):
         """Return count of documents attached to this obligation"""
+        # Use annotated value if available (avoids N+1 queries)
+        if hasattr(obj, '_documents_count'):
+            return obj._documents_count
+        # Fallback for detail view or non-annotated querysets
         return ClientDocument.objects.filter(
             client=obj.client,
             obligation=obj
@@ -248,10 +252,20 @@ class ObligationViewSet(viewsets.ModelViewSet):
         return ObligationDetailSerializer
 
     def get_queryset(self):
-        """Optimize queryset with select_related"""
-        return super().get_queryset().select_related(
+        """Optimize queryset with select_related and annotations"""
+        from django.db.models import Count
+
+        queryset = super().get_queryset().select_related(
             'client', 'obligation_type', 'completed_by', 'assigned_to'
         )
+
+        # Add document count annotation to avoid N+1 queries
+        if self.action == 'list':
+            queryset = queryset.annotate(
+                _documents_count=Count('documents', distinct=True)
+            )
+
+        return queryset
 
     @action(detail=True, methods=['patch'])
     def complete(self, request, pk=None):

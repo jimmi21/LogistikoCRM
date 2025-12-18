@@ -95,7 +95,12 @@ class ClientProfile(models.Model):
     class Meta:
         verbose_name = 'Προφίλ Πελάτη'
         verbose_name_plural = 'Προφίλ Πελατών'
-        
+        indexes = [
+            models.Index(fields=['afm'], name='client_afm_idx'),
+            models.Index(fields=['is_active', 'eponimia'], name='client_active_name_idx'),
+            models.Index(fields=['company'], name='client_company_idx'),
+        ]
+
     def __str__(self):
         return f"{self.afm} - {self.eponimia}"
 
@@ -429,7 +434,15 @@ class MonthlyObligation(models.Model):
         verbose_name_plural = 'Μηνιαίες Υποχρεώσεις'
         unique_together = ['client', 'obligation_type', 'year', 'month']
         ordering = ['deadline', 'client__eponimia']
-        
+        indexes = [
+            models.Index(fields=['status', 'deadline'], name='mo_status_deadline_idx'),
+            models.Index(fields=['client', 'year', 'month'], name='mo_client_ym_idx'),
+            models.Index(fields=['deadline', 'status'], name='mo_deadline_status_idx'),
+            models.Index(fields=['-deadline'], name='mo_deadline_desc_idx'),
+            models.Index(fields=['completed_by', 'completed_date'], name='mo_completed_idx'),
+            models.Index(fields=['assigned_to', 'status'], name='mo_assigned_status_idx'),
+        ]
+
     def __str__(self):
         return f"{self.client.eponimia} - {self.obligation_type.name} ({self.month}/{self.year})"
     
@@ -913,7 +926,11 @@ class ScheduledEmail(models.Model):
         verbose_name = 'Προγραμματισμένο Email'
         verbose_name_plural = 'Προγραμματισμένα Email'
         ordering = ['send_at']
-    
+        indexes = [
+            models.Index(fields=['status', 'send_at'], name='email_status_send_idx'),
+            models.Index(fields=['client', 'status'], name='email_client_status_idx'),
+        ]
+
     def __str__(self):
         count = self.recipient_count
         if count == 1:

@@ -394,20 +394,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
         year = request.data.get('year')
         month = request.data.get('month')
 
-        # Validate files
-        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.zip']
-        max_size = 10 * 1024 * 1024  # 10MB
+        # Validate files using common utilities
+        from django.core.exceptions import ValidationError
+        from common.utils.file_validation import validate_file_upload, sanitize_filename
 
         uploaded_docs = []
         errors = []
 
         for f in files:
-            ext = os.path.splitext(f.name)[1].lower()
-            if ext not in allowed_extensions:
-                errors.append(f'{f.name}: Μη επιτρεπτός τύπος αρχείου')
-                continue
-            if f.size > max_size:
-                errors.append(f'{f.name}: Υπερβαίνει το όριο 10MB')
+            try:
+                validate_file_upload(f)
+                f.name = sanitize_filename(f.name)
+            except ValidationError as e:
+                errors.append(f'{f.name}: {str(e.message) if hasattr(e, "message") else str(e)}')
                 continue
 
             doc = ClientDocument(
