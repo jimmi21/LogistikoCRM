@@ -29,7 +29,16 @@ import {
   Mail,
   FileSignature,
 } from 'lucide-react';
-import { FolderTreeNode, CategoryMeta } from '../types/filingSettings';
+import { FolderTreeNode } from '../types/filingSettings';
+
+// Category with metadata (defined locally to avoid import issues)
+interface CategoryMeta {
+  value: string;
+  label: string;
+  icon: string;
+  color: string;
+  group: 'permanent' | 'monthly' | 'yearend';
+}
 
 // ============================================
 // ICON MAPPING
