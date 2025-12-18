@@ -21,7 +21,7 @@ import {
   Info,
   ChevronLeft,
 } from 'lucide-react';
-import Layout from '../components/Layout';
+import { Layout } from '../components/layout';
 import { MiniTreePreview } from '../components/FolderTreeView';
 import { useFilingSettings, useFolderPreview } from '../hooks/useFilingSettings';
 
