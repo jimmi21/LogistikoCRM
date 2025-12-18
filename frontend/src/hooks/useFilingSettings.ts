@@ -5,13 +5,82 @@
 
 import { useState, useCallback } from 'react';
 import axios from 'axios';
-import {
-  FilingSystemSettings,
-  FolderTreeNode,
-  CategoryMeta,
-  GroupedCategories,
-  UpdateFilingSettingsRequest,
-} from '../types/filingSettings';
+
+// Types defined locally to avoid import issues
+type FolderStructure = 'standard' | 'year_first' | 'category_first' | 'flat' | 'custom';
+type FileNamingConvention = 'original' | 'structured' | 'date_prefix' | 'afm_prefix';
+
+interface FilingSystemSettings {
+  id: number;
+  archive_root: string;
+  archive_root_display: string;
+  use_network_storage: boolean;
+  folder_structure: FolderStructure;
+  custom_folder_template: string;
+  use_greek_month_names: boolean;
+  enable_permanent_folder: boolean;
+  permanent_folder_name: string;
+  enable_yearend_folder: boolean;
+  yearend_folder_name: string;
+  document_categories: Record<string, string>;
+  all_categories: Record<string, string>;
+  permanent_categories: Record<string, string>;
+  monthly_categories: Record<string, string>;
+  yearend_categories: Record<string, string>;
+  file_naming_convention: FileNamingConvention;
+  retention_years: number;
+  auto_archive_years: number;
+  enable_retention_warnings: boolean;
+  allowed_extensions: string;
+  max_file_size_mb: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FolderTreeNode {
+  name: string;
+  type: 'client' | 'permanent' | 'year' | 'month' | 'yearend' | 'category';
+  client_id?: number;
+  year?: number;
+  month?: number;
+  children?: FolderTreeNode[];
+  document_count?: number;
+  isExpanded?: boolean;
+  isLoading?: boolean;
+}
+
+interface CategoryMeta {
+  value: string;
+  label: string;
+  icon: string;
+  color: string;
+  group: 'permanent' | 'monthly' | 'yearend';
+}
+
+interface GroupedCategories {
+  permanent: CategoryMeta[];
+  monthly: CategoryMeta[];
+  yearend: CategoryMeta[];
+}
+
+interface UpdateFilingSettingsRequest {
+  use_network_storage?: boolean;
+  archive_root?: string;
+  folder_structure?: FolderStructure;
+  custom_folder_template?: string;
+  use_greek_month_names?: boolean;
+  enable_permanent_folder?: boolean;
+  permanent_folder_name?: string;
+  enable_yearend_folder?: boolean;
+  yearend_folder_name?: string;
+  document_categories?: Record<string, string>;
+  file_naming_convention?: FileNamingConvention;
+  retention_years?: number;
+  auto_archive_years?: number;
+  enable_retention_warnings?: boolean;
+  allowed_extensions?: string;
+  max_file_size_mb?: number;
+}
 
 const API_BASE = '/accounting/settings/api';
 

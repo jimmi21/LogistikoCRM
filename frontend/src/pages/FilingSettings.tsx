@@ -24,13 +24,52 @@ import {
 import Layout from '../components/Layout';
 import { MiniTreePreview } from '../components/FolderTreeView';
 import { useFilingSettings, useFolderPreview } from '../hooks/useFilingSettings';
-import {
-  FilingSystemSettings,
-  FolderStructure,
-  FileNamingConvention,
-  FOLDER_STRUCTURE_CHOICES,
-  FILE_NAMING_CHOICES,
-} from '../types/filingSettings';
+
+// Types defined locally to avoid import issues
+type FolderStructure = 'standard' | 'year_first' | 'category_first' | 'flat' | 'custom';
+type FileNamingConvention = 'original' | 'structured' | 'date_prefix' | 'afm_prefix';
+
+interface FilingSystemSettings {
+  id: number;
+  archive_root: string;
+  archive_root_display: string;
+  use_network_storage: boolean;
+  folder_structure: FolderStructure;
+  custom_folder_template: string;
+  use_greek_month_names: boolean;
+  enable_permanent_folder: boolean;
+  permanent_folder_name: string;
+  enable_yearend_folder: boolean;
+  yearend_folder_name: string;
+  document_categories: Record<string, string>;
+  all_categories: Record<string, string>;
+  permanent_categories: Record<string, string>;
+  monthly_categories: Record<string, string>;
+  yearend_categories: Record<string, string>;
+  file_naming_convention: FileNamingConvention;
+  retention_years: number;
+  auto_archive_years: number;
+  enable_retention_warnings: boolean;
+  allowed_extensions: string;
+  max_file_size_mb: number;
+  created_at: string;
+  updated_at: string;
+}
+
+const FOLDER_STRUCTURE_CHOICES: { value: FolderStructure; label: string; description: string }[] = [
+  { value: 'standard', label: 'Τυπική', description: 'ΑΦΜ_Επωνυμία/Έτος/Μήνας/Κατηγορία' },
+  { value: 'year_first', label: 'Πρώτα Έτος', description: 'Έτος/ΑΦΜ_Επωνυμία/Μήνας/Κατηγορία' },
+  { value: 'category_first', label: 'Πρώτα Κατηγορία', description: 'Κατηγορία/ΑΦΜ_Επωνυμία/Έτος/Μήνας' },
+  { value: 'flat', label: 'Επίπεδη', description: 'ΑΦΜ_Επωνυμία/Κατηγορία' },
+  { value: 'custom', label: 'Προσαρμοσμένη', description: 'Δικό σας template' },
+];
+
+const FILE_NAMING_CHOICES: { value: FileNamingConvention; label: string; example: string }[] = [
+  { value: 'original', label: 'Αρχικό όνομα', example: 'invoice.pdf' },
+  { value: 'structured', label: 'Δομημένο', example: '20250115_123456789_vat_invoice.pdf' },
+  { value: 'date_prefix', label: 'Ημ/νία + Αρχικό', example: '20250115_invoice.pdf' },
+  { value: 'afm_prefix', label: 'ΑΦΜ + Αρχικό', example: '123456789_invoice.pdf' },
+];
 
 const FilingSettingsPage: React.FC = () => {
   const navigate = useNavigate();
