@@ -26,6 +26,19 @@ else:  # development
     # Δέχεται όλες τις IPs για εύκολο local development
     ALLOWED_HOSTS = ['*']
 
+    # IMPORTANT: Reset production security settings for development
+    # These may have been set in settings.py's "if not DEBUG:" block
+    # before this file had a chance to set DEBUG = True
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+
+    # Allow all CORS origins in development
+    CORS_ALLOW_ALL_ORIGINS = True
+
 # Αυτόματη ανίχνευση τοπικής IP για CSRF
 def get_local_ip():
     """Βρίσκει την τοπική IP του server"""
