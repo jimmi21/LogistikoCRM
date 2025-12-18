@@ -11,7 +11,7 @@ from settings.models import MassmailSettings
 from settings.models import PublicEmailDomain
 from settings.models import Reminders
 from settings.models import StopPhrase
-from settings.models import BackupSettings, BackupHistory
+from settings.models import BackupSettings, BackupHistory, FilingSystemSettings
 
 
 class BannedCompanyNameAdmin(admin.ModelAdmin):
@@ -264,3 +264,72 @@ class BackupHistoryAdmin(admin.ModelAdmin):
 
 admin.site.register(BackupSettings, BackupSettingsAdmin)
 admin.site.register(BackupHistory, BackupHistoryAdmin)
+
+
+class FilingSystemSettingsAdmin(admin.ModelAdmin):
+    """Admin για ρυθμίσεις Συστήματος Αρχειοθέτησης - Singleton."""
+
+    list_display = ['archive_root_display', 'folder_structure', 'retention_years', 'updated_at']
+
+    fieldsets = (
+        ('Τοποθεσία Αρχειοθέτησης', {
+            'fields': ('use_network_storage', 'archive_root'),
+            'description': 'Ρύθμιση κοινόχρηστου φακέλου δικτύου για αρχειοθέτηση'
+        }),
+        ('Δομή Φακέλων', {
+            'fields': ('folder_structure', 'custom_folder_template', 'use_greek_month_names'),
+            'description': 'Επιλέξτε πώς θα οργανωθούν οι φάκελοι πελατών'
+        }),
+        ('Ειδικοί Φάκελοι', {
+            'fields': (
+                ('enable_permanent_folder', 'permanent_folder_name'),
+                ('enable_yearend_folder', 'yearend_folder_name'),
+            ),
+            'description': 'Μόνιμα έγγραφα (συμβάσεις) και ετήσιες δηλώσεις (Ε1, Ε3)'
+        }),
+        ('Κατηγορίες Εγγράφων', {
+            'fields': ('document_categories',),
+            'classes': ('collapse',),
+            'description': 'Επιπλέον κατηγορίες σε μορφή JSON {"code": "label"}'
+        }),
+        ('Ονοματολογία Αρχείων', {
+            'fields': ('file_naming_convention',),
+            'description': 'Τρόπος μετονομασίας αρχείων κατά το upload'
+        }),
+        ('Πολιτική Διατήρησης', {
+            'fields': ('retention_years', 'auto_archive_years', 'enable_retention_warnings'),
+            'description': 'Νόμος 4308/2014: Ελάχιστα 5 έτη διατήρησης'
+        }),
+        ('Ασφάλεια Αρχείων', {
+            'fields': ('allowed_extensions', 'max_file_size_mb'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def archive_root_display(self, obj):
+        if obj.use_network_storage and obj.archive_root:
+            return format_html(
+                '<span style="color:#059669;">🌐 {}</span>',
+                obj.archive_root[:40] + '...' if len(obj.archive_root) > 40 else obj.archive_root
+            )
+        return format_html('<span style="color:#6b7280;">📁 Local (MEDIA_ROOT)</span>')
+    archive_root_display.short_description = 'Τοποθεσία'
+
+    def changelist_view(self, request, extra_context=None):
+        # Redirect to singleton edit page
+        FilingSystemSettings.get_settings()  # Ensure exists
+        return HttpResponseRedirect(request.path + "1/change/")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    class Media:
+        css = {
+            'all': ('css/admin-filing.css',)
+        }
+
+
+admin.site.register(FilingSystemSettings, FilingSystemSettingsAdmin)

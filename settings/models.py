@@ -2,6 +2,338 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 import os
+import json
+
+
+class FilingSystemSettings(models.Model):
+    """
+    Ρυθμίσεις Συστήματος Αρχειοθέτησης - Singleton model.
+
+    Επιτρέπει την προσαρμογή της δομής φακέλων και των
+    κανόνων αρχειοθέτησης για το λογιστικό γραφείο.
+    """
+
+    class Meta:
+        verbose_name = _('Ρυθμίσεις Αρχειοθέτησης')
+        verbose_name_plural = _('Ρυθμίσεις Αρχειοθέτησης')
+
+    # === Βασικές Ρυθμίσεις ===
+    archive_root = models.CharField(
+        'Φάκελος Αρχειοθέτησης',
+        max_length=500,
+        default='',
+        blank=True,
+        help_text='Κοινόχρηστος φάκελος (π.χ. /mnt/nas/logistiko/ ή Z:\\Logistiko\\). '
+                  'Κενό = χρήση MEDIA_ROOT'
+    )
+
+    use_network_storage = models.BooleanField(
+        'Χρήση Δικτυακού Φακέλου',
+        default=False,
+        help_text='Ενεργοποίηση αποθήκευσης σε κοινόχρηστο φάκελο δικτύου'
+    )
+
+    # === Δομή Φακέλων ===
+    FOLDER_STRUCTURE_CHOICES = [
+        ('standard', 'Τυπική (ΑΦΜ_Επωνυμία/Έτος/Μήνας/Κατηγορία)'),
+        ('year_first', 'Πρώτα Έτος (Έτος/ΑΦΜ_Επωνυμία/Μήνας/Κατηγορία)'),
+        ('category_first', 'Πρώτα Κατηγορία (Κατηγορία/ΑΦΜ_Επωνυμία/Έτος/Μήνας)'),
+        ('flat', 'Επίπεδη (ΑΦΜ_Επωνυμία/Κατηγορία)'),
+        ('custom', 'Προσαρμοσμένη'),
+    ]
+
+    folder_structure = models.CharField(
+        'Δομή Φακέλων',
+        max_length=20,
+        choices=FOLDER_STRUCTURE_CHOICES,
+        default='standard',
+        help_text='Επιλογή τρόπου οργάνωσης φακέλων'
+    )
+
+    custom_folder_template = models.CharField(
+        'Προσαρμοσμένο Template',
+        max_length=255,
+        default='{afm}_{name}/{year}/{month:02d}/{category}',
+        blank=True,
+        help_text='Template φακέλου. Μεταβλητές: {afm}, {name}, {year}, {month}, {category}, {month_name}'
+    )
+
+    # === Μόνιμος Φάκελος ===
+    enable_permanent_folder = models.BooleanField(
+        'Μόνιμος Φάκελος (00_ΜΟΝΙΜΑ)',
+        default=True,
+        help_text='Δημιουργία φακέλου για μόνιμα έγγραφα (συμβάσεις, καταστατικό, κλπ)'
+    )
+
+    permanent_folder_name = models.CharField(
+        'Όνομα Μόνιμου Φακέλου',
+        max_length=50,
+        default='00_ΜΟΝΙΜΑ',
+        help_text='Χρήση 00_ για να εμφανίζεται πρώτος στη λίστα'
+    )
+
+    # === Ετήσιος Φάκελος ===
+    enable_yearend_folder = models.BooleanField(
+        'Φάκελος Ετήσιων Δηλώσεων',
+        default=True,
+        help_text='Δημιουργία φακέλου 13_ΕΤΗΣΙΑ για ετήσιες δηλώσεις (Ε1, Ε2, Ε3, ΕΝΦΙΑ)'
+    )
+
+    yearend_folder_name = models.CharField(
+        'Όνομα Φακέλου Ετήσιων',
+        max_length=50,
+        default='13_ΕΤΗΣΙΑ',
+        help_text='Χρήση 13_ για να εμφανίζεται μετά τους μήνες'
+    )
+
+    # === Κατηγορίες Εγγράφων ===
+    document_categories = models.JSONField(
+        'Κατηγορίες Εγγράφων',
+        default=dict,
+        blank=True,
+        help_text='JSON με επιπλέον κατηγορίες {code: label}'
+    )
+
+    # === Ονοματολογία Αρχείων ===
+    FILE_NAMING_CHOICES = [
+        ('original', 'Αρχικό όνομα'),
+        ('structured', 'Δομημένο (YYYYMMDD_ΑΦΜ_Κατηγορία_Όνομα)'),
+        ('date_prefix', 'Ημ/νία + Αρχικό (YYYYMMDD_Όνομα)'),
+        ('afm_prefix', 'ΑΦΜ + Αρχικό (ΑΦΜ_Όνομα)'),
+    ]
+
+    file_naming_convention = models.CharField(
+        'Κανόνας Ονοματολογίας',
+        max_length=20,
+        choices=FILE_NAMING_CHOICES,
+        default='original',
+        help_text='Τρόπος μετονομασίας αρχείων κατά το upload'
+    )
+
+    # === Πολιτική Διατήρησης ===
+    retention_years = models.PositiveIntegerField(
+        'Έτη Διατήρησης',
+        default=5,
+        help_text='Ελάχιστα έτη διατήρησης εγγράφων (νόμος: 5 έτη, παράταση: 20 έτη)'
+    )
+
+    auto_archive_years = models.PositiveIntegerField(
+        'Αυτόματη Αρχειοθέτηση (έτη)',
+        default=0,
+        help_text='Μετακίνηση σε Archive μετά από Χ έτη (0 = απενεργοποιημένο)'
+    )
+
+    enable_retention_warnings = models.BooleanField(
+        'Προειδοποιήσεις Διατήρησης',
+        default=True,
+        help_text='Ειδοποίηση για έγγραφα που πλησιάζουν τη λήξη διατήρησης'
+    )
+
+    # === Ασφάλεια ===
+    allowed_extensions = models.CharField(
+        'Επιτρεπόμενες Καταλήξεις',
+        max_length=500,
+        default='.pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv,.xml',
+        help_text='Καταλήξεις αρχείων διαχωρισμένες με κόμμα'
+    )
+
+    max_file_size_mb = models.PositiveIntegerField(
+        'Μέγιστο Μέγεθος (MB)',
+        default=10,
+        help_text='Μέγιστο μέγεθος αρχείου σε MB'
+    )
+
+    # === Μήνες Ελληνικά ===
+    use_greek_month_names = models.BooleanField(
+        'Ελληνικά Ονόματα Μηνών',
+        default=False,
+        help_text='Χρήση 01_Ιανουάριος αντί για 01'
+    )
+
+    # === Metadata ===
+    created_at = models.DateTimeField('Δημιουργήθηκε', auto_now_add=True)
+    updated_at = models.DateTimeField('Ενημερώθηκε', auto_now=True)
+
+    # === Greek Month Names ===
+    GREEK_MONTHS = {
+        1: 'Ιανουάριος',
+        2: 'Φεβρουάριος',
+        3: 'Μάρτιος',
+        4: 'Απρίλιος',
+        5: 'Μάιος',
+        6: 'Ιούνιος',
+        7: 'Ιούλιος',
+        8: 'Αύγουστος',
+        9: 'Σεπτέμβριος',
+        10: 'Οκτώβριος',
+        11: 'Νοέμβριος',
+        12: 'Δεκέμβριος',
+    }
+
+    # === Default Categories ===
+    DEFAULT_CATEGORIES = {
+        # Μόνιμα
+        'registration': 'Ιδρυτικά Έγγραφα',
+        'contracts': 'Συμβάσεις',
+        'licenses': 'Άδειες & Πιστοποιητικά',
+        # Μηνιαία
+        'vat': 'ΦΠΑ',
+        'apd': 'ΑΠΔ/ΕΦΚΑ',
+        'myf': 'ΜΥΦ',
+        'payroll': 'Μισθοδοσία',
+        'invoices_issued': 'Εκδοθέντα Τιμολόγια',
+        'invoices_received': 'Ληφθέντα Τιμολόγια',
+        'bank': 'Τραπεζικά',
+        'receipts': 'Αποδείξεις',
+        # Ετήσια
+        'e1': 'Ε1 - Φόρος Εισοδήματος',
+        'e2': 'Ε2 - Ακίνητα',
+        'e3': 'Ε3 - Οικονομικά Στοιχεία',
+        'enfia': 'ΕΝΦΙΑ',
+        'balance': 'Ισολογισμός',
+        'audit': 'Έλεγχοι',
+        # Γενικά
+        'correspondence': 'Αλληλογραφία',
+        'general': 'Γενικά',
+    }
+
+    def save(self, *args, **kwargs):
+        # Singleton pattern
+        if not self.pk and FilingSystemSettings.objects.exists():
+            existing = FilingSystemSettings.objects.first()
+            self.pk = existing.pk
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        """Επιστρέφει τις ρυθμίσεις ή δημιουργεί default."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def get_archive_root(self):
+        """Επιστρέφει το root path για αρχειοθέτηση."""
+        if self.use_network_storage and self.archive_root:
+            return self.archive_root
+        return os.environ.get('ARCHIVE_ROOT', str(settings.MEDIA_ROOT))
+
+    def get_allowed_extensions_list(self):
+        """Επιστρέφει λίστα με επιτρεπόμενες καταλήξεις."""
+        return [ext.strip().lower() for ext in self.allowed_extensions.split(',') if ext.strip()]
+
+    def get_max_file_size_bytes(self):
+        """Επιστρέφει μέγιστο μέγεθος σε bytes."""
+        return self.max_file_size_mb * 1024 * 1024
+
+    def get_all_categories(self):
+        """Επιστρέφει όλες τις κατηγορίες (default + custom)."""
+        categories = self.DEFAULT_CATEGORIES.copy()
+        if self.document_categories:
+            categories.update(self.document_categories)
+        return categories
+
+    def get_month_folder_name(self, month_number):
+        """Επιστρέφει το όνομα φακέλου για τον μήνα."""
+        if self.use_greek_month_names:
+            return f"{month_number:02d}_{self.GREEK_MONTHS.get(month_number, '')}"
+        return f"{month_number:02d}"
+
+    def build_client_path(self, client, year=None, month=None, category=None):
+        """
+        Δημιουργεί το path για αρχεία πελάτη βάσει ρυθμίσεων.
+
+        Args:
+            client: ClientProfile instance
+            year: Έτος (optional)
+            month: Μήνας (optional)
+            category: Κατηγορία (optional)
+
+        Returns:
+            Relative path string
+        """
+        import re
+
+        # Καθαρισμός επωνυμίας
+        safe_name = re.sub(r'[^\w\s-]', '', client.eponimia)[:30]
+        safe_name = safe_name.replace(' ', '_').strip('_')
+
+        # Βασικό path πελάτη
+        if self.folder_structure == 'standard':
+            base = f"{client.afm}_{safe_name}"
+        elif self.folder_structure == 'year_first' and year:
+            base = f"{year}/{client.afm}_{safe_name}"
+        elif self.folder_structure == 'category_first' and category:
+            base = f"{category}/{client.afm}_{safe_name}"
+        elif self.folder_structure == 'custom':
+            base = self.custom_folder_template.format(
+                afm=client.afm,
+                name=safe_name,
+                year=year or '',
+                month=month or '',
+                month_name=self.GREEK_MONTHS.get(month, '') if month else '',
+                category=category or ''
+            )
+        else:
+            base = f"{client.afm}_{safe_name}"
+
+        # Προσθήκη year/month/category
+        parts = ['clients', base]
+
+        if year and self.folder_structure not in ['year_first', 'flat', 'custom']:
+            parts.append(str(year))
+
+        if month and self.folder_structure not in ['flat', 'custom']:
+            parts.append(self.get_month_folder_name(month))
+
+        if category and self.folder_structure not in ['category_first', 'custom']:
+            parts.append(category)
+
+        return os.path.join(*parts)
+
+    def generate_filename(self, original_filename, client=None, category=None, date=None):
+        """
+        Δημιουργεί το όνομα αρχείου βάσει κανόνα ονοματολογίας.
+        """
+        from datetime import datetime
+        import re
+
+        if self.file_naming_convention == 'original':
+            return original_filename
+
+        # Εξαγωγή βασικού ονόματος και κατάληξης
+        name, ext = os.path.splitext(original_filename)
+        safe_name = re.sub(r'[^\w\s-]', '', name)[:50]
+
+        date_str = (date or datetime.now()).strftime('%Y%m%d')
+
+        if self.file_naming_convention == 'structured':
+            afm = client.afm if client else ''
+            cat = category or ''
+            return f"{date_str}_{afm}_{cat}_{safe_name}{ext}"
+
+        elif self.file_naming_convention == 'date_prefix':
+            return f"{date_str}_{safe_name}{ext}"
+
+        elif self.file_naming_convention == 'afm_prefix':
+            afm = client.afm if client else ''
+            return f"{afm}_{safe_name}{ext}"
+
+        return original_filename
+
+    def get_permanent_folder_categories(self):
+        """Κατηγορίες για τον μόνιμο φάκελο."""
+        return ['registration', 'contracts', 'licenses', 'correspondence']
+
+    def get_yearend_folder_categories(self):
+        """Κατηγορίες για τον ετήσιο φάκελο."""
+        return ['e1', 'e2', 'e3', 'enfia', 'balance', 'audit']
+
+    def get_monthly_folder_categories(self):
+        """Κατηγορίες για μηνιαίους φακέλους."""
+        return ['vat', 'apd', 'myf', 'payroll', 'invoices_issued',
+                'invoices_received', 'bank', 'receipts', 'general']
+
+    def __str__(self):
+        return f"Filing System Settings (Root: {self.get_archive_root()[:50]}...)"
 
 
 class BackupSettings(models.Model):
