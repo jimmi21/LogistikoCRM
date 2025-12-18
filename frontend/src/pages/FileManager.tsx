@@ -587,15 +587,29 @@ function PreviewModal({
   const isPdf = document.file_type.toLowerCase() === 'pdf';
   const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(document.file_type.toLowerCase());
 
+  const handleOpenInNewTab = () => {
+    if (document.file_url) {
+      window.open(document.file_url, '_blank');
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={document.filename} size="xl">
       <div className="min-h-[60vh]">
         {isPdf && document.file_url && (
-          <iframe
-            src={document.file_url}
-            className="w-full h-[70vh] border-0"
-            title={document.filename}
-          />
+          <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500">
+            <FileIcon fileType="pdf" size={80} />
+            <p className="mt-4 text-lg font-medium">{document.filename}</p>
+            <p className="text-sm text-gray-400 mt-1">{document.file_size_display}</p>
+            <div className="flex gap-3 mt-6">
+              <Button onClick={handleOpenInNewTab}>
+                <Eye size={16} className="mr-2" /> Άνοιγμα σε νέα καρτέλα
+              </Button>
+              <Button variant="secondary" onClick={() => downloadDocument(document.id, document.filename)}>
+                <Download size={16} className="mr-2" /> Λήψη
+              </Button>
+            </div>
+          </div>
         )}
         {isImage && document.file_url && (
           <div className="flex justify-center items-center h-[70vh]">

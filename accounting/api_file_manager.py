@@ -48,7 +48,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, NumberFilter, CharFilter, BooleanFilter
 from django.db.models import Q, Count, Sum
@@ -350,7 +350,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     filterset_class = DocumentFilter
     ordering_fields = ['uploaded_at', 'filename', 'file_size', 'year', 'month']
     ordering = ['-uploaded_at']
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         return super().get_queryset().select_related(
