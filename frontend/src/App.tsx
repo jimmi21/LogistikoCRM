@@ -26,6 +26,7 @@ import {
 } from './pages';
 import Backup from './pages/Backup';
 import FileManager from './pages/FileManager';
+import FilingSettings from './pages/FilingSettings';
 import SharedLinkPortal from './pages/SharedLinkPortal';
 
 // Create a client for React Query
@@ -220,6 +221,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <EmailSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/filing"
+            element={
+              <ProtectedRoute>
+                <FilingSettings />
               </ProtectedRoute>
             }
           />

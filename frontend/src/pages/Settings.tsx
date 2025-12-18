@@ -17,6 +17,7 @@ import {
   Loader2,
   RefreshCw,
   HardDrive,
+  FolderTree,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useToast } from '../components/Toast';
@@ -468,6 +469,27 @@ export default function Settings() {
                         <div>
                           <h3 className="font-semibold text-gray-900">Backup & Restore</h3>
                           <p className="text-sm text-gray-500">Αντίγραφα ασφαλείας</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="text-gray-400" size={20} />
+                    </div>
+                  </Link>
+                )}
+
+                {/* Filing System Settings - Only for staff/superuser */}
+                {user?.is_staff && (
+                  <Link
+                    to="/settings/filing"
+                    className="block bg-white rounded-lg border border-gray-200 p-6 hover:border-cyan-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
+                          <FolderTree size={24} className="text-cyan-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Αρχειοθέτηση</h3>
+                          <p className="text-sm text-gray-500">Δομή φακέλων & ρυθμίσεις</p>
                         </div>
                       </div>
                       <ChevronRight className="text-gray-400" size={20} />

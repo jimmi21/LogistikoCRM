@@ -45,29 +45,99 @@ export interface FileManagerDocument {
   shared_links_count: number;
 }
 
-// Document categories
+// Document categories - Extended for accounting firms
 export type DocumentCategory =
+  // Permanent (00_ΜΟΝΙΜΑ)
+  | 'registration'
   | 'contracts'
-  | 'invoices'
-  | 'tax'
-  | 'myf'
+  | 'licenses'
+  | 'correspondence'
+  // Monthly
   | 'vat'
   | 'apd'
+  | 'myf'
   | 'payroll'
+  | 'invoices_issued'
+  | 'invoices_received'
+  | 'bank'
+  | 'receipts'
+  // Year-end (13_ΕΤΗΣΙΑ)
+  | 'e1'
+  | 'e2'
+  | 'e3'
+  | 'enfia'
+  | 'balance'
+  | 'audit'
+  // Legacy & General
+  | 'invoices'
+  | 'tax'
   | 'efka'
   | 'general';
 
-export const DOCUMENT_CATEGORIES: { value: DocumentCategory; label: string; icon: string; color: string }[] = [
-  { value: 'contracts', label: 'Συμβάσεις', icon: 'file-signature', color: '#8B5CF6' },
-  { value: 'invoices', label: 'Τιμολόγια', icon: 'receipt', color: '#10B981' },
-  { value: 'tax', label: 'Φορολογικά', icon: 'landmark', color: '#F59E0B' },
-  { value: 'myf', label: 'ΜΥΦ', icon: 'file-spreadsheet', color: '#3B82F6' },
-  { value: 'vat', label: 'ΦΠΑ', icon: 'percent', color: '#EF4444' },
-  { value: 'apd', label: 'ΑΠΔ', icon: 'users', color: '#6366F1' },
-  { value: 'payroll', label: 'Μισθοδοσία', icon: 'wallet', color: '#EC4899' },
-  { value: 'efka', label: 'ΕΦΚΑ', icon: 'shield', color: '#14B8A6' },
-  { value: 'general', label: 'Γενικά', icon: 'folder', color: '#6B7280' },
+// Category group type
+export type CategoryGroup = 'permanent' | 'monthly' | 'yearend';
+
+export interface DocumentCategoryMeta {
+  value: DocumentCategory;
+  label: string;
+  icon: string;
+  color: string;
+  group: CategoryGroup;
+}
+
+// Permanent categories (00_ΜΟΝΙΜΑ)
+export const PERMANENT_CATEGORIES: DocumentCategoryMeta[] = [
+  { value: 'registration', label: 'Ιδρυτικά Έγγραφα', icon: 'building-2', color: '#8B5CF6', group: 'permanent' },
+  { value: 'contracts', label: 'Συμβάσεις', icon: 'file-signature', color: '#A855F7', group: 'permanent' },
+  { value: 'licenses', label: 'Άδειες & Πιστοποιητικά', icon: 'badge-check', color: '#9333EA', group: 'permanent' },
+  { value: 'correspondence', label: 'Αλληλογραφία', icon: 'mail', color: '#7C3AED', group: 'permanent' },
 ];
+
+// Monthly categories
+export const MONTHLY_CATEGORIES: DocumentCategoryMeta[] = [
+  { value: 'vat', label: 'ΦΠΑ', icon: 'percent', color: '#EF4444', group: 'monthly' },
+  { value: 'apd', label: 'ΑΠΔ/ΕΦΚΑ', icon: 'users', color: '#6366F1', group: 'monthly' },
+  { value: 'myf', label: 'ΜΥΦ', icon: 'file-spreadsheet', color: '#3B82F6', group: 'monthly' },
+  { value: 'payroll', label: 'Μισθοδοσία', icon: 'wallet', color: '#EC4899', group: 'monthly' },
+  { value: 'invoices_issued', label: 'Εκδοθέντα Τιμολόγια', icon: 'file-output', color: '#10B981', group: 'monthly' },
+  { value: 'invoices_received', label: 'Ληφθέντα Τιμολόγια', icon: 'file-input', color: '#14B8A6', group: 'monthly' },
+  { value: 'bank', label: 'Τραπεζικά', icon: 'landmark', color: '#0EA5E9', group: 'monthly' },
+  { value: 'receipts', label: 'Αποδείξεις', icon: 'receipt', color: '#22C55E', group: 'monthly' },
+  { value: 'general', label: 'Γενικά', icon: 'folder', color: '#6B7280', group: 'monthly' },
+];
+
+// Year-end categories (13_ΕΤΗΣΙΑ)
+export const YEAREND_CATEGORIES: DocumentCategoryMeta[] = [
+  { value: 'e1', label: 'Ε1 - Φόρος Εισοδήματος', icon: 'file-text', color: '#F59E0B', group: 'yearend' },
+  { value: 'e2', label: 'Ε2 - Ακίνητα', icon: 'home', color: '#F97316', group: 'yearend' },
+  { value: 'e3', label: 'Ε3 - Οικονομικά Στοιχεία', icon: 'bar-chart-3', color: '#FB923C', group: 'yearend' },
+  { value: 'enfia', label: 'ΕΝΦΙΑ', icon: 'building', color: '#FBBF24', group: 'yearend' },
+  { value: 'balance', label: 'Ισολογισμός', icon: 'scale', color: '#FCD34D', group: 'yearend' },
+  { value: 'audit', label: 'Έλεγχοι', icon: 'clipboard-check', color: '#FDE047', group: 'yearend' },
+];
+
+// All categories combined (for dropdowns)
+export const DOCUMENT_CATEGORIES: DocumentCategoryMeta[] = [
+  ...PERMANENT_CATEGORIES,
+  ...MONTHLY_CATEGORIES,
+  ...YEAREND_CATEGORIES,
+  // Legacy for backwards compatibility
+  { value: 'invoices', label: 'Τιμολόγια', icon: 'receipt', color: '#10B981', group: 'monthly' },
+  { value: 'tax', label: 'Φορολογικά', icon: 'landmark', color: '#F59E0B', group: 'yearend' },
+  { value: 'efka', label: 'ΕΦΚΑ', icon: 'shield', color: '#14B8A6', group: 'monthly' },
+];
+
+// Grouped categories for UI
+export const GROUPED_CATEGORIES = {
+  permanent: PERMANENT_CATEGORIES,
+  monthly: MONTHLY_CATEGORIES,
+  yearend: YEAREND_CATEGORIES,
+};
+
+// Helper function to get category metadata
+export function getCategoryMeta(code: DocumentCategory): DocumentCategoryMeta | undefined {
+  return DOCUMENT_CATEGORIES.find(c => c.value === code);
+}
 
 // Shared Link
 export interface SharedLink {
