@@ -10,6 +10,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views_main as views
 from . import api_auth
+from .views.notifications import api_notifications
 from .api_clients import ClientViewSet
 from .api_obligations import ObligationViewSet, ObligationTypeViewSet
 from .api_dashboard import (
@@ -176,7 +177,7 @@ urlpatterns = [
     # NOTIFICATIONS
 
     path("notifications/", views.get_notifications, name="notifications"),
-    path("api/notifications/", views.api_notifications, name="api_notifications"),
+    path("api/notifications/", api_notifications, name="api_notifications"),
 
     # OBLIGATION ACTIONS
     path("obligation/<int:obligation_id>/", views.obligation_detail_view, name="obligation_detail"),
@@ -265,7 +266,7 @@ urlpatterns = [
     # ============================================
     # NOTIFICATIONS API (v1) - JWT authenticated
     # ============================================
-    path("api/v1/notifications/", views.api_notifications, name="api_v1_notifications"),
+    path("api/v1/notifications/", api_notifications, name="api_v1_notifications"),
 
     # ============================================
     # GSIS API (v1) - Αναζήτηση στοιχείων με ΑΦΜ
