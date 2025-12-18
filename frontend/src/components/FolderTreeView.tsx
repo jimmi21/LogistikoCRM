@@ -29,9 +29,19 @@ import {
   Mail,
   FileSignature,
 } from 'lucide-react';
-import { FolderTreeNode } from '../types/filingSettings';
+// Types defined locally to avoid import issues with filingSettings.ts
+export interface FolderTreeNode {
+  name: string;
+  type: 'client' | 'permanent' | 'year' | 'month' | 'yearend' | 'category';
+  client_id?: number;
+  year?: number;
+  month?: number;
+  children?: FolderTreeNode[];
+  document_count?: number;
+  isExpanded?: boolean;
+  isLoading?: boolean;
+}
 
-// Category with metadata (defined locally to avoid import issues)
 interface CategoryMeta {
   value: string;
   label: string;
