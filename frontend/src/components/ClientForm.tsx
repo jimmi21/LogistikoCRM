@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Search, Loader2, Check } from 'lucide-react';
 import { Button } from './Button';
-import { validateAfm } from '../utils/afm';
+import { validateAfm, validateAfmChecksum } from '../utils/afm';
 import { gsisApi, type AFMData } from '../api/client';
 import type { Client, ClientFormData } from '../types';
 import { TAXPAYER_TYPES } from '../types';
@@ -31,6 +31,7 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
     imerominia_enarksis: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({});
+  const [afmChecksumWarning, setAfmChecksumWarning] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [fetchedData, setFetchedData] = useState<AFMData | null>(null);
@@ -110,6 +111,11 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
       newErrors.afm = 'Μη έγκυρο ΑΦΜ (πρέπει να είναι 9 ψηφία)';
     }
 
+    // Check checksum and set warning (doesn't block submission)
+    if (formData.afm && validateAfm(formData.afm)) {
+      setAfmChecksumWarning(!validateAfmChecksum(formData.afm));
+    }
+
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Μη έγκυρη διεύθυνση email';
     }
@@ -183,9 +189,16 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
             id="afm"
             value={formData.afm}
             onChange={(e) => {
-              handleChange('afm', e.target.value.replace(/\D/g, '').slice(0, 9));
+              const newAfm = e.target.value.replace(/\D/g, '').slice(0, 9);
+              handleChange('afm', newAfm);
               setLookupMessage(null);
               setFetchedData(null);
+              // Check checksum warning in real-time
+              if (newAfm.length === 9) {
+                setAfmChecksumWarning(!validateAfmChecksum(newAfm));
+              } else {
+                setAfmChecksumWarning(false);
+              }
             }}
             className={`flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono ${
               errors.afm ? 'border-red-500' : 'border-gray-300'
@@ -208,6 +221,11 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
           </Button>
         </div>
         {errors.afm && <p className="mt-1 text-sm text-red-500">{errors.afm}</p>}
+        {!errors.afm && afmChecksumWarning && (
+          <p className="mt-1 text-sm text-amber-600">
+            ⚠️ Το ΑΦΜ δεν περνάει τον έλεγχο checksum - μπορεί να είναι παλαιό ή ειδικό ΑΦΜ
+          </p>
+        )}
         {lookupMessage && (
           <p className={`mt-1 text-sm flex items-center gap-1 ${
             lookupMessage.type === 'success' ? 'text-green-600' : 'text-red-500'

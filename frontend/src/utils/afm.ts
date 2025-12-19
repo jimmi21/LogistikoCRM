@@ -1,9 +1,18 @@
 /**
- * Επικυρώνει ελληνικό ΑΦΜ (9 ψηφία, έλεγχος checksum)
- * Validates Greek Tax ID (AFM) - 9 digits with checksum validation
+ * Επικυρώνει ελληνικό ΑΦΜ (9 ψηφία)
+ * Validates Greek Tax ID (AFM) - 9 digits
+ * Returns true if format is valid (allows saving)
  */
 export function validateAfm(afm: string): boolean {
   // Check length and if all digits
+  return afm.length === 9 && /^\d{9}$/.test(afm);
+}
+
+/**
+ * Ελέγχει αν το ΑΦΜ περνάει τον αλγόριθμο checksum
+ * Returns true if checksum passes, false if it fails (warning only)
+ */
+export function validateAfmChecksum(afm: string): boolean {
   if (afm.length !== 9 || !/^\d{9}$/.test(afm)) {
     return false;
   }
