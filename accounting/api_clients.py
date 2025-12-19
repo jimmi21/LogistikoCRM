@@ -170,16 +170,22 @@ class ClientCreateUpdateSerializer(serializers.ModelSerializer):
 
     def validate_afm(self, value):
         """Validate Greek AFM (Tax ID)"""
+        # Strip whitespace
+        value = value.strip()
+
         if len(value) != 9 or not value.isdigit():
             raise serializers.ValidationError(
                 "Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία."
             )
-        # AFM checksum validation
+
+        # AFM checksum validation (warning only, not blocking)
         total = sum(int(value[i]) * (2 ** (8 - i)) for i in range(8))
         check_digit = (total % 11) % 10
         if check_digit != int(value[8]):
-            raise serializers.ValidationError(
-                "Μη έγκυρο ΑΦΜ - αποτυχία ελέγχου checksum."
+            # Log warning but allow saving (some valid AFMs may fail checksum)
+            import logging
+            logging.getLogger(__name__).warning(
+                f"AFM {value} failed checksum validation (expected {check_digit}, got {value[8]})"
             )
         return value
 

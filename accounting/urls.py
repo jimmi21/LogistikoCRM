@@ -174,10 +174,10 @@ urlpatterns = [
     path('open-door/', views.open_door, name='open_door'),
     path('door-control/', views.door_control, name='door_control'),   
     
-    # NOTIFICATIONS
-
+    # NOTIFICATIONS (Django admin views)
     path("notifications/", views.get_notifications, name="notifications"),
-    path("api/notifications/", views.get_notifications, name="api_notifications"),
+    # REST API notifications (JWT authenticated - for React frontend)
+    path("api/notifications/", notifications_list, name="api_notifications"),
 
     # OBLIGATION ACTIONS
     path("obligation/<int:obligation_id>/", views.obligation_detail_view, name="obligation_detail"),
