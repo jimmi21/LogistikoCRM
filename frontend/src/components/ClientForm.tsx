@@ -127,7 +127,12 @@ export function ClientForm({ client, onSubmit, onCancel, isLoading = false }: Cl
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit(formData);
+      // Convert empty date strings to null for Django DateField compatibility
+      const dataToSubmit = {
+        ...formData,
+        imerominia_enarksis: formData.imerominia_enarksis || null,
+      };
+      onSubmit(dataToSubmit);
     }
   };
 
