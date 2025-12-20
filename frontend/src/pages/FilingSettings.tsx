@@ -6,13 +6,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Settings,
   FolderTree,
   Save,
   RefreshCw,
   HardDrive,
   Network,
-  Calendar,
   FileText,
   Shield,
   Clock,
@@ -21,13 +19,10 @@ import {
   Info,
   ChevronLeft,
 } from 'lucide-react';
-import Layout from '../components/Layout';
 import { MiniTreePreview } from '../components/FolderTreeView';
 import { useFilingSettings, useFolderPreview } from '../hooks/useFilingSettings';
+import type { FilingSystemSettings } from '../types/filingSettings';
 import {
-  FilingSystemSettings,
-  FolderStructure,
-  FileNamingConvention,
   FOLDER_STRUCTURE_CHOICES,
   FILE_NAMING_CHOICES,
 } from '../types/filingSettings';
@@ -35,7 +30,7 @@ import {
 const FilingSettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { settings, loading, error, fetchSettings, updateSettings } = useFilingSettings();
-  const { structure, loading: previewLoading, fetchPreview } = useFolderPreview();
+  const { structure, fetchPreview } = useFolderPreview();
 
   // Form state
   const [formData, setFormData] = useState<Partial<FilingSystemSettings>>({});
@@ -88,17 +83,14 @@ const FilingSettingsPage: React.FC = () => {
 
   if (loading && !settings) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
-        </div>
-      </Layout>
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -510,7 +502,6 @@ const FilingSettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </Layout>
   );
 };
 
