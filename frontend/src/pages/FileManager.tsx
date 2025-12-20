@@ -637,11 +637,273 @@ function PreviewModal({
   );
 }
 
+// Folder Browser Sidebar Component
+function FolderBrowserSidebar({
+  isOpen,
+  onClose,
+  onNavigate,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onNavigate: (filters: { client_id?: number; year?: number; month?: number }) => void;
+}) {
+  const [selectedClient, setSelectedClient] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+
+  // Build browse params based on selection
+  const browseParams = useMemo(() => {
+    if (!selectedClient) return {};
+    if (!selectedYear) return { client_id: selectedClient };
+    if (!selectedMonth) return { client_id: selectedClient, year: selectedYear };
+    return { client_id: selectedClient, year: selectedYear, month: selectedMonth };
+  }, [selectedClient, selectedYear, selectedMonth]);
+
+  const { data: browseData, isLoading: isBrowsing } = useBrowseFolders(browseParams);
+
+  const handleBack = useCallback(() => {
+    if (selectedMonth) {
+      setSelectedMonth(null);
+    } else if (selectedYear) {
+      setSelectedYear(null);
+    } else if (selectedClient) {
+      setSelectedClient(null);
+    }
+  }, [selectedClient, selectedYear, selectedMonth]);
+
+  const handleSelectClient = (clientId: number) => {
+    setSelectedClient(clientId);
+    setSelectedYear(null);
+    setSelectedMonth(null);
+  };
+
+  const handleSelectYear = (year: string) => {
+    setSelectedYear(year);
+    setSelectedMonth(null);
+  };
+
+  const handleSelectMonth = (month: string) => {
+    setSelectedMonth(month);
+  };
+
+  const handleApplyFilter = () => {
+    onNavigate({
+      client_id: selectedClient || undefined,
+      year: selectedYear ? parseInt(selectedYear) : undefined,
+      month: selectedMonth ? parseInt(selectedMonth) : undefined,
+    });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  // Breadcrumb path
+  const breadcrumbs: { label: string; onClick: () => void }[] = [
+    { label: 'Πελάτες', onClick: () => { setSelectedClient(null); setSelectedYear(null); setSelectedMonth(null); } },
+  ];
+  if (browseData?.type === 'years' || browseData?.type === 'months' || browseData?.type === 'documents') {
+    breadcrumbs.push({
+      label: browseData.client.eponimia,
+      onClick: () => { setSelectedYear(null); setSelectedMonth(null); },
+    });
+  }
+  if ((browseData?.type === 'months' || browseData?.type === 'documents') && selectedYear) {
+    breadcrumbs.push({
+      label: selectedYear,
+      onClick: () => setSelectedMonth(null),
+    });
+  }
+  if (browseData?.type === 'documents' && selectedMonth) {
+    breadcrumbs.push({
+      label: GREEK_MONTHS[parseInt(selectedMonth) - 1] || selectedMonth,
+      onClick: () => {},
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex">
+      {/* Overlay */}
+      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+
+      {/* Sidebar */}
+      <div className="relative w-96 bg-white h-full shadow-xl flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="text-blue-500" size={20} />
+            <h2 className="font-semibold text-gray-900">Περιήγηση Φακέλων</h2>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded">
+            <X size={20} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Breadcrumbs */}
+        <div className="px-4 py-2 border-b bg-gray-50 flex items-center gap-1 text-sm overflow-x-auto">
+          {breadcrumbs.map((crumb, index) => (
+            <div key={index} className="flex items-center gap-1 shrink-0">
+              {index > 0 && <ChevronRight size={14} className="text-gray-400" />}
+              <button
+                onClick={crumb.onClick}
+                className={`hover:text-blue-600 ${index === breadcrumbs.length - 1 ? 'text-blue-600 font-medium' : 'text-gray-600'}`}
+              >
+                {crumb.label}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Back button */}
+        {selectedClient && (
+          <div className="px-4 py-2 border-b">
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600"
+            >
+              <ChevronRight size={16} className="rotate-180" />
+              Πίσω
+            </button>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {isBrowsing ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            </div>
+          ) : browseData?.type === 'clients' ? (
+            <div className="space-y-1">
+              <p className="text-sm text-gray-500 mb-3">Επιλέξτε πελάτη για περιήγηση:</p>
+              {browseData.clients.length === 0 ? (
+                <p className="text-gray-400 text-center py-4">Δεν βρέθηκαν πελάτες με αρχεία</p>
+              ) : (
+                browseData.clients.map((client) => (
+                  <button
+                    key={client.id}
+                    onClick={() => handleSelectClient(client.id)}
+                    className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FolderOpen size={20} className="text-yellow-500" />
+                      <div className="text-left">
+                        <p className="font-medium text-gray-900">{client.eponimia}</p>
+                        <p className="text-xs text-gray-500">{client.afm}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">
+                        {client.document_count} αρχεία
+                      </span>
+                      <ChevronRight size={16} className="text-gray-400" />
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : browseData?.type === 'years' ? (
+            <div className="space-y-1">
+              <p className="text-sm text-gray-500 mb-3">Επιλέξτε έτος:</p>
+              {browseData.years.length === 0 ? (
+                <p className="text-gray-400 text-center py-4">Δεν βρέθηκαν αρχεία</p>
+              ) : (
+                browseData.years.map((year) => (
+                  <button
+                    key={year.year}
+                    onClick={() => handleSelectYear(String(year.year))}
+                    className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FolderOpen size={20} className="text-blue-500" />
+                      <span className="font-medium text-gray-900">{year.year}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">
+                        {year.count} αρχεία
+                      </span>
+                      <ChevronRight size={16} className="text-gray-400" />
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : browseData?.type === 'months' ? (
+            <div className="space-y-1">
+              <p className="text-sm text-gray-500 mb-3">Επιλέξτε μήνα:</p>
+              {browseData.months.length === 0 ? (
+                <p className="text-gray-400 text-center py-4">Δεν βρέθηκαν αρχεία</p>
+              ) : (
+                browseData.months.map((m) => (
+                  <button
+                    key={m.month}
+                    onClick={() => handleSelectMonth(String(m.month))}
+                    className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FolderOpen size={20} className="text-green-500" />
+                      <span className="font-medium text-gray-900">
+                        {String(m.month).padStart(2, '0')} - {GREEK_MONTHS[m.month - 1]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">
+                        {m.count} αρχεία
+                      </span>
+                      <ChevronRight size={16} className="text-gray-400" />
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : browseData?.type === 'documents' ? (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-500 mb-3">
+                Έγγραφα ({browseData.documents.length}):
+              </p>
+              {browseData.documents.length === 0 ? (
+                <p className="text-gray-400 text-center py-4">Δεν βρέθηκαν έγγραφα</p>
+              ) : (
+                browseData.documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 border border-gray-100"
+                  >
+                    <FileIcon fileType={doc.file_type} size={20} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{doc.filename}</p>
+                      <p className="text-xs text-gray-500">{doc.file_size_display}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-4">Φόρτωση...</p>
+          )}
+        </div>
+
+        {/* Apply filter button */}
+        {selectedClient && (
+          <div className="p-4 border-t bg-gray-50">
+            <Button onClick={handleApplyFilter} className="w-full">
+              <Filter size={16} className="mr-2" />
+              Εμφάνιση αρχείων
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Main FileManager component
 export default function FileManager() {
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // Folder browser state
+  const [folderBrowserOpen, setFolderBrowserOpen] = useState(false);
 
   // Filter state
   const [filters, setFilters] = useState<DocumentFilters>({
@@ -775,6 +1037,31 @@ export default function FileManager() {
     }
   }, [documents, selectedIds.size]);
 
+  // Handler for folder browser navigation
+  const handleFolderNavigate = useCallback((newFilters: { client_id?: number; year?: number; month?: number }) => {
+    setFilters((prev) => ({
+      ...prev,
+      client_id: newFilters.client_id,
+      year: newFilters.year,
+      month: newFilters.month,
+      page: 1,
+    }));
+  }, []);
+
+  // Clear folder filter
+  const clearFolderFilter = useCallback(() => {
+    setFilters((prev) => ({
+      ...prev,
+      client_id: undefined,
+      year: undefined,
+      month: undefined,
+      page: 1,
+    }));
+  }, []);
+
+  // Check if folder filter is active
+  const hasFolderFilter = filters.client_id || filters.year || filters.month;
+
   return (
     <>
       <div className="p-6">
@@ -790,6 +1077,9 @@ export default function FileManager() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={() => setFolderBrowserOpen(true)}>
+              <FolderOpen size={16} className="mr-2" /> Περιήγηση
+            </Button>
             <Button variant="secondary" onClick={() => refetch()}>
               <RefreshCw size={16} className="mr-2" /> Ανανέωση
             </Button>
@@ -798,6 +1088,27 @@ export default function FileManager() {
             </Button>
           </div>
         </div>
+
+        {/* Active folder filter banner */}
+        {hasFolderFilter && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-700">
+              <FolderOpen size={18} />
+              <span>
+                Φίλτρο φακέλου:
+                {filters.client_id && ' Πελάτης'}
+                {filters.year && ` / ${filters.year}`}
+                {filters.month && ` / ${GREEK_MONTHS[(filters.month || 1) - 1]}`}
+              </span>
+            </div>
+            <button
+              onClick={clearFolderFilter}
+              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+            >
+              <X size={16} /> Καθαρισμός
+            </button>
+          </div>
+        )}
 
         {/* Stats */}
         {stats && (
@@ -1059,6 +1370,12 @@ export default function FileManager() {
       </div>
 
       {/* Modals */}
+      <FolderBrowserSidebar
+        isOpen={folderBrowserOpen}
+        onClose={() => setFolderBrowserOpen(false)}
+        onNavigate={handleFolderNavigate}
+      />
+
       <UploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
