@@ -1165,7 +1165,20 @@ def email_settings_send_test(request):
 
     if not settings_obj.is_active:
         return Response(
-            {'error': 'Οι ρυθμίσεις email είναι απενεργοποιημένες'},
+            {'success': False, 'message': 'Οι ρυθμίσεις email είναι απενεργοποιημένες'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Validate required settings before sending
+    if not settings_obj.from_email:
+        return Response(
+            {'success': False, 'message': 'Δεν έχει οριστεί Email Αποστολέα (from_email). Συμπληρώστε το πεδίο "Email Αποστολέα" και αποθηκεύστε.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not settings_obj.smtp_host:
+        return Response(
+            {'success': False, 'message': 'Δεν έχει οριστεί SMTP Server. Συμπληρώστε τις ρυθμίσεις SMTP.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 

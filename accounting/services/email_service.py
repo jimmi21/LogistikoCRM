@@ -387,6 +387,13 @@ class EmailService:
             # Get email settings from database (preferred) or Django settings (fallback)
             db_settings, from_email, from_name, smtp_config = EmailService._get_email_settings()
 
+            # Validate from_email is set
+            if not from_email:
+                raise ValueError(
+                    "Email Αποστολέα (from_email) δεν έχει οριστεί. "
+                    "Συμπληρώστε το πεδίο 'Email Αποστολέα' στις Ρυθμίσεις Email."
+                )
+
             # Check if using console backend (for testing)
             is_console_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('console.EmailBackend')
             is_locmem_backend = getattr(settings, 'EMAIL_BACKEND', '').endswith('locmem.EmailBackend')
