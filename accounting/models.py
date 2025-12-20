@@ -2592,3 +2592,68 @@ class DoorAccessLog(models.Model):
             user_agent=user_agent,
             response_data=response_data
         )
+
+
+class TasmotaSettings(models.Model):
+    """
+    Ρυθμίσεις Tasmota για έλεγχο πόρτας.
+    Singleton model - μόνο μία εγγραφή επιτρέπεται.
+    """
+    ip_address = models.GenericIPAddressField(
+        'IP Διεύθυνση',
+        default='192.168.1.100',
+        help_text='Η IP διεύθυνση της συσκευής Tasmota'
+    )
+    port = models.PositiveIntegerField(
+        'Port',
+        default=80,
+        help_text='Η θύρα της συσκευής (συνήθως 80)'
+    )
+    device_name = models.CharField(
+        'Όνομα Συσκευής',
+        max_length=100,
+        default='Πόρτα Γραφείου',
+        help_text='Φιλικό όνομα για εμφάνιση'
+    )
+    is_enabled = models.BooleanField(
+        'Ενεργοποιημένο',
+        default=True,
+        help_text='Αν είναι απενεργοποιημένο, το κουμπί δεν θα εμφανίζεται'
+    )
+    timeout = models.PositiveIntegerField(
+        'Timeout (sec)',
+        default=5,
+        help_text='Χρόνος αναμονής για απάντηση'
+    )
+    updated_at = models.DateTimeField(
+        'Τελευταία Ενημέρωση',
+        auto_now=True
+    )
+
+    class Meta:
+        verbose_name = 'Ρυθμίσεις Tasmota'
+        verbose_name_plural = 'Ρυθμίσεις Tasmota'
+
+    def __str__(self):
+        status = "✓" if self.is_enabled else "✗"
+        return f"{status} {self.device_name} ({self.ip_address})"
+
+    def save(self, *args, **kwargs):
+        """Singleton pattern - διασφαλίζει μόνο μία εγγραφή"""
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Δεν επιτρέπεται διαγραφή"""
+        pass
+
+    @classmethod
+    def get_settings(cls):
+        """Επιστρέφει τις ρυθμίσεις ή δημιουργεί default"""
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def base_url(self):
+        """Επιστρέφει το base URL της συσκευής"""
+        return f"http://{self.ip_address}:{self.port}"

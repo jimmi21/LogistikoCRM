@@ -64,6 +64,11 @@ from .api_door import (
     door_pulse as api_door_pulse,
     door_access_logs as api_door_logs,
 )
+from .api_tasmota_settings import (
+    tasmota_settings_get,
+    tasmota_settings_update,
+    tasmota_settings_test,
+)
 from .api_gsis import (
     afm_lookup,
     gsis_settings_status,
@@ -262,6 +267,13 @@ urlpatterns = [
     path("api/v1/door/open/", api_door_open, name="api_v1_door_open"),
     path("api/v1/door/pulse/", api_door_pulse, name="api_v1_door_pulse"),
     path("api/v1/door/logs/", api_door_logs, name="api_v1_door_logs"),
+
+    # ============================================
+    # TASMOTA SETTINGS API (v1) - JWT authenticated
+    # ============================================
+    path("api/v1/settings/tasmota/", tasmota_settings_get, name="api_v1_tasmota_settings"),
+    path("api/v1/settings/tasmota/update/", tasmota_settings_update, name="api_v1_tasmota_settings_update"),
+    path("api/v1/settings/tasmota/test/", tasmota_settings_test, name="api_v1_tasmota_settings_test"),
 
     # ============================================
     # NOTIFICATIONS API (v1) - JWT authenticated

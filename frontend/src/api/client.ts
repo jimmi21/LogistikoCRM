@@ -221,6 +221,47 @@ export const gsisApi = {
   },
 };
 
+// Tasmota API - Ρυθμίσεις πόρτας IoT
+export interface TasmotaSettings {
+  ip_address: string;
+  port: number;
+  device_name: string;
+  is_enabled: boolean;
+  timeout: number;
+  updated_at: string | null;
+}
+
+export interface TasmotaTestResult {
+  success: boolean;
+  online: boolean;
+  message: string;
+  device_info?: {
+    device_name: string;
+    power: string;
+    friendly_name: string;
+  };
+}
+
+export const tasmotaApi = {
+  // Λήψη ρυθμίσεων
+  getSettings: async (): Promise<TasmotaSettings> => {
+    const response = await apiClient.get('api/v1/settings/tasmota/');
+    return response.data;
+  },
+
+  // Ενημέρωση ρυθμίσεων
+  updateSettings: async (data: Partial<TasmotaSettings>): Promise<TasmotaSettings & { success: boolean; message: string }> => {
+    const response = await apiClient.put('api/v1/settings/tasmota/update/', data);
+    return response.data;
+  },
+
+  // Δοκιμή σύνδεσης
+  testConnection: async (data?: { ip_address?: string; port?: number; timeout?: number }): Promise<TasmotaTestResult> => {
+    const response = await apiClient.post('api/v1/settings/tasmota/test/', data || {});
+    return response.data;
+  },
+};
+
 // myDATA API - ΦΠΑ από ΑΑΔΕ
 export interface VATRecord {
   id: number;

@@ -18,11 +18,12 @@ import {
   RefreshCw,
   HardDrive,
   FolderTree,
+  DoorOpen,
 } from 'lucide-react';
 import { Button } from '../components';
 import { useToast } from '../components/Toast';
 import { useAuthStore } from '../stores/authStore';
-import { gsisApi, authApi } from '../api/client';
+import { gsisApi, authApi, tasmotaApi, type TasmotaSettings as TasmotaSettingsType } from '../api/client';
 
 type SettingsTab = 'profile' | 'notifications' | 'security' | 'integrations';
 
@@ -116,9 +117,21 @@ export default function Settings() {
   const [gsisMessage, setGsisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showGsisModal, setShowGsisModal] = useState(false);
 
-  // Load GSIS status on mount
+  // Tasmota Settings State
+  const [tasmotaSettings, setTasmotaSettings] = useState<TasmotaSettingsType | null>(null);
+  const [tasmotaIp, setTasmotaIp] = useState('');
+  const [tasmotaPort, setTasmotaPort] = useState(80);
+  const [tasmotaName, setTasmotaName] = useState('');
+  const [tasmotaEnabled, setTasmotaEnabled] = useState(true);
+  const [tasmotaLoading, setTasmotaLoading] = useState(false);
+  const [tasmotaTesting, setTasmotaTesting] = useState(false);
+  const [tasmotaMessage, setTasmotaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showTasmotaModal, setShowTasmotaModal] = useState(false);
+
+  // Load GSIS and Tasmota status on mount
   useEffect(() => {
     loadGsisStatus();
+    loadTasmotaSettings();
   }, []);
 
   const loadGsisStatus = async () => {
@@ -191,6 +204,71 @@ export default function Settings() {
       setGsisMessage({ type: 'error', text: 'Αποτυχία δοκιμής σύνδεσης' });
     } finally {
       setGsisTesting(false);
+    }
+  };
+
+  // Tasmota Functions
+  const loadTasmotaSettings = async () => {
+    try {
+      const settings = await tasmotaApi.getSettings();
+      setTasmotaSettings(settings);
+      setTasmotaIp(settings.ip_address);
+      setTasmotaPort(settings.port);
+      setTasmotaName(settings.device_name);
+      setTasmotaEnabled(settings.is_enabled);
+    } catch (error) {
+      console.error('Failed to load Tasmota settings:', error);
+    }
+  };
+
+  const handleSaveTasmotaSettings = async () => {
+    // Validate IP
+    if (!tasmotaIp.trim()) {
+      setTasmotaMessage({ type: 'error', text: 'Η IP διεύθυνση είναι υποχρεωτική' });
+      return;
+    }
+
+    setTasmotaLoading(true);
+    setTasmotaMessage(null);
+
+    try {
+      await tasmotaApi.updateSettings({
+        ip_address: tasmotaIp,
+        port: tasmotaPort,
+        device_name: tasmotaName,
+        is_enabled: tasmotaEnabled,
+      });
+      setTasmotaMessage({ type: 'success', text: 'Οι ρυθμίσεις αποθηκεύτηκαν!' });
+      await loadTasmotaSettings();
+      setTimeout(() => setShowTasmotaModal(false), 1500);
+    } catch (error) {
+      setTasmotaMessage({ type: 'error', text: 'Αποτυχία αποθήκευσης ρυθμίσεων' });
+    } finally {
+      setTasmotaLoading(false);
+    }
+  };
+
+  const handleTestTasmotaConnection = async () => {
+    setTasmotaTesting(true);
+    setTasmotaMessage(null);
+
+    try {
+      const result = await tasmotaApi.testConnection({
+        ip_address: tasmotaIp,
+        port: tasmotaPort,
+      });
+      if (result.success && result.online) {
+        setTasmotaMessage({
+          type: 'success',
+          text: `${result.message} - ${result.device_info?.device_name || 'OK'}`
+        });
+      } else {
+        setTasmotaMessage({ type: 'error', text: result.message });
+      }
+    } catch (error) {
+      setTasmotaMessage({ type: 'error', text: 'Αποτυχία δοκιμής σύνδεσης' });
+    } finally {
+      setTasmotaTesting(false);
     }
   };
 
@@ -548,6 +626,35 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* Tasmota Door Control */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">Έλεγχος Πόρτας (Tasmota)</h3>
+
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${tasmotaSettings?.is_enabled ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <DoorOpen size={24} className={tasmotaSettings?.is_enabled ? 'text-green-600' : 'text-gray-600'} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{tasmotaSettings?.device_name || 'Πόρτα Γραφείου'}</p>
+                      <p className="text-sm text-gray-500">
+                        {tasmotaSettings?.is_enabled
+                          ? `IP: ${tasmotaSettings?.ip_address}:${tasmotaSettings?.port}`
+                          : 'Απενεργοποιημένο'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {tasmotaSettings?.is_enabled ? (
+                      <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Ενεργό</span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">Ανενεργό</span>
+                    )}
+                    <Button variant="secondary" size="sm" onClick={() => setShowTasmotaModal(true)}>Ρυθμίσεις</Button>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-6">Άλλες Ενσωματώσεις</h3>
 
@@ -722,6 +829,146 @@ export default function Settings() {
                   disabled={gsisLoading}
                 >
                   {gsisLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin mr-2" />
+                      Αποθήκευση...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} className="mr-2" />
+                      Αποθήκευση
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tasmota Settings Modal */}
+      {showTasmotaModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Ρυθμίσεις Tasmota - Πόρτα
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTasmotaModal(false);
+                  setTasmotaMessage(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Ρυθμίστε τη συσκευή Tasmota για έλεγχο της πόρτας του γραφείου.
+              </p>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-gray-900">Ενεργοποίηση</p>
+                  <p className="text-sm text-gray-500">Εμφάνιση κουμπιού πόρτας</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={tasmotaEnabled}
+                    onChange={(e) => setTasmotaEnabled(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Όνομα Συσκευής
+                </label>
+                <input
+                  type="text"
+                  value={tasmotaName}
+                  onChange={(e) => setTasmotaName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Πόρτα Γραφείου"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    IP Διεύθυνση *
+                  </label>
+                  <input
+                    type="text"
+                    value={tasmotaIp}
+                    onChange={(e) => setTasmotaIp(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="192.168.1.100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Port
+                  </label>
+                  <input
+                    type="number"
+                    value={tasmotaPort}
+                    onChange={(e) => setTasmotaPort(parseInt(e.target.value) || 80)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="80"
+                  />
+                </div>
+              </div>
+
+              {tasmotaMessage && (
+                <div className={`p-3 rounded-lg flex items-center gap-2 ${
+                  tasmotaMessage.type === 'success'
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-red-50 text-red-700'
+                }`}>
+                  {tasmotaMessage.type === 'success' ? <Check size={18} /> : <X size={18} />}
+                  {tasmotaMessage.text}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              <Button
+                variant="secondary"
+                onClick={handleTestTasmotaConnection}
+                disabled={!tasmotaIp || tasmotaTesting}
+              >
+                {tasmotaTesting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin mr-2" />
+                    Δοκιμή...
+                  </>
+                ) : (
+                  'Δοκιμή Σύνδεσης'
+                )}
+              </Button>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowTasmotaModal(false);
+                    setTasmotaMessage(null);
+                  }}
+                >
+                  Ακύρωση
+                </Button>
+                <Button
+                  onClick={handleSaveTasmotaSettings}
+                  disabled={tasmotaLoading}
+                >
+                  {tasmotaLoading ? (
                     <>
                       <Loader2 size={18} className="animate-spin mr-2" />
                       Αποθήκευση...

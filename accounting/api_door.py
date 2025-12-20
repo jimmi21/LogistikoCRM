@@ -7,6 +7,8 @@ Security features:
 - Rate limiting (10 actions per minute per user)
 - Audit logging for all door actions
 - Staff-only access for door control
+
+Configuration is stored in database via TasmotaSettings model.
 """
 
 import requests
@@ -15,15 +17,23 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.response import Response
-from django.conf import settings
+
+from .models import TasmotaSettings
 
 logger = logging.getLogger(__name__)
 
-# Tasmota configuration from settings
-TASMOTA_IP = getattr(settings, 'TASMOTA_IP', '192.168.1.100')
-TASMOTA_PORT = getattr(settings, 'TASMOTA_PORT', 80)
-TASMOTA_DOOR_PULSE_DURATION = getattr(settings, 'TASMOTA_DOOR_PULSE_DURATION', 0.5)
-TIMEOUT = 5
+
+def get_tasmota_config():
+    """Get Tasmota configuration from database"""
+    settings = TasmotaSettings.get_settings()
+    return {
+        'ip': settings.ip_address,
+        'port': settings.port,
+        'timeout': settings.timeout,
+        'enabled': settings.is_enabled,
+        'base_url': settings.base_url,
+        'device_name': settings.device_name,
+    }
 
 
 class DoorActionThrottle(UserRateThrottle):
@@ -69,15 +79,30 @@ def door_status(request):
 
     Returns:
         - success: bool
-        - status: "open" | "closed" | "error"
+        - status: "open" | "closed" | "error" | "disabled"
         - raw_power: "ON" | "OFF"
         - online: bool
+        - device_name: str
+        - enabled: bool
     """
-    try:
-        url = f"http://{TASMOTA_IP}:{TASMOTA_PORT}/cm?cmnd=Power"
+    config = get_tasmota_config()
 
-        logger.info(f"Checking door status at {TASMOTA_IP}")
-        response = requests.get(url, timeout=TIMEOUT)
+    # Check if door control is enabled
+    if not config['enabled']:
+        return Response({
+            'success': True,
+            'status': 'disabled',
+            'online': False,
+            'enabled': False,
+            'device_name': config['device_name'],
+            'message': 'Ο έλεγχος πόρτας είναι απενεργοποιημένος'
+        })
+
+    try:
+        url = f"{config['base_url']}/cm?cmnd=Power"
+
+        logger.info(f"Checking door status at {config['ip']}")
+        response = requests.get(url, timeout=config['timeout'])
 
         if response.status_code == 200:
             data = response.json()
@@ -89,7 +114,9 @@ def door_status(request):
                 'success': True,
                 'status': 'open' if power == 'ON' else 'closed',
                 'raw_power': power,
-                'online': True
+                'online': True,
+                'enabled': True,
+                'device_name': config['device_name'],
             }
             log_door_access(request, 'status', 'success', response_data)
             return Response(response_data)
@@ -98,27 +125,33 @@ def door_status(request):
                 'success': False,
                 'status': 'offline',
                 'online': False,
+                'enabled': True,
+                'device_name': config['device_name'],
                 'message': 'Αποτυχία επικοινωνίας με τη συσκευή'
             }
             log_door_access(request, 'status', 'failed', response_data)
             return Response(response_data)
 
     except requests.exceptions.Timeout:
-        logger.debug(f"Door status timeout at {TASMOTA_IP}")
+        logger.debug(f"Door status timeout at {config['ip']}")
         response_data = {
             'success': False,
             'status': 'offline',
             'online': False,
+            'enabled': True,
+            'device_name': config['device_name'],
             'message': 'Timeout - η συσκευή δεν απαντά'
         }
         log_door_access(request, 'status', 'timeout', response_data)
         return Response(response_data)
     except requests.exceptions.ConnectionError:
-        logger.debug(f"Door connection error at {TASMOTA_IP}")
+        logger.debug(f"Door connection error at {config['ip']}")
         response_data = {
             'success': False,
             'status': 'offline',
             'online': False,
+            'enabled': True,
+            'device_name': config['device_name'],
             'message': 'Δεν βρέθηκε η συσκευή'
         }
         log_door_access(request, 'status', 'offline', response_data)
@@ -129,6 +162,8 @@ def door_status(request):
             'success': False,
             'status': 'error',
             'online': False,
+            'enabled': True,
+            'device_name': config['device_name'],
             'message': str(e)
         }
         log_door_access(request, 'status', 'failed', response_data)
@@ -150,12 +185,22 @@ def door_open(request):
         - message: str (Greek)
         - new_status: "open" | "closed"
     """
+    config = get_tasmota_config()
+
+    # Check if enabled
+    if not config['enabled']:
+        return Response({
+            'success': False,
+            'message': 'Ο έλεγχος πόρτας είναι απενεργοποιημένος',
+            'enabled': False
+        }, status=400)
+
     try:
         # Toggle the relay
-        url = f"http://{TASMOTA_IP}:{TASMOTA_PORT}/cm?cmnd=Power%20Toggle"
+        url = f"{config['base_url']}/cm?cmnd=Power%20Toggle"
 
-        logger.info(f"User {request.user.username} toggling door at {TASMOTA_IP}")
-        response = requests.get(url, timeout=TIMEOUT)
+        logger.info(f"User {request.user.username} toggling door at {config['ip']}")
+        response = requests.get(url, timeout=config['timeout'])
 
         if response.status_code == 200:
             data = response.json()
@@ -219,14 +264,24 @@ def door_pulse(request):
     Requires: Staff/Admin user
 
     Optional body:
-        - duration: float (seconds, default from TASMOTA_DOOR_PULSE_DURATION setting)
+        - duration: float (seconds, default 0.5)
 
     Returns:
         - success: bool
         - message: str (Greek)
     """
+    config = get_tasmota_config()
+
+    # Check if enabled
+    if not config['enabled']:
+        return Response({
+            'success': False,
+            'message': 'Ο έλεγχος πόρτας είναι απενεργοποιημένος',
+            'enabled': False
+        }, status=400)
+
     try:
-        duration = float(request.data.get('duration', TASMOTA_DOOR_PULSE_DURATION))
+        duration = float(request.data.get('duration', 0.5))
 
         # Security: limit max pulse duration to 5 seconds
         if duration > 5:
@@ -238,14 +293,14 @@ def door_pulse(request):
         pulse_time = int(duration * 10)  # Tasmota uses deciseconds (0.1s units)
 
         # Set pulse time
-        set_pulse_url = f"http://{TASMOTA_IP}:{TASMOTA_PORT}/cm?cmnd=PulseTime1%20{pulse_time}"
-        requests.get(set_pulse_url, timeout=TIMEOUT)
+        set_pulse_url = f"{config['base_url']}/cm?cmnd=PulseTime1%20{pulse_time}"
+        requests.get(set_pulse_url, timeout=config['timeout'])
 
         # Trigger pulse
-        pulse_url = f"http://{TASMOTA_IP}:{TASMOTA_PORT}/cm?cmnd=Power%20ON"
+        pulse_url = f"{config['base_url']}/cm?cmnd=Power%20ON"
 
         logger.info(f"User {request.user.username} pulsing door for {duration}s")
-        response = requests.get(pulse_url, timeout=TIMEOUT)
+        response = requests.get(pulse_url, timeout=config['timeout'])
 
         if response.status_code == 200:
             logger.info(f"Door pulsed by {request.user.username}")

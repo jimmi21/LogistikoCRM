@@ -46,6 +46,12 @@ from .voip import (
     TicketAdmin,
 )
 
+# Tasmota/Door admins
+from .tasmota import (
+    TasmotaSettingsAdmin,
+    DoorAccessLogAdmin,
+)
+
 # Mixins (inline classes) - exported for potential reuse
 from .mixins import (
     VoIPCallInline,
@@ -88,6 +94,9 @@ __all__ = [
     'VoIPCallAdmin',
     'VoIPCallLogAdmin',
     'TicketAdmin',
+    # Tasmota/Door admins
+    'TasmotaSettingsAdmin',
+    'DoorAccessLogAdmin',
     # Mixins/Inlines
     'VoIPCallInline',
     'ClientProfileDocumentInline',

@@ -5,9 +5,11 @@ const DOOR_KEY = 'door-status';
 
 interface DoorStatusResponse {
   success: boolean;
-  status: 'open' | 'closed' | 'error';
+  status: 'open' | 'closed' | 'error' | 'disabled';
   raw_power?: string;
   online: boolean;
+  enabled?: boolean;
+  device_name?: string;
   message?: string;
 }
 
